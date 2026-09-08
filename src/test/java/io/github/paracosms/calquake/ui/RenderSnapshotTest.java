@@ -30,7 +30,7 @@ public class RenderSnapshotTest {
                 CaliforniaOutline outline = CaliforniaOutline.loadDefault();
 
                 MapCanvasPane pane = new MapCanvasPane(scenario, outline);
-                pane.resize(860, 730);
+                pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
                 pane.redrawStaticMap();
 
                 WritableImage image = pane.snapshot(null, null);
@@ -46,8 +46,36 @@ public class RenderSnapshotTest {
                 }
                 ImageIO.write(bImage, "png", file);
 
-                Color centerColor = image.getPixelReader().getColor((int) image.getWidth() / 2, (int) image.getHeight() / 2);
-                assertNotNull(centerColor);
+                // 1. Dimensions match baseline viewport
+                assertEquals((int) MapCanvasPane.BASELINE_VIEWPORT_WIDTH, imgW, "Snapshot width must match baseline");
+                assertEquals((int) MapCanvasPane.BASELINE_VIEWPORT_HEIGHT, imgH, "Snapshot height must match baseline");
+
+                // 2. Entire image must be 100% opaque
+                assertEquals(imgW * imgH, countOpaquePixels(image), "Every pixel in snapshot must be fully opaque");
+
+                // 3. Pacific ocean background is rendered at offshore coordinate (100, 200)
+                Color oceanSample = pr.getColor(100, 200);
+                assertEquals(0.886, oceanSample.getRed(), 0.05, "Pacific Ocean red channel must match #E2EDF6");
+                assertEquals(0.929, oceanSample.getGreen(), 0.05, "Pacific Ocean green channel must match #E2EDF6");
+                assertEquals(0.965, oceanSample.getBlue(), 0.05, "Pacific Ocean blue channel must match #E2EDF6");
+
+                // 4. Meaningful distribution of map elements
+                assertTrue(countOceanPixels(image) > 200_000,
+                        "Pacific Ocean background should cover > 200,000 pixels");
+                assertTrue(countLandFillPixels(image) > 50_000,
+                        "California landmass fill should cover > 50,000 pixels");
+                assertTrue(countDarkPixels(image) > 1_000,
+                        "Borders, graticule, and labels should render > 1,000 dark pixels");
+
+                // 5. Epicenter and marker badges are rendered
+                assertTrue(countRedPixels(image) > 10,
+                        "Epicenter marker red pixels should be visible");
+                assertTrue(countYellowPixels(image) > 20,
+                        "Ridgecrest / Trona peak MMI VII badge yellow pixels should be visible");
+                assertTrue(countCyanPixels(image) > 20,
+                        "Bakersfield / Los Angeles peak MMI IV badge cyan pixels should be visible");
+                assertTrue(countUniqueColors(image) > 50,
+                        "Snapshot should contain diverse color palette (> 50 distinct colors)");
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -64,7 +92,7 @@ public class RenderSnapshotTest {
             FrameState frame = engine.frameAt(30.0);
 
             MapCanvasPane pane = new MapCanvasPane(scenario, outline);
-            pane.resize(860.0, 730.0);
+            pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
             pane.refresh(frame);
 
             Canvas staticCanvas = (Canvas) pane.getChildren().get(0);
@@ -112,7 +140,7 @@ public class RenderSnapshotTest {
                 "Restoration changed too many rendered pixels: " + differentPixels);
     }
 
-    private static int countOpaquePixels(WritableImage image) {
+    static int countOpaquePixels(WritableImage image) {
         int count = 0;
         var pixels = image.getPixelReader();
         for (int y = 0; y < image.getHeight(); y++) {
@@ -125,7 +153,25 @@ public class RenderSnapshotTest {
         return count;
     }
 
-    private static int countLandFillPixels(WritableImage image) {
+    static int countOceanPixels(WritableImage image) {
+        int count = 0;
+        var pixels = image.getPixelReader();
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int argb = pixels.getArgb(x, y);
+                int red = (argb >>> 16) & 0xFF;
+                int green = (argb >>> 8) & 0xFF;
+                int blue = argb & 0xFF;
+                // #E2EDF6: R ~ 226, G ~ 237, B ~ 246
+                if (red >= 215 && red <= 235 && green >= 225 && green <= 245 && blue >= 235) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    static int countLandFillPixels(WritableImage image) {
         int count = 0;
         var pixels = image.getPixelReader();
         for (int y = 0; y < image.getHeight(); y++) {
@@ -142,7 +188,7 @@ public class RenderSnapshotTest {
         return count;
     }
 
-    private static int countDarkPixels(WritableImage image) {
+    static int countDarkPixels(WritableImage image) {
         int count = 0;
         var pixels = image.getPixelReader();
         for (int y = 0; y < image.getHeight(); y++) {
@@ -159,7 +205,61 @@ public class RenderSnapshotTest {
         return count;
     }
 
-    private static int countWavefrontPixels(WritableImage image) {
+    static int countRedPixels(WritableImage image) {
+        int count = 0;
+        var pixels = image.getPixelReader();
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int argb = pixels.getArgb(x, y);
+                int red = (argb >>> 16) & 0xFF;
+                int green = (argb >>> 8) & 0xFF;
+                int blue = argb & 0xFF;
+                // Red epicenter #DC2626
+                if (red > 180 && green < 60 && blue < 60) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    static int countYellowPixels(WritableImage image) {
+        int count = 0;
+        var pixels = image.getPixelReader();
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int argb = pixels.getArgb(x, y);
+                int red = (argb >>> 16) & 0xFF;
+                int green = (argb >>> 8) & 0xFF;
+                int blue = argb & 0xFF;
+                // Yellow badge #FFC400
+                if (red > 220 && green > 160 && green < 230 && blue < 50) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    static int countCyanPixels(WritableImage image) {
+        int count = 0;
+        var pixels = image.getPixelReader();
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int argb = pixels.getArgb(x, y);
+                int red = (argb >>> 16) & 0xFF;
+                int green = (argb >>> 8) & 0xFF;
+                int blue = argb & 0xFF;
+                // Cyan badge #7FFFFA
+                if (red < 160 && green > 220 && blue > 220) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    static int countWavefrontPixels(WritableImage image) {
         int count = 0;
         var pixels = image.getPixelReader();
         for (int y = 0; y < image.getHeight(); y++) {
@@ -176,5 +276,16 @@ public class RenderSnapshotTest {
             }
         }
         return count;
+    }
+
+    static int countUniqueColors(WritableImage image) {
+        java.util.Set<Integer> unique = new java.util.HashSet<>();
+        var pixels = image.getPixelReader();
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                unique.add(pixels.getArgb(x, y));
+            }
+        }
+        return unique.size();
     }
 }

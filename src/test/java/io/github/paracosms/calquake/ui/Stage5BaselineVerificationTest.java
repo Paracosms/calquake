@@ -67,7 +67,7 @@ class Stage5BaselineVerificationTest {
     /**
      * Independent haversine projection oracle calculation for control verification.
      */
-    private static ScreenPoint independentControlProject(GeoPoint target, GeoPoint origin, BoundingBox bbox, double w, double h, double margin) {
+    static ScreenPoint independentControlProject(GeoPoint target, GeoPoint origin, BoundingBox bbox, double w, double h, double margin) {
         double R = 6371.0;
         double phi0 = Math.toRadians(origin.latitude());
         double lam0 = Math.toRadians(origin.longitude());
@@ -129,39 +129,106 @@ class Stage5BaselineVerificationTest {
         assertEquals(expected.yPx(), actual.yPx(), 1.0, city + " Y screen pixel error exceeds 1px");
     }
 
+    // Frozen control fixtures for wavefront radii (in km) from Hadley-Kanamori (1977) 1D model
+    // for Ridgecrest hypocenter (depth = 8.0 km):
+    // At t = 10.0 s: P travel-time is 10.0 s at 59.92 km, S travel-time is 10.0 s at 33.24 km
+    // At t = 30.0 s: P travel-time is 30.0 s at 196.70 km, S travel-time is 30.0 s at 106.25 km
+    public static final double CONTROL_P_10S_KM = 59.92;
+    public static final double CONTROL_S_10S_KM = 33.24;
+    public static final double CONTROL_P_30S_KM = 196.70;
+    public static final double CONTROL_S_30S_KM = 106.25;
+
     @Test
-    @DisplayName("Verify known wavefront radii fixtures project to screen radius within <= 1 pixel")
+    @DisplayName("Verify known wavefront radii fixtures project to screen radius within <= 1 pixel of independent frozen control")
     void testWavefrontRadiiScreenScalingMatchesControl() {
         TravelTimeModel model = new HadleyKanamoriTauPModel();
         PrecomputedWavefronts wavefronts = PrecomputedWavefronts.forScenario(scenario, model);
+        double depthKm = scenario.event().depthKm();
 
-        // At 10.0 s: P-wave surface radius is known (~54.6 km)
+        // 1. Independent Geophysical Oracle Verification:
+        // Validate that our frozen control distances produce travel times of 10.0s and 30.0s in TauP
+        double directP10Time = model.travelTimeSeconds("P", CONTROL_P_10S_KM, depthKm);
+        assertEquals(10.0, directP10Time, 0.02, "Geophysical control P travel time at 10s must be 10.0s");
+
+        double directS10Time = model.travelTimeSeconds("S", CONTROL_S_10S_KM, depthKm);
+        assertEquals(10.0, directS10Time, 0.02, "Geophysical control S travel time at 10s must be 10.0s");
+
+        double directP30Time = model.travelTimeSeconds("P", CONTROL_P_30S_KM, depthKm);
+        assertEquals(30.0, directP30Time, 0.02, "Geophysical control P travel time at 30s must be 30.0s");
+
+        double directS30Time = model.travelTimeSeconds("S", CONTROL_S_30S_KM, depthKm);
+        assertEquals(30.0, directS30Time, 0.02, "Geophysical control S travel time at 30s must be 30.0s");
+
+        // 2. Inverted Production Wavefronts Verification against Frozen Control Radii:
         WavefrontRadii radii10 = wavefronts.radiiAt(10.0);
-        assertTrue(radii10.hasP());
-        double p10Km = radii10.pRadiusKm();
-        double p10ScreenActual = baselineTransform.toScreenRadius(p10Km);
-        double p10ScreenExpected = p10Km * baselineTransform.scalePxPerKm();
-        assertEquals(p10ScreenExpected, p10ScreenActual, 1e-9);
+        assertTrue(radii10.hasP(), "P wavefront should exist at t=10s");
+        assertTrue(radii10.hasS(), "S wavefront should exist at t=10s");
+        assertEquals(CONTROL_P_10S_KM, radii10.pRadiusKm(), 0.1, "10s P wavefront radius must match frozen control fixture");
+        assertEquals(CONTROL_S_10S_KM, radii10.sRadiusKm(), 0.1, "10s S wavefront radius must match frozen control fixture");
 
-        // At 30.0 s: P and S wavefronts
         WavefrontRadii radii30 = wavefronts.radiiAt(30.0);
-        assertTrue(radii30.hasP());
-        assertTrue(radii30.hasS());
-        double s30Km = radii30.sRadiusKm();
-        double s30ScreenActual = baselineTransform.toScreenRadius(s30Km);
-        double s30ScreenExpected = s30Km * baselineTransform.scalePxPerKm();
-        assertEquals(s30ScreenExpected, s30ScreenActual, 1e-9);
+        assertTrue(radii30.hasP(), "P wavefront should exist at t=30s");
+        assertTrue(radii30.hasS(), "S wavefront should exist at t=30s");
+        assertEquals(CONTROL_P_30S_KM, radii30.pRadiusKm(), 0.1, "30s P wavefront radius must match frozen control fixture");
+        assertEquals(CONTROL_S_30S_KM, radii30.sRadiusKm(), 0.1, "30s S wavefront radius must match frozen control fixture");
 
-        // Verify independent control scale
+        // 3. Independent Screen Scaling Verification:
+        // Scale is calculated independently from viewport height and bounding box
         double availH = BASELINE_HEIGHT - 2.0 * MARGIN;
         double controlScale = availH / bounds.heightKm(); // Height is constraining axis for California
         assertEquals(controlScale, baselineTransform.scalePxPerKm(), 1e-6);
+
+        // Frozen independent control screen pixel radii
+        double expectedP10ScreenPx = CONTROL_P_10S_KM * controlScale;
+        double expectedS10ScreenPx = CONTROL_S_10S_KM * controlScale;
+        double expectedP30ScreenPx = CONTROL_P_30S_KM * controlScale;
+        double expectedS30ScreenPx = CONTROL_S_30S_KM * controlScale;
+
+        // Compare transformed production radii to independent control screen pixels
+        double actualP10ScreenPx = baselineTransform.toScreenRadius(radii10.pRadiusKm());
+        double actualS10ScreenPx = baselineTransform.toScreenRadius(radii10.sRadiusKm());
+        double actualP30ScreenPx = baselineTransform.toScreenRadius(radii30.pRadiusKm());
+        double actualS30ScreenPx = baselineTransform.toScreenRadius(radii30.sRadiusKm());
+
+        assertEquals(expectedP10ScreenPx, actualP10ScreenPx, 1.0, "P 10s screen radius must match independent control <= 1px");
+        assertEquals(expectedS10ScreenPx, actualS10ScreenPx, 1.0, "S 10s screen radius must match independent control <= 1px");
+        assertEquals(expectedP30ScreenPx, actualP30ScreenPx, 1.0, "P 30s screen radius must match independent control <= 1px");
+        assertEquals(expectedS30ScreenPx, actualS30ScreenPx, 1.0, "S 30s screen radius must match independent control <= 1px");
+    }
+
+    @Test
+    @DisplayName("Verify real baseline application dimensions (890x719) and marker placement bounds")
+    void testRealBaselineApplicationDimensionsAndPlacement() {
+        assertEquals(890.0, BASELINE_WIDTH, "Real baseline viewport width must be 890 px");
+        assertEquals(719.0, BASELINE_HEIGHT, "Real baseline viewport height must be 719 px");
+
+        // Verify height remains the constraining axis at 890x719
+        double availW = BASELINE_WIDTH - 2.0 * MARGIN;
+        double availH = BASELINE_HEIGHT - 2.0 * MARGIN;
+        assertTrue((availH / bounds.heightKm()) < (availW / bounds.widthKm()),
+                "Height must be the constraining axis for California outline in 890x719 viewport");
+
+        // Epicenter screen position falls within the map viewport with safety margins
+        ScreenPoint epi = baselineTransform.toScreen(0.0, 0.0);
+        assertTrue(epi.xPx() >= MARGIN && epi.xPx() <= BASELINE_WIDTH - MARGIN, "Epicenter X out of viewport bounds");
+        assertTrue(epi.yPx() >= MARGIN && epi.yPx() <= BASELINE_HEIGHT - MARGIN, "Epicenter Y out of viewport bounds");
+
+        // All 5 reference locations fall within the map viewport with safety margins
+        for (ReferenceLocation loc : scenario.locations()) {
+            ProjectedPoint proj = projection.project(loc.internalPoint());
+            ScreenPoint sp = baselineTransform.toScreen(proj);
+            assertTrue(sp.xPx() >= MARGIN && sp.xPx() <= BASELINE_WIDTH - MARGIN,
+                    loc.city() + " X out of viewport bounds: " + sp.xPx());
+            assertTrue(sp.yPx() >= MARGIN && sp.yPx() <= BASELINE_HEIGHT - MARGIN,
+                    loc.city() + " Y out of viewport bounds: " + sp.yPx());
+        }
     }
 
     @Test
     @DisplayName("Verify 1:1 aspect ratio is preserved across viewport resizes")
     void testAspectRatioPreservationUnderResize() {
         double[][] viewports = {
+                {890.0, 719.0},
                 {860.0, 730.0},
                 {1024.0, 768.0},
                 {640.0, 480.0},

@@ -40,8 +40,16 @@ import java.util.Objects;
 public class MapCanvasPane extends Pane {
 
     public static final double DEFAULT_MARGIN_PX = 24.0;
-    public static final double BASELINE_VIEWPORT_WIDTH = 860.0;
-    public static final double BASELINE_VIEWPORT_HEIGHT = 730.0;
+    /**
+     * Exact viewport width (890.0 px) allocated to the map pane by the 1280x800 application window layout
+     * (1280.0 px window width - 390.0 px sidebar scroll width).
+     */
+    public static final double BASELINE_VIEWPORT_WIDTH = 890.0;
+    /**
+     * Exact viewport height (719.0 px) allocated to the map pane by the 1280x800 application window layout
+     * (800.0 px window height - 49.0 px header bar - 32.0 px status bar).
+     */
+    public static final double BASELINE_VIEWPORT_HEIGHT = 719.0;
 
     // Fixed label offsets (dx, dy) relative to projected screen point to prevent overlaps
     public record LabelOffset(double dx, double dy, String align) {}
