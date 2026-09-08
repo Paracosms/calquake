@@ -1,0 +1,115 @@
+{
+  "scale_name": "USGS ShakeMap MMI Scale (Worden et al., 2012)",
+  "bins": [
+    {
+      "roman": "I",
+      "min_mmi": 1.0,
+      "max_mmi": 1.5,
+      "shaking_descriptor": "Not felt",
+      "damage_descriptor": "None",
+      "color_hex": "#fbfcff",
+      "text_color_hex": "#000000",
+      "pga_pct_g_threshold": "<0.0464",
+      "pgv_cm_s_threshold": "<0.0215"
+    },
+    {
+      "roman": "II-III",
+      "min_mmi": 1.5,
+      "max_mmi": 3.5,
+      "shaking_descriptor": "Weak",
+      "damage_descriptor": "None",
+      "color_hex": "#acdbff",
+      "text_color_hex": "#000000",
+      "pga_pct_g_threshold": "0.297",
+      "pgv_cm_s_threshold": "0.135"
+    },
+    {
+      "roman": "IV",
+      "min_mmi": 3.5,
+      "max_mmi": 4.5,
+      "shaking_descriptor": "Light",
+      "damage_descriptor": "None",
+      "color_hex": "#7ffffa",
+      "text_color_hex": "#000000",
+      "pga_pct_g_threshold": "2.76",
+      "pgv_cm_s_threshold": "1.41"
+    },
+    {
+      "roman": "V",
+      "min_mmi": 4.5,
+      "max_mmi": 5.5,
+      "shaking_descriptor": "Moderate",
+      "damage_descriptor": "Very light",
+      "color_hex": "#81ff8a",
+      "text_color_hex": "#000000",
+      "pga_pct_g_threshold": "6.2",
+      "pgv_cm_s_threshold": "4.65"
+    },
+    {
+      "roman": "VI",
+      "min_mmi": 5.5,
+      "max_mmi": 6.5,
+      "shaking_descriptor": "Strong",
+      "damage_descriptor": "Light",
+      "color_hex": "#fffa00",
+      "text_color_hex": "#000000",
+      "pga_pct_g_threshold": "11.5",
+      "pgv_cm_s_threshold": "9.64"
+    },
+    {
+      "roman": "VII",
+      "min_mmi": 6.5,
+      "max_mmi": 7.5,
+      "shaking_descriptor": "Very strong",
+      "damage_descriptor": "Moderate",
+      "color_hex": "#ffc400",
+      "text_color_hex": "#000000",
+      "pga_pct_g_threshold": "21.5",
+      "pgv_cm_s_threshold": "20"
+    },
+    {
+      "roman": "VIII",
+      "min_mmi": 7.5,
+      "max_mmi": 8.5,
+      "shaking_descriptor": "Severe",
+      "damage_descriptor": "Moderate/heavy",
+      "color_hex": "#ff8500",
+      "text_color_hex": "#ffffff",
+      "pga_pct_g_threshold": "40.1",
+      "pgv_cm_s_threshold": "41.4"
+    },
+    {
+      "roman": "IX",
+      "min_mmi": 8.5,
+      "max_mmi": 9.5,
+      "shaking_descriptor": "Violent",
+      "damage_descriptor": "Heavy",
+      "color_hex": "#fb0000",
+      "text_color_hex": "#ffffff",
+      "pga_pct_g_threshold": "74.7",
+      "pgv_cm_s_threshold": "85.8"
+    },
+    {
+      "roman": "X+",
+      "min_mmi": 9.5,
+      "max_mmi": null,
+      "shaking_descriptor": "Extreme",
+      "damage_descriptor": "Very heavy",
+      "color_hex": "#c80000",
+      "text_color_hex": "#ffffff",
+      "pga_pct_g_threshold": ">139",
+      "pgv_cm_s_threshold": ">178"
+    },
+    {
+      "roman": "N/A",
+      "min_mmi": null,
+      "max_mmi": null,
+      "shaking_descriptor": "Outside coverage",
+      "damage_descriptor": "N/A",
+      "color_hex": "#808080",
+      "text_color_hex": "#ffffff",
+      "pga_pct_g_threshold": "N/A",
+      "pgv_cm_s_threshold": "N/A"
+    }
+  ]
+}

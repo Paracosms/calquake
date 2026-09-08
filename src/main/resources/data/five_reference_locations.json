@@ -1,0 +1,167 @@
+{
+  "specification": "Demo 0 Five Historical Reference Locations",
+  "source_shakemap_product": "urn:usgs-product:atlas:shakemap:ci38457511:1594160054783",
+  "sampling_method": "Nearest valid ShakeMap grid node to Census 2020 Gazetteer internal point",
+  "locations": [
+    {
+      "city": "Ridgecrest",
+      "official_name": "Ridgecrest city",
+      "geoid": "0660704",
+      "ansicode": "02410944",
+      "lsad": "25",
+      "internal_point": {
+        "latitude": 35.628542,
+        "longitude": -117.663992
+      },
+      "sampled_grid_node": {
+        "latitude": 35.6333,
+        "longitude": -117.6667,
+        "offset_km": 0.5829
+      },
+      "peak_intensity": {
+        "mmi_source_decimal": 7.2,
+        "mmi_display_rounded": 7.2,
+        "mmi_roman": "VII",
+        "shaking_description": "Very strong",
+        "damage_description": "Moderate",
+        "color_hex": "#ffc400"
+      },
+      "ground_motion": {
+        "pga_pct_g": 41.53,
+        "pgv_cm_s": 33.57,
+        "psa03_pct_g": 71.46,
+        "psa10_pct_g": 37.29,
+        "psa30_pct_g": 8.595,
+        "svel_m_s": 261.0
+      }
+    },
+    {
+      "city": "Trona",
+      "official_name": "Trona CDP",
+      "geoid": "0680515",
+      "ansicode": "02583168",
+      "lsad": "57",
+      "internal_point": {
+        "latitude": 35.815821,
+        "longitude": -117.347348
+      },
+      "sampled_grid_node": {
+        "latitude": 35.8167,
+        "longitude": -117.35,
+        "offset_km": 0.2583
+      },
+      "peak_intensity": {
+        "mmi_source_decimal": 6.9,
+        "mmi_display_rounded": 6.9,
+        "mmi_roman": "VII",
+        "shaking_description": "Very strong",
+        "damage_description": "Moderate",
+        "color_hex": "#ffc400"
+      },
+      "ground_motion": {
+        "pga_pct_g": 23.02,
+        "pgv_cm_s": 25.09,
+        "psa03_pct_g": 50.42,
+        "psa10_pct_g": 25.66,
+        "psa30_pct_g": 6.678,
+        "svel_m_s": 265.5
+      }
+    },
+    {
+      "city": "Bakersfield",
+      "official_name": "Bakersfield city",
+      "geoid": "0603526",
+      "ansicode": "02409774",
+      "lsad": "25",
+      "internal_point": {
+        "latitude": 35.353593,
+        "longitude": -119.036921
+      },
+      "sampled_grid_node": {
+        "latitude": 35.35,
+        "longitude": -119.0333,
+        "offset_km": 0.5172
+      },
+      "peak_intensity": {
+        "mmi_source_decimal": 3.9,
+        "mmi_display_rounded": 3.9,
+        "mmi_roman": "IV",
+        "shaking_description": "Light",
+        "damage_description": "None",
+        "color_hex": "#7ffffa"
+      },
+      "ground_motion": {
+        "pga_pct_g": 2.566,
+        "pgv_cm_s": 3.339,
+        "psa03_pct_g": 4.796,
+        "psa10_pct_g": 4.381,
+        "psa30_pct_g": 1.136,
+        "svel_m_s": 269.2
+      }
+    },
+    {
+      "city": "Los Angeles",
+      "official_name": "Los Angeles city",
+      "geoid": "0644000",
+      "ansicode": "02410877",
+      "lsad": "25",
+      "internal_point": {
+        "latitude": 34.019394,
+        "longitude": -118.410825
+      },
+      "sampled_grid_node": {
+        "latitude": 34.0167,
+        "longitude": -118.4167,
+        "offset_km": 0.6188
+      },
+      "peak_intensity": {
+        "mmi_source_decimal": 3.8,
+        "mmi_display_rounded": 3.8,
+        "mmi_roman": "IV",
+        "shaking_description": "Light",
+        "damage_description": "None",
+        "color_hex": "#7ffffa"
+      },
+      "ground_motion": {
+        "pga_pct_g": 2.326,
+        "pgv_cm_s": 3.638,
+        "psa03_pct_g": 4.031,
+        "psa10_pct_g": 4.258,
+        "psa30_pct_g": 1.103,
+        "svel_m_s": 338.4
+      }
+    },
+    {
+      "city": "Fresno",
+      "official_name": "Fresno city",
+      "geoid": "0627000",
+      "ansicode": "02410546",
+      "lsad": "25",
+      "internal_point": {
+        "latitude": 36.782684,
+        "longitude": -119.793359
+      },
+      "sampled_grid_node": {
+        "latitude": 36.7833,
+        "longitude": -119.8,
+        "offset_km": 0.5954
+      },
+      "peak_intensity": {
+        "mmi_source_decimal": 3.1,
+        "mmi_display_rounded": 3.1,
+        "mmi_roman": "II-III",
+        "shaking_description": "Weak",
+        "damage_description": "None",
+        "color_hex": "#acdbff"
+      },
+      "ground_motion": {
+        "pga_pct_g": 1.838,
+        "pgv_cm_s": 2.829,
+        "psa03_pct_g": 3.426,
+        "psa10_pct_g": 3.4,
+        "psa30_pct_g": 0.8162,
+        "svel_m_s": 301.2
+      }
+    }
+  ]
+}

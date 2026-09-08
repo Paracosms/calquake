@@ -1,0 +1,2225 @@
+{
+  "specification": "Demo 0 Frozen Observed Arrival Picks",
+  "event_id": "ci38457511",
+  "frozen_origin": {
+    "origin_time_utc": "2019-07-06T03:19:53.040Z",
+    "latitude": 35.7695,
+    "longitude": -117.5993333,
+    "depth_km": 8.0,
+    "magnitude": 7.1,
+    "magnitude_type": "mw"
+  },
+  "selection_rules": {
+    "min_quality": 0.5,
+    "min_distance_km": 0.0,
+    "max_distance_km": 300.0,
+    "require_active_station_epoch": true,
+    "normalize_location_dash": true,
+    "elevation_discrepancy_policy": "preserve_phase_file_elevation_no_timing_correction"
+  },
+  "summary": {
+    "total_raw_p": 79,
+    "total_raw_s": 16,
+    "retained_p_count": 78,
+    "retained_s_count": 16,
+    "total_retained": 94,
+    "p_distance_range_km": [
+      5.14,
+      150.2
+    ],
+    "s_distance_range_km": [
+      5.14,
+      115.0
+    ],
+    "meets_scientific_gate_n_criteria": true
+  },
+  "p_picks": [
+    {
+      "network": "CI",
+      "station": "CLC",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 5.14,
+      "observed_time_sec": 0.628,
+      "absolute_time_utc": "2019-07-06T03:19:53.668Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8157,
+        "longitude": -117.5975,
+        "elevation_m": 775.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.81574,
+        "longitude": -117.59751,
+        "elevation_m": 775.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "TOW2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 15.54,
+      "observed_time_sec": 3.088,
+      "absolute_time_utc": "2019-07-06T03:19:56.128Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8086,
+        "longitude": -117.7649,
+        "elevation_m": 685.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.80856,
+        "longitude": -117.76488,
+        "elevation_m": 685.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "SRT",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 16.1,
+      "observed_time_sec": 3.237,
+      "absolute_time_utc": "2019-07-06T03:19:56.277Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6923,
+        "longitude": -117.7505,
+        "elevation_m": 667.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.69235,
+        "longitude": -117.75051,
+        "elevation_m": 667.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WRC2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 20.35,
+      "observed_time_sec": 3.507,
+      "absolute_time_utc": "2019-07-06T03:19:56.547Z",
+      "phase_file_coordinates": {
+        "latitude": 35.9479,
+        "longitude": -117.6504,
+        "elevation_m": 943.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.9479,
+        "longitude": -117.65038,
+        "elevation_m": 943.0
+      }
+    },
+    {
+      "network": "PB",
+      "station": "B921",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 1.0,
+      "distance_km": 23.8,
+      "observed_time_sec": 4.018,
+      "absolute_time_utc": "2019-07-06T03:19:57.058Z",
+      "phase_file_coordinates": {
+        "latitude": 35.5865,
+        "longitude": -117.4622,
+        "elevation_m": 694.5
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.5865,
+        "longitude": -117.4622,
+        "elevation_m": 694.5
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WVP2",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 28.05,
+      "observed_time_sec": 4.877,
+      "absolute_time_utc": "2019-07-06T03:19:57.917Z",
+      "phase_file_coordinates": {
+        "latitude": 35.9494,
+        "longitude": -117.8177,
+        "elevation_m": 1465.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.94939,
+        "longitude": -117.81769,
+        "elevation_m": 1465.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WNM",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 28.82,
+      "observed_time_sec": 5.027,
+      "absolute_time_utc": "2019-07-06T03:19:58.067Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8422,
+        "longitude": -117.9062,
+        "elevation_m": 974.3
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.8422,
+        "longitude": -117.90616,
+        "elevation_m": 974.3
+      }
+    },
+    {
+      "network": "CI",
+      "station": "SLA",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 31.52,
+      "observed_time_sec": 5.498,
+      "absolute_time_utc": "2019-07-06T03:19:58.538Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8909,
+        "longitude": -117.2833,
+        "elevation_m": 1174.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.89095,
+        "longitude": -117.28332,
+        "elevation_m": 1174.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WBM",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 31.77,
+      "observed_time_sec": 5.888,
+      "absolute_time_utc": "2019-07-06T03:19:58.928Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6084,
+        "longitude": -117.8905,
+        "elevation_m": 892.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.60839,
+        "longitude": -117.89049,
+        "elevation_m": 892.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WCS2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 32.11,
+      "observed_time_sec": 5.618,
+      "absolute_time_utc": "2019-07-06T03:19:58.658Z",
+      "phase_file_coordinates": {
+        "latitude": 36.0252,
+        "longitude": -117.7653,
+        "elevation_m": 1143.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 36.02521,
+        "longitude": -117.76526,
+        "elevation_m": 1143.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "LRL",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 1.0,
+      "distance_km": 33.07,
+      "observed_time_sec": 5.558,
+      "absolute_time_utc": "2019-07-06T03:19:58.598Z",
+      "phase_file_coordinates": {
+        "latitude": 35.4795,
+        "longitude": -117.6821,
+        "elevation_m": 1340.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.47954,
+        "longitude": -117.68212,
+        "elevation_m": 1340.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "MPM",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 33.56,
+      "observed_time_sec": 5.663,
+      "absolute_time_utc": "2019-07-06T03:19:58.703Z",
+      "phase_file_coordinates": {
+        "latitude": 36.058,
+        "longitude": -117.489,
+        "elevation_m": 1839.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.05799,
+        "longitude": -117.48901,
+        "elevation_m": 1839.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "CCC",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 34.44,
+      "observed_time_sec": 6.382,
+      "absolute_time_utc": "2019-07-06T03:19:59.422Z",
+      "phase_file_coordinates": {
+        "latitude": 35.5249,
+        "longitude": -117.3645,
+        "elevation_m": 670.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.52495,
+        "longitude": -117.36453,
+        "elevation_m": 670.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WRV2",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 37.27,
+      "observed_time_sec": 6.367,
+      "absolute_time_utc": "2019-07-06T03:19:59.407Z",
+      "phase_file_coordinates": {
+        "latitude": 36.0077,
+        "longitude": -117.8904,
+        "elevation_m": 1070.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.00774,
+        "longitude": -117.8904,
+        "elevation_m": 1070.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WMF",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 45.02,
+      "observed_time_sec": 7.79,
+      "absolute_time_utc": "2019-07-06T03:20:00.830Z",
+      "phase_file_coordinates": {
+        "latitude": 36.1176,
+        "longitude": -117.8549,
+        "elevation_m": 1537.4
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.11758,
+        "longitude": -117.85486,
+        "elevation_m": 1537.4
+      }
+    },
+    {
+      "network": "PB",
+      "station": "B916",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 47.41,
+      "observed_time_sec": 7.834,
+      "absolute_time_utc": "2019-07-06T03:20:00.874Z",
+      "phase_file_coordinates": {
+        "latitude": 36.1925,
+        "longitude": -117.6685,
+        "elevation_m": 1859.9
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.1925,
+        "longitude": -117.6685,
+        "elevation_m": 1859.9
+      }
+    },
+    {
+      "network": "PB",
+      "station": "B917",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 1.0,
+      "distance_km": 50.79,
+      "observed_time_sec": 8.658,
+      "absolute_time_utc": "2019-07-06T03:20:01.698Z",
+      "phase_file_coordinates": {
+        "latitude": 35.4053,
+        "longitude": -117.2588,
+        "elevation_m": 1192.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.4053,
+        "longitude": -117.2588,
+        "elevation_m": 1192.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WBS",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 55.21,
+      "observed_time_sec": 9.422,
+      "absolute_time_utc": "2019-07-06T03:20:02.462Z",
+      "phase_file_coordinates": {
+        "latitude": 35.5366,
+        "longitude": -118.1403,
+        "elevation_m": 1927.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.53664,
+        "longitude": -118.14035,
+        "elevation_m": 1927.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "DAW",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 55.78,
+      "observed_time_sec": 9.197,
+      "absolute_time_utc": "2019-07-06T03:20:02.237Z",
+      "phase_file_coordinates": {
+        "latitude": 36.2715,
+        "longitude": -117.5921,
+        "elevation_m": 0.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.27148,
+        "longitude": -117.59214,
+        "elevation_m": 1477.4
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WOR",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 58.56,
+      "observed_time_sec": 9.886,
+      "absolute_time_utc": "2019-07-06T03:20:02.926Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6956,
+        "longitude": -118.2425,
+        "elevation_m": 795.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.69563,
+        "longitude": -118.24246,
+        "elevation_m": 795.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "DTP",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 60.05,
+      "observed_time_sec": 9.946,
+      "absolute_time_utc": "2019-07-06T03:20:02.986Z",
+      "phase_file_coordinates": {
+        "latitude": 35.2674,
+        "longitude": -117.8458,
+        "elevation_m": 908.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.26742,
+        "longitude": -117.84581,
+        "elevation_m": 908.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WHF",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 68.34,
+      "observed_time_sec": 11.548,
+      "absolute_time_utc": "2019-07-06T03:20:04.588Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6951,
+        "longitude": -118.3518,
+        "elevation_m": 859.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.69513,
+        "longitude": -118.35183,
+        "elevation_m": 859.0
+      }
+    },
+    {
+      "network": "NN",
+      "station": "QSM",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 69.32,
+      "observed_time_sec": 11.713,
+      "absolute_time_utc": "2019-07-06T03:20:04.753Z",
+      "phase_file_coordinates": {
+        "latitude": 35.965,
+        "longitude": -116.8691,
+        "elevation_m": 385.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.965,
+        "longitude": -116.8691,
+        "elevation_m": 385.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "CCA",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 1.0,
+      "distance_km": 78.19,
+      "observed_time_sec": 13.128,
+      "absolute_time_utc": "2019-07-06T03:20:06.168Z",
+      "phase_file_coordinates": {
+        "latitude": 35.1525,
+        "longitude": -118.0165,
+        "elevation_m": 710.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.15252,
+        "longitude": -118.01649,
+        "elevation_m": 710.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "ISA",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 79.74,
+      "observed_time_sec": 13.36,
+      "absolute_time_utc": "2019-07-06T03:20:06.400Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6628,
+        "longitude": -118.474,
+        "elevation_m": 873.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.66278,
+        "longitude": -118.47403,
+        "elevation_m": 873.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "Q0068",
+      "channel": "HNZ",
+      "location": "01",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 80.62,
+      "observed_time_sec": 13.525,
+      "absolute_time_utc": "2019-07-06T03:20:06.565Z",
+      "phase_file_coordinates": {
+        "latitude": 35.1117,
+        "longitude": -117.9767,
+        "elevation_m": 729.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.111675,
+        "longitude": -117.976655,
+        "elevation_m": 729.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "CWC",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 1.0,
+      "distance_km": 86.18,
+      "observed_time_sec": 14.748,
+      "absolute_time_utc": "2019-07-06T03:20:07.788Z",
+      "phase_file_coordinates": {
+        "latitude": 36.4399,
+        "longitude": -118.0802,
+        "elevation_m": 1595.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.439047,
+        "longitude": -118.080495,
+        "elevation_m": 1569.5
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WAS2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 86.45,
+      "observed_time_sec": 14.633,
+      "absolute_time_utc": "2019-07-06T03:20:07.673Z",
+      "phase_file_coordinates": {
+        "latitude": 35.7377,
+        "longitude": -118.5574,
+        "elevation_m": 1828.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.7377,
+        "longitude": -118.55743,
+        "elevation_m": 1828.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "GSC",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 1.0,
+      "distance_km": 88.43,
+      "observed_time_sec": 14.878,
+      "absolute_time_utc": "2019-07-06T03:20:07.918Z",
+      "phase_file_coordinates": {
+        "latitude": 35.3018,
+        "longitude": -116.8057,
+        "elevation_m": 1000.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.30177,
+        "longitude": -116.80574,
+        "elevation_m": 1000.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "HAR",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 88.47,
+      "observed_time_sec": 14.737,
+      "absolute_time_utc": "2019-07-06T03:20:07.777Z",
+      "phase_file_coordinates": {
+        "latitude": 35.0114,
+        "longitude": -117.2991,
+        "elevation_m": 620.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.0114,
+        "longitude": -117.29909,
+        "elevation_m": 620.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "CGO",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 88.69,
+      "observed_time_sec": 14.797,
+      "absolute_time_utc": "2019-07-06T03:20:07.837Z",
+      "phase_file_coordinates": {
+        "latitude": 36.5504,
+        "longitude": -117.8029,
+        "elevation_m": 2795.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.5504,
+        "longitude": -117.80295,
+        "elevation_m": 2795.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "TEH",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 91.14,
+      "observed_time_sec": 14.977,
+      "absolute_time_utc": "2019-07-06T03:20:08.017Z",
+      "phase_file_coordinates": {
+        "latitude": 35.2913,
+        "longitude": -118.4208,
+        "elevation_m": 846.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.2913,
+        "longitude": -118.42079,
+        "elevation_m": 846.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "LMR2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 1.0,
+      "distance_km": 93.2,
+      "observed_time_sec": 15.398,
+      "absolute_time_utc": "2019-07-06T03:20:08.438Z",
+      "phase_file_coordinates": {
+        "latitude": 34.9344,
+        "longitude": -117.6963,
+        "elevation_m": 964.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.93439,
+        "longitude": -117.69629,
+        "elevation_m": 964.0
+      }
+    },
+    {
+      "network": "NN",
+      "station": "GWY",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 95.73,
+      "observed_time_sec": 16.684,
+      "absolute_time_utc": "2019-07-06T03:20:09.724Z",
+      "phase_file_coordinates": {
+        "latitude": 36.186,
+        "longitude": -116.6698,
+        "elevation_m": 1538.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.1859,
+        "longitude": -116.6697,
+        "elevation_m": 1557.5
+      }
+    },
+    {
+      "network": "CI",
+      "station": "HYS",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 100.5,
+      "observed_time_sec": 16.624,
+      "absolute_time_utc": "2019-07-06T03:20:09.664Z",
+      "phase_file_coordinates": {
+        "latitude": 34.8653,
+        "longitude": -117.5697,
+        "elevation_m": 833.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.86532,
+        "longitude": -117.56975,
+        "elevation_m": 833.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "FUR",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 102.05,
+      "observed_time_sec": 17.463,
+      "absolute_time_utc": "2019-07-06T03:20:10.503Z",
+      "phase_file_coordinates": {
+        "latitude": 36.4672,
+        "longitude": -116.8632,
+        "elevation_m": -38.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.46703,
+        "longitude": -116.86322,
+        "elevation_m": -37.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "EDW2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 104.92,
+      "observed_time_sec": 17.223,
+      "absolute_time_utc": "2019-07-06T03:20:10.263Z",
+      "phase_file_coordinates": {
+        "latitude": 34.8811,
+        "longitude": -117.9939,
+        "elevation_m": 772.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.8811,
+        "longitude": -117.99388,
+        "elevation_m": 772.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "LDR",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 109.39,
+      "observed_time_sec": 18.137,
+      "absolute_time_utc": "2019-07-06T03:20:11.177Z",
+      "phase_file_coordinates": {
+        "latitude": 34.9906,
+        "longitude": -118.3416,
+        "elevation_m": 1121.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.9906,
+        "longitude": -118.34156,
+        "elevation_m": 1121.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "Q0056",
+      "channel": "HNZ",
+      "location": "01",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 111.02,
+      "observed_time_sec": 18.833,
+      "absolute_time_utc": "2019-07-06T03:20:11.873Z",
+      "phase_file_coordinates": {
+        "latitude": 34.8393,
+        "longitude": -117.1499,
+        "elevation_m": 739.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 34.839289,
+        "longitude": -117.149857,
+        "elevation_m": 739.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "RRX",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 113.23,
+      "observed_time_sec": 19.161,
+      "absolute_time_utc": "2019-07-06T03:20:12.201Z",
+      "phase_file_coordinates": {
+        "latitude": 34.8753,
+        "longitude": -116.9968,
+        "elevation_m": 676.2
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.87499,
+        "longitude": -116.99681,
+        "elevation_m": 676.213623
+      }
+    },
+    {
+      "network": "CI",
+      "station": "TPO",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 114.07,
+      "observed_time_sec": 18.945,
+      "absolute_time_utc": "2019-07-06T03:20:11.985Z",
+      "phase_file_coordinates": {
+        "latitude": 34.8788,
+        "longitude": -118.2286,
+        "elevation_m": 769.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.87883,
+        "longitude": -118.22864,
+        "elevation_m": 769.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "TEJ",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 115.0,
+      "observed_time_sec": 18.81,
+      "absolute_time_utc": "2019-07-06T03:20:11.850Z",
+      "phase_file_coordinates": {
+        "latitude": 35.2311,
+        "longitude": -118.6888,
+        "elevation_m": 650.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.23107,
+        "longitude": -118.68878,
+        "elevation_m": 650.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "SPG2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 115.59,
+      "observed_time_sec": 18.99,
+      "absolute_time_utc": "2019-07-06T03:20:12.030Z",
+      "phase_file_coordinates": {
+        "latitude": 36.2006,
+        "longitude": -118.7662,
+        "elevation_m": 627.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.20057,
+        "longitude": -118.76624,
+        "elevation_m": 627.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "AVM",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 118.25,
+      "observed_time_sec": 19.761,
+      "absolute_time_utc": "2019-07-06T03:20:12.801Z",
+      "phase_file_coordinates": {
+        "latitude": 35.0656,
+        "longitude": -116.6155,
+        "elevation_m": 708.5
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.06562,
+        "longitude": -116.61549,
+        "elevation_m": 708.5
+      }
+    },
+    {
+      "network": "SN",
+      "station": "HEL",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 120.09,
+      "observed_time_sec": 20.098,
+      "absolute_time_utc": "2019-07-06T03:20:13.138Z",
+      "phase_file_coordinates": {
+        "latitude": 36.7246,
+        "longitude": -116.9759,
+        "elevation_m": 747.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.7246,
+        "longitude": -116.9759,
+        "elevation_m": 747.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "SHO",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 120.25,
+      "observed_time_sec": 20.218,
+      "absolute_time_utc": "2019-07-06T03:20:13.258Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8996,
+        "longitude": -116.2751,
+        "elevation_m": 451.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.89953,
+        "longitude": -116.2753,
+        "elevation_m": 451.0
+      }
+    },
+    {
+      "network": "SN",
+      "station": "LEC",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 120.33,
+      "observed_time_sec": 19.881,
+      "absolute_time_utc": "2019-07-06T03:20:12.921Z",
+      "phase_file_coordinates": {
+        "latitude": 36.5627,
+        "longitude": -116.6905,
+        "elevation_m": 1113.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 36.5627,
+        "longitude": -116.6905,
+        "elevation_m": 1113.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "FDR",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 121.18,
+      "observed_time_sec": 20.121,
+      "absolute_time_utc": "2019-07-06T03:20:13.161Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6426,
+        "longitude": -118.9343,
+        "elevation_m": 350.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.64262,
+        "longitude": -118.93433,
+        "elevation_m": 352.1
+      }
+    },
+    {
+      "network": "CI",
+      "station": "SBB2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 121.82,
+      "observed_time_sec": 20.061,
+      "absolute_time_utc": "2019-07-06T03:20:13.101Z",
+      "phase_file_coordinates": {
+        "latitude": 34.6884,
+        "longitude": -117.8242,
+        "elevation_m": 825.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.68844,
+        "longitude": -117.82424,
+        "elevation_m": 825.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "PUT",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 124.37,
+      "observed_time_sec": 20.6,
+      "absolute_time_utc": "2019-07-06T03:20:13.640Z",
+      "phase_file_coordinates": {
+        "latitude": 34.6912,
+        "longitude": -117.9692,
+        "elevation_m": 747.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.69115,
+        "longitude": -117.96919,
+        "elevation_m": 747.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "MAG",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 127.63,
+      "observed_time_sec": 21.663,
+      "absolute_time_utc": "2019-07-06T03:20:14.703Z",
+      "phase_file_coordinates": {
+        "latitude": 35.3616,
+        "longitude": -118.9228,
+        "elevation_m": 135.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.36165,
+        "longitude": -118.92282,
+        "elevation_m": 135.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "FOX2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 128.77,
+      "observed_time_sec": 21.379,
+      "absolute_time_utc": "2019-07-06T03:20:14.419Z",
+      "phase_file_coordinates": {
+        "latitude": 34.7339,
+        "longitude": -118.2405,
+        "elevation_m": 719.7
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.7339,
+        "longitude": -118.24046,
+        "elevation_m": 719.74707
+      }
+    },
+    {
+      "network": "CI",
+      "station": "POR",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 131.92,
+      "observed_time_sec": 21.663,
+      "absolute_time_utc": "2019-07-06T03:20:14.703Z",
+      "phase_file_coordinates": {
+        "latitude": 36.1037,
+        "longitude": -119.0034,
+        "elevation_m": 198.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.10368,
+        "longitude": -119.00343,
+        "elevation_m": 198.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "ARV",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 131.94,
+      "observed_time_sec": 21.955,
+      "absolute_time_utc": "2019-07-06T03:20:14.995Z",
+      "phase_file_coordinates": {
+        "latitude": 35.1269,
+        "longitude": -118.8301,
+        "elevation_m": 258.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.1269,
+        "longitude": -118.83009,
+        "elevation_m": 258.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "TJR",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 132.08,
+      "observed_time_sec": 21.416,
+      "absolute_time_utc": "2019-07-06T03:20:14.456Z",
+      "phase_file_coordinates": {
+        "latitude": 35.0272,
+        "longitude": -118.7437,
+        "elevation_m": 398.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.02722,
+        "longitude": -118.74373,
+        "elevation_m": 398.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "Q0061",
+      "channel": "HNZ",
+      "location": "01",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 132.25,
+      "observed_time_sec": 22.007,
+      "absolute_time_utc": "2019-07-06T03:20:15.047Z",
+      "phase_file_coordinates": {
+        "latitude": 34.5919,
+        "longitude": -117.813,
+        "elevation_m": 831.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 34.591908,
+        "longitude": -117.812984,
+        "elevation_m": 831.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WLS2",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 132.72,
+      "observed_time_sec": 21.865,
+      "absolute_time_utc": "2019-07-06T03:20:14.905Z",
+      "phase_file_coordinates": {
+        "latitude": 34.579,
+        "longitude": -117.7194,
+        "elevation_m": 889.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.578987,
+        "longitude": -117.719386,
+        "elevation_m": 889.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "VES",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 134.14,
+      "observed_time_sec": 22.404,
+      "absolute_time_utc": "2019-07-06T03:20:15.444Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8409,
+        "longitude": -119.0847,
+        "elevation_m": 154.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.84089,
+        "longitude": -119.08469,
+        "elevation_m": 154.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "SHU",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 135.16,
+      "observed_time_sec": 22.135,
+      "absolute_time_utc": "2019-07-06T03:20:15.175Z",
+      "phase_file_coordinates": {
+        "latitude": 34.6428,
+        "longitude": -118.1645,
+        "elevation_m": 774.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 34.64279,
+        "longitude": -118.16454,
+        "elevation_m": 774.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "THC",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 135.54,
+      "observed_time_sec": 21.985,
+      "absolute_time_utc": "2019-07-06T03:20:15.025Z",
+      "phase_file_coordinates": {
+        "latitude": 34.9085,
+        "longitude": -118.6644,
+        "elevation_m": 1688.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.90853,
+        "longitude": -118.66443,
+        "elevation_m": 1688.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "ALP",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 135.82,
+      "observed_time_sec": 22.389,
+      "absolute_time_utc": "2019-07-06T03:20:15.429Z",
+      "phase_file_coordinates": {
+        "latitude": 34.6871,
+        "longitude": -118.2995,
+        "elevation_m": 753.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.68708,
+        "longitude": -118.29946,
+        "elevation_m": 753.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "ADO",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 136.27,
+      "observed_time_sec": 22.853,
+      "absolute_time_utc": "2019-07-06T03:20:15.893Z",
+      "phase_file_coordinates": {
+        "latitude": 34.5505,
+        "longitude": -117.4339,
+        "elevation_m": 908.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.55046,
+        "longitude": -117.43391,
+        "elevation_m": 908.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "VTV",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 136.5,
+      "observed_time_sec": 22.689,
+      "absolute_time_utc": "2019-07-06T03:20:15.729Z",
+      "phase_file_coordinates": {
+        "latitude": 34.5606,
+        "longitude": -117.3296,
+        "elevation_m": 843.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.56065,
+        "longitude": -117.3296,
+        "elevation_m": 843.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "NEN",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 137.14,
+      "observed_time_sec": 23.063,
+      "absolute_time_utc": "2019-07-06T03:20:16.103Z",
+      "phase_file_coordinates": {
+        "latitude": 34.7754,
+        "longitude": -118.501,
+        "elevation_m": 859.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.77539,
+        "longitude": -118.50099,
+        "elevation_m": 859.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "GRA",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 137.9,
+      "observed_time_sec": 23.063,
+      "absolute_time_utc": "2019-07-06T03:20:16.103Z",
+      "phase_file_coordinates": {
+        "latitude": 36.9961,
+        "longitude": -117.3662,
+        "elevation_m": 689.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.99608,
+        "longitude": -117.36621,
+        "elevation_m": 689.0
+      }
+    },
+    {
+      "network": "SN",
+      "station": "AMD",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 140.96,
+      "observed_time_sec": 22.794,
+      "absolute_time_utc": "2019-07-06T03:20:15.834Z",
+      "phase_file_coordinates": {
+        "latitude": 36.4526,
+        "longitude": -116.2818,
+        "elevation_m": 775.4
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.4526,
+        "longitude": -116.2818,
+        "elevation_m": 775.4
+      }
+    },
+    {
+      "network": "CI",
+      "station": "LEO",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 141.63,
+      "observed_time_sec": 23.213,
+      "absolute_time_utc": "2019-07-06T03:20:16.253Z",
+      "phase_file_coordinates": {
+        "latitude": 34.6306,
+        "longitude": -118.305,
+        "elevation_m": 1025.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.63064,
+        "longitude": -118.30505,
+        "elevation_m": 1025.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "Q0013",
+      "channel": "HNZ",
+      "location": "01",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 142.84,
+      "observed_time_sec": 23.542,
+      "absolute_time_utc": "2019-07-06T03:20:16.582Z",
+      "phase_file_coordinates": {
+        "latitude": 34.5395,
+        "longitude": -118.0603,
+        "elevation_m": 857.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 34.539514,
+        "longitude": -118.060347,
+        "elevation_m": 857.0
+      }
+    },
+    {
+      "network": "NP",
+      "station": "5030",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 143.09,
+      "observed_time_sec": 23.572,
+      "absolute_time_utc": "2019-07-06T03:20:16.612Z",
+      "phase_file_coordinates": {
+        "latitude": 34.5215,
+        "longitude": -117.991,
+        "elevation_m": 856.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 34.52149,
+        "longitude": -117.99099,
+        "elevation_m": 856.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "LRR2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 143.4,
+      "observed_time_sec": 23.557,
+      "absolute_time_utc": "2019-07-06T03:20:16.597Z",
+      "phase_file_coordinates": {
+        "latitude": 34.5271,
+        "longitude": -118.03,
+        "elevation_m": 906.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.52706,
+        "longitude": -118.02998,
+        "elevation_m": 906.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "BAK",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.5,
+      "distance_km": 143.67,
+      "observed_time_sec": 24.321,
+      "absolute_time_utc": "2019-07-06T03:20:17.361Z",
+      "phase_file_coordinates": {
+        "latitude": 35.3444,
+        "longitude": -119.1044,
+        "elevation_m": 116.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.34444,
+        "longitude": -119.10445,
+        "elevation_m": 116.0
+      }
+    },
+    {
+      "network": "SN",
+      "station": "SGR",
+      "channel": "EHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 143.89,
+      "observed_time_sec": 24.066,
+      "absolute_time_utc": "2019-07-06T03:20:17.106Z",
+      "phase_file_coordinates": {
+        "latitude": 36.9804,
+        "longitude": -117.0336,
+        "elevation_m": 1560.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.9804,
+        "longitude": -117.0336,
+        "elevation_m": 1560.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "NBS",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 144.54,
+      "observed_time_sec": 23.662,
+      "absolute_time_utc": "2019-07-06T03:20:16.702Z",
+      "phase_file_coordinates": {
+        "latitude": 34.7803,
+        "longitude": -116.558,
+        "elevation_m": 590.0
+      },
+      "polarity": "c.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.78035,
+        "longitude": -116.55798,
+        "elevation_m": 590.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "HDH",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 144.93,
+      "observed_time_sec": 24.186,
+      "absolute_time_utc": "2019-07-06T03:20:17.226Z",
+      "phase_file_coordinates": {
+        "latitude": 34.7753,
+        "longitude": -118.64,
+        "elevation_m": 964.6
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.77529,
+        "longitude": -118.63999,
+        "elevation_m": 964.62
+      }
+    },
+    {
+      "network": "CI",
+      "station": "CJV2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 146.25,
+      "observed_time_sec": 23.947,
+      "absolute_time_utc": "2019-07-06T03:20:16.987Z",
+      "phase_file_coordinates": {
+        "latitude": 34.5298,
+        "longitude": -118.1445,
+        "elevation_m": 1296.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.52978,
+        "longitude": -118.1445,
+        "elevation_m": 1296.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "HOL",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 147.37,
+      "observed_time_sec": 24.036,
+      "absolute_time_utc": "2019-07-06T03:20:17.076Z",
+      "phase_file_coordinates": {
+        "latitude": 34.4583,
+        "longitude": -117.8454,
+        "elevation_m": 1267.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.45831,
+        "longitude": -117.84539,
+        "elevation_m": 1267.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "BTP",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 149.38,
+      "observed_time_sec": 24.366,
+      "absolute_time_utc": "2019-07-06T03:20:17.406Z",
+      "phase_file_coordinates": {
+        "latitude": 34.6822,
+        "longitude": -118.574,
+        "elevation_m": 1702.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.68224,
+        "longitude": -118.57398,
+        "elevation_m": 1702.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "JNH2",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 150.2,
+      "observed_time_sec": 24.546,
+      "absolute_time_utc": "2019-07-06T03:20:17.586Z",
+      "phase_file_coordinates": {
+        "latitude": 34.4489,
+        "longitude": -117.9554,
+        "elevation_m": 1305.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 34.448941,
+        "longitude": -117.95541,
+        "elevation_m": 1305.0
+      }
+    }
+  ],
+  "s_picks": [
+    {
+      "network": "CI",
+      "station": "CLC",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.5,
+      "distance_km": 5.14,
+      "observed_time_sec": 2.519,
+      "absolute_time_utc": "2019-07-06T03:19:55.559Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8157,
+        "longitude": -117.5975,
+        "elevation_m": 775.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.81574,
+        "longitude": -117.59751,
+        "elevation_m": 775.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "TOW2",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.5,
+      "distance_km": 15.54,
+      "observed_time_sec": 6.996,
+      "absolute_time_utc": "2019-07-06T03:20:00.036Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8086,
+        "longitude": -117.7649,
+        "elevation_m": 685.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.80856,
+        "longitude": -117.76488,
+        "elevation_m": 685.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "SRT",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 16.1,
+      "observed_time_sec": 6.472,
+      "absolute_time_utc": "2019-07-06T03:19:59.512Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6923,
+        "longitude": -117.7505,
+        "elevation_m": 667.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.69235,
+        "longitude": -117.75051,
+        "elevation_m": 667.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WRC2",
+      "channel": "HNE",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 20.35,
+      "observed_time_sec": 6.831,
+      "absolute_time_utc": "2019-07-06T03:19:59.871Z",
+      "phase_file_coordinates": {
+        "latitude": 35.9479,
+        "longitude": -117.6504,
+        "elevation_m": 943.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.9479,
+        "longitude": -117.65038,
+        "elevation_m": 943.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "SLA",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 31.52,
+      "observed_time_sec": 11.263,
+      "absolute_time_utc": "2019-07-06T03:20:04.303Z",
+      "phase_file_coordinates": {
+        "latitude": 35.8909,
+        "longitude": -117.2833,
+        "elevation_m": 1174.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.89095,
+        "longitude": -117.28332,
+        "elevation_m": 1174.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WBM",
+      "channel": "HNE",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 31.77,
+      "observed_time_sec": 10.784,
+      "absolute_time_utc": "2019-07-06T03:20:03.824Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6084,
+        "longitude": -117.8905,
+        "elevation_m": 892.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.60839,
+        "longitude": -117.89049,
+        "elevation_m": 892.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "MPM",
+      "channel": "HNE",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 33.56,
+      "observed_time_sec": 9.871,
+      "absolute_time_utc": "2019-07-06T03:20:02.911Z",
+      "phase_file_coordinates": {
+        "latitude": 36.058,
+        "longitude": -117.489,
+        "elevation_m": 1839.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.05799,
+        "longitude": -117.48901,
+        "elevation_m": 1839.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "CCC",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.5,
+      "distance_km": 34.44,
+      "observed_time_sec": 12.469,
+      "absolute_time_utc": "2019-07-06T03:20:05.509Z",
+      "phase_file_coordinates": {
+        "latitude": 35.5249,
+        "longitude": -117.3645,
+        "elevation_m": 670.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.52495,
+        "longitude": -117.36453,
+        "elevation_m": 670.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WRV2",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 37.27,
+      "observed_time_sec": 12.282,
+      "absolute_time_utc": "2019-07-06T03:20:05.322Z",
+      "phase_file_coordinates": {
+        "latitude": 36.0077,
+        "longitude": -117.8904,
+        "elevation_m": 1070.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.00774,
+        "longitude": -117.8904,
+        "elevation_m": 1070.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WMF",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 45.02,
+      "observed_time_sec": 14.782,
+      "absolute_time_utc": "2019-07-06T03:20:07.822Z",
+      "phase_file_coordinates": {
+        "latitude": 36.1176,
+        "longitude": -117.8549,
+        "elevation_m": 1537.4
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.11758,
+        "longitude": -117.85486,
+        "elevation_m": 1537.4
+      }
+    },
+    {
+      "network": "PB",
+      "station": "B916",
+      "channel": "EH2",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 47.41,
+      "observed_time_sec": 16.235,
+      "absolute_time_utc": "2019-07-06T03:20:09.275Z",
+      "phase_file_coordinates": {
+        "latitude": 36.1925,
+        "longitude": -117.6685,
+        "elevation_m": 1859.9
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 36.1925,
+        "longitude": -117.6685,
+        "elevation_m": 1859.9
+      }
+    },
+    {
+      "network": "PB",
+      "station": "B917",
+      "channel": "EH1",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 50.79,
+      "observed_time_sec": 16.025,
+      "absolute_time_utc": "2019-07-06T03:20:09.065Z",
+      "phase_file_coordinates": {
+        "latitude": 35.4053,
+        "longitude": -117.2588,
+        "elevation_m": 1192.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.4053,
+        "longitude": -117.2588,
+        "elevation_m": 1192.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WOR",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.5,
+      "distance_km": 58.56,
+      "observed_time_sec": 17.061,
+      "absolute_time_utc": "2019-07-06T03:20:10.101Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6956,
+        "longitude": -118.2425,
+        "elevation_m": 795.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.69563,
+        "longitude": -118.24246,
+        "elevation_m": 795.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "WHF",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.8,
+      "distance_km": 68.34,
+      "observed_time_sec": 21.446,
+      "absolute_time_utc": "2019-07-06T03:20:14.486Z",
+      "phase_file_coordinates": {
+        "latitude": 35.6951,
+        "longitude": -118.3518,
+        "elevation_m": 859.0
+      },
+      "polarity": "..",
+      "onset": "i",
+      "station_metadata_coordinates": {
+        "latitude": 35.69513,
+        "longitude": -118.35183,
+        "elevation_m": 859.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "TPO",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.5,
+      "distance_km": 114.07,
+      "observed_time_sec": 35.742,
+      "absolute_time_utc": "2019-07-06T03:20:28.782Z",
+      "phase_file_coordinates": {
+        "latitude": 34.8788,
+        "longitude": -118.2286,
+        "elevation_m": 769.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 34.87883,
+        "longitude": -118.22864,
+        "elevation_m": 769.0
+      }
+    },
+    {
+      "network": "CI",
+      "station": "TEJ",
+      "channel": "HNN",
+      "location": "",
+      "phase": "S",
+      "quality": 0.5,
+      "distance_km": 115.0,
+      "observed_time_sec": 34.571,
+      "absolute_time_utc": "2019-07-06T03:20:27.611Z",
+      "phase_file_coordinates": {
+        "latitude": 35.2311,
+        "longitude": -118.6888,
+        "elevation_m": 650.0
+      },
+      "polarity": "..",
+      "onset": "e",
+      "station_metadata_coordinates": {
+        "latitude": 35.23107,
+        "longitude": -118.68878,
+        "elevation_m": 650.0
+      }
+    }
+  ],
+  "excluded_picks": [
+    {
+      "network": "NN",
+      "station": "WLDB",
+      "channel": "HHZ",
+      "location": "",
+      "phase": "P",
+      "quality": 0.8,
+      "distance_km": 143.58,
+      "observed_time_sec": 23.857,
+      "absolute_time_utc": "2019-07-06T03:20:16.897Z",
+      "phase_file_coordinates": {
+        "latitude": 36.7927,
+        "longitude": -116.6266,
+        "elevation_m": 955.0
+      },
+      "polarity": "d.",
+      "onset": "i",
+      "exclusion_reasons": [
+        "no matching active station channel epoch for NN.WLDB.HHZ."
+      ]
+    }
+  ]
+}

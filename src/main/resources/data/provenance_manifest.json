@@ -1,0 +1,112 @@
+{
+  "manifest_version": "1.0",
+  "created_timestamp_utc": "2026-09-08T08:02:11.744313+00:00",
+  "event": {
+    "id": "ci38457511",
+    "network": "ci",
+    "title": "M 7.1 - Ridgecrest Earthquake Sequence",
+    "origin_utc": "2019-07-06T03:19:53.040Z",
+    "origin_epoch_ms": 1562383193040,
+    "latitude": 35.7695,
+    "longitude": -117.5993333,
+    "depth_km": 8.0,
+    "magnitude": 7.1,
+    "magnitude_type": "mw",
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci38457511"
+  },
+  "discrepancy_resolutions": {
+    "grid_xml_atlas_advertised_vs_actual": {
+      "atlas_product_id": "urn:usgs-product:atlas:shakemap:ci38457511:1594160054783",
+      "advertised_length_bytes": 16565257,
+      "advertised_sha256_b64": "9PvPNukJiWPdwuqCZWl0wmi1DfXf20m5v5/65y6o4wY=",
+      "actual_raw_length_bytes": 16840655,
+      "actual_raw_crlf_count": 275408,
+      "actual_raw_sha256_hex": "5a9f309e599c851868d2dd3d8124273e6557d8f57abca726a6d2aebe72f9be7d",
+      "actual_raw_sha256_b64": "Wp8wnlmchRho0t09gSQnPmVX2PV6vKcmptKuvnL5vn0=",
+      "actual_normalized_lf_length_bytes": 16565247,
+      "actual_normalized_lf_sha256_hex": "45776f6500879a04027881b9d24c584d662eaec82e57b566c808bd31f4d5aebd",
+      "actual_normalized_lf_sha256_b64": "RXdvZQCHmgQCeIG50kxYTWYursguV7VmyAi9MfTVrr0=",
+      "length_difference_after_lf_normalization": 10,
+      "explanation": "Local grid.xml has CRLF line endings (16,840,655 bytes). After converting CRLF to LF, size is 16,565,247 bytes, differing by exactly 10 bytes from advertised Atlas length 16,565,257 bytes. Both stationlist.json and ci38457511_raster.zip match advertised Atlas hashes exactly."
+    },
+    "station_nn_wldb_exclusion": {
+      "pick_phase": "P",
+      "station_code": "WLDB",
+      "network_code": "NN",
+      "channel_code": "HHZ",
+      "location_code": "",
+      "reason": "No matching Station or Channel epoch found in scedc_stations.xml. Excluded per Stage 1 active-epoch metadata protocol. Retained cohort: 78 P picks (>= 40 requirement met)."
+    },
+    "station_elevation_discrepancies": {
+      "ci_daw": {
+        "phase_file_elevation_m": 0.0,
+        "station_xml_elevation_m": 1477.4,
+        "policy": "Preserve phase-file elevation (0.0 m) without correction, in accordance with Stage 1 rules."
+      }
+    }
+  },
+  "source_files": {
+    "ci38457511_event.json": {
+      "size_bytes": 155986,
+      "sha256_hex": "b50ed4fa2bf4e43b897db38c5881dcdd0628c242207d96e1146022304f45ec77",
+      "sha256_b64": "tQ7U+iv05DuJfbOMWIHc3QYowkIgfZbhFGAiME9F7Hc="
+    },
+    "ci38457511_raster.zip": {
+      "size_bytes": 10343856,
+      "sha256_hex": "32140a68130d64d5137c5cbda270882ba965ef1ce11cada07d6e4256977a2b75",
+      "sha256_b64": "MhQKaBMNZNUTfFy9onCIK6ll7xzhHK2gfW5CVpd6K3U="
+    },
+    "stationlist.json": {
+      "size_bytes": 14356555,
+      "sha256_hex": "1b246fa1692c38dc7123389c6831a40a9b158c8d6948476c0dd41ceb0df2b671",
+      "sha256_b64": "GyRvoWksONxxIzicaDGkCpsVjI1pSEdsDdQc6w3ytnE="
+    },
+    "grid.xml (raw CRLF)": {
+      "size_bytes": 16840655,
+      "sha256_hex": "5a9f309e599c851868d2dd3d8124273e6557d8f57abca726a6d2aebe72f9be7d",
+      "sha256_b64": "Wp8wnlmchRho0t09gSQnPmVX2PV6vKcmptKuvnL5vn0="
+    },
+    "ci38457511_scedc.phase": {
+      "size_bytes": 7208,
+      "sha256_hex": "f16a0f2994f12590aae981e08758118672e962d1a9665bf133634c8e2add3b89",
+      "sha256_b64": "8WoPKZTxJZCq6YHgh1gRhnLpYtGpZlvxM2NMjirdO4k="
+    },
+    "scedc_stations.xml": {
+      "size_bytes": 2364258,
+      "sha256_hex": "eb27202d7f569bab1d08b8c6b77db293d9d386670fd4ccade8ad515f1a00b022",
+      "sha256_b64": "6ycgLX9Wm6sdCLjGt32yk9nThmcP1Myt6K1RXxoAsCI="
+    },
+    "california_places_2020.txt": {
+      "size_bytes": 324004,
+      "sha256_hex": "1c16b18074084aeb15ad486f7541d00c0398d20932f8ef4aa969845473a90726",
+      "sha256_b64": "HBaxgHQISusVrUhvdUHQDAOY0gky+O9KqWmEVHOpByY="
+    },
+    "cb_2020_us_state_20m.zip": {
+      "size_bytes": 188558,
+      "sha256_hex": "1d872779cbfa2c2bf828850664aa9593a35844205e2e4bed5aeb78affb8da050",
+      "sha256_b64": "HYcnecv6LCv4KIUGZKqVk6NYRCBeLkvtWut4r/uNoFA="
+    }
+  },
+  "derivative_fixtures": {
+    "five_reference_locations.json": {
+      "size_bytes": 4597,
+      "sha256_hex": "4e5814552d9f61cbfea9912b7ab5aecf5cc20ed4110963047cfc13052f8939d4",
+      "sha256_b64": "TlgUVS2fYcv+qZErerWuz1zCDtQRCWMEfPwTBS+JOdQ="
+    },
+    "observed_picks_ci38457511.json": {
+      "size_bytes": 58589,
+      "sha256_hex": "8939996690377729141584859ebb1a7c8d6dbd3205cf394cc88f7996fb0dd178",
+      "sha256_b64": "iTmZZpA3dykUFYSFnrsafI1tvTIFzzlMyI95lvsN0Xg="
+    },
+    "mmi_legend.json": {
+      "size_bytes": 3134,
+      "sha256_hex": "93fb7124d4d23d4b579b88eca71587b5ee720d39c01c41b0eddbd33ff734a355",
+      "sha256_b64": "k/txJNTSPUtXm4jspxWHte5yDTnAHEGw7dvTP/c0o1U="
+    },
+    "california_outline.json": {
+      "size_bytes": 43944,
+      "sha256_hex": "8d198d6e6b0f3b43640772081f60e5fb7dca2022850d7f383bb2f01111597569",
+      "sha256_b64": "jRmNbmsPO0NkB3IIH2Dl+33KICKFDX84O7LwERFZdWk="
+    }
+  }
+}
