@@ -1,6 +1,7 @@
 package io.github.paracosms.calquake.ui;
 
 import io.github.paracosms.calquake.core.EarthquakeEvent;
+import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.MmiLegend;
 import io.github.paracosms.calquake.core.ReferenceLocation;
@@ -12,6 +13,7 @@ import io.github.paracosms.calquake.data.CaliforniaOutline;
 import io.github.paracosms.calquake.data.ScenarioLoader;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -49,6 +51,9 @@ public class CalQuakeApp extends Application {
     private CaliforniaOutline outline;
     private ReplayController controller;
     private MapCanvasPane mapCanvasPane;
+    private Stage lifecycleStage;
+    private boolean windowInactive;
+    private boolean wasPlayingBeforeDeactivation;
 
     // Controls & Readouts
     private Button playPauseButton;
@@ -146,7 +151,10 @@ public class CalQuakeApp extends Application {
                 animationTimer.stop();
             }
         });
+
+        setupWindowLifecycleHandlers(primaryStage);
         primaryStage.show();
+        handleWindowActivityChanged();
     }
 
     @Override
@@ -154,6 +162,63 @@ public class CalQuakeApp extends Application {
         if (animationTimer != null) {
             animationTimer.stop();
         }
+        lifecycleStage = null;
+    }
+
+    private void setupWindowLifecycleHandlers(Stage stage) {
+        this.lifecycleStage = stage;
+        this.windowInactive = false;
+        this.wasPlayingBeforeDeactivation = false;
+
+        stage.focusedProperty().addListener((observable, oldValue, newValue) -> handleWindowActivityChanged());
+        stage.iconifiedProperty().addListener((observable, oldValue, newValue) -> handleWindowActivityChanged());
+    }
+
+    private void handleWindowActivityChanged() {
+        if (lifecycleStage == null) {
+            return;
+        }
+
+        boolean inactive = !lifecycleStage.isFocused() || lifecycleStage.isIconified();
+        if (inactive == windowInactive) {
+            return;
+        }
+
+        windowInactive = inactive;
+        if (inactive) {
+            wasPlayingBeforeDeactivation = controller.isPlaying();
+            if (wasPlayingBeforeDeactivation) {
+                controller.pause();
+                updateTimeDisplays();
+                updateControlStates();
+            }
+            return;
+        }
+
+        boolean shouldResume = wasPlayingBeforeDeactivation;
+        wasPlayingBeforeDeactivation = false;
+        if (shouldResume) {
+            controller.play();
+        }
+        updateTimeDisplays();
+        updateControlStates();
+        refreshMapAfterWindowActivation();
+    }
+
+    private void refreshMapAfterWindowActivation() {
+        if (mapCanvasPane == null) {
+            return;
+        }
+
+        Platform.runLater(() -> {
+            if (lifecycleStage == null || !lifecycleStage.isFocused() || lifecycleStage.isIconified()) {
+                return;
+            }
+            FrameState currentFrame = controller.currentFrame();
+            mapCanvasPane.refresh(currentFrame);
+            updateTimeDisplays();
+            updateControlStates();
+        });
     }
 
     private VBox buildHeaderBar() {
@@ -395,6 +460,7 @@ public class CalQuakeApp extends Application {
 
         restartButton.setOnAction(e -> {
             controller.restart();
+            wasPlayingBeforeDeactivation = false;
             updateControlStates();
             updateTimeDisplays();
             if (mapCanvasPane != null) {

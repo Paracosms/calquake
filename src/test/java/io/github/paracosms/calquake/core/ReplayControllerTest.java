@@ -140,6 +140,63 @@ class ReplayControllerTest {
     }
 
     @Test
+    @DisplayName("Verify inactive time is excluded when playback resumes near the 120s limit")
+    void testInactiveTimeDoesNotCountTowardReplayLimit() {
+        controller.play();
+        clock.advanceSeconds(110.0);
+        controller.tick();
+        assertEquals(110.0, controller.elapsedSeconds(), 1e-6);
+
+        // Window deactivation: pause anchors the monotonic clock at the deactivation instant.
+        controller.pause();
+        clock.advanceSeconds(11.0);
+        controller.tick();
+        assertEquals(110.0, controller.elapsedSeconds(), 1e-6,
+                "Time spent inactive must not advance the replay");
+        assertTrue(controller.isPaused());
+
+        // Window reactivation: resume from the preserved elapsed time.
+        controller.play();
+        clock.advanceSeconds(1.0);
+        controller.tick();
+        assertEquals(111.0, controller.elapsedSeconds(), 1e-6);
+        assertTrue(controller.isPlaying());
+        assertFalse(controller.isFinished());
+    }
+
+    @Test
+    @DisplayName("Verify repeated deactivate/reactivate cycles preserve active playback time")
+    void testRepeatedDeactivateReactivateCycles() {
+        controller.play();
+
+        for (int cycle = 0; cycle < 3; cycle++) {
+            clock.advanceSeconds(2.0);
+            controller.pause();
+            clock.advanceSeconds(15.0);
+            controller.play();
+        }
+
+        clock.advanceSeconds(1.0);
+        controller.tick();
+
+        assertEquals(7.0, controller.elapsedSeconds(), 1e-6,
+                "Only the active intervals should contribute to elapsed time");
+        assertTrue(controller.isPlaying());
+    }
+
+    @Test
+    @DisplayName("Verify an explicitly paused replay remains paused while inactive time passes")
+    void testExplicitlyPausedReplayRemainsPaused() {
+        assertTrue(controller.isPaused());
+
+        clock.advanceSeconds(25.0);
+        controller.tick();
+
+        assertTrue(controller.isPaused());
+        assertEquals(0.0, controller.elapsedSeconds(), 1e-9);
+    }
+
+    @Test
     @DisplayName("Verify togglePlayPause switches between PAUSED and PLAYING")
     void testTogglePlayPause() {
         assertTrue(controller.isPaused());

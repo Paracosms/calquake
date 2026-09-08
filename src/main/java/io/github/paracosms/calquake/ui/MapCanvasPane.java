@@ -30,7 +30,8 @@ import java.util.Objects;
  * Dual-canvas map viewport for Demo 0:
  * <ul>
  *   <li>{@code staticCanvas}: Renders background, California landmass, epicenter, and the 5 historical reference
- *       locations with their peak MMI badges and collision-free labels. Redrawn only when size/layout changes.</li>
+ *       locations with their peak MMI badges and collision-free labels. Redrawn on size/layout changes, scenario
+ *       changes, and explicit lifecycle refreshes.</li>
  *   <li>{@code dynamicCanvas}: Layered directly on top, transparent, strictly clipped to viewport bounds,
  *       ready to receive {@link FrameState} wavefront circles.</li>
  * </ul>
@@ -95,14 +96,9 @@ public class MapCanvasPane extends Pane {
         double w = getWidth();
         double h = getHeight();
 
-        if (w > 0 && h > 0 && (Math.abs(w - lastWidth) > 0.5 || Math.abs(h - lastHeight) > 0.5)) {
-            lastWidth = w;
-            lastHeight = h;
-
-            staticCanvas.setWidth(w);
-            staticCanvas.setHeight(h);
-            dynamicCanvas.setWidth(w);
-            dynamicCanvas.setHeight(h);
+        if (w > 0 && h > 0 && (Math.abs(w - lastWidth) > 0.5 || Math.abs(h - lastHeight) > 0.5
+                || canvasDimensionsOutOfSync(w, h))) {
+            synchronizeCanvasDimensions(w, h);
 
             redrawStaticMap();
             if (lastFrame != null) {
@@ -123,7 +119,7 @@ public class MapCanvasPane extends Pane {
 
     /**
      * Redraws static geometry onto {@code staticCanvas}.
-     * Only executed when size or scenario changes.
+     * Executed when size, scenario, or window lifecycle state changes.
      */
     public void redrawStaticMap() {
         double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
@@ -171,6 +167,49 @@ public class MapCanvasPane extends Pane {
 
         // 5. Five Reference Locations with Peak MMI Badges
         drawReferenceLocations(gc);
+    }
+
+    /**
+     * Restores both canvas layers after a window lifecycle event.
+     * <p>
+     * A JavaFX {@link Canvas} can lose its backing surface while a window is minimized or
+     * deactivated without a corresponding layout-size change. Re-applying the dimensions and
+     * explicitly repainting both layers makes restoration independent of the next animation pulse.
+     *
+     * @param frame current replay frame to render on the dynamic layer
+     */
+    public void refresh(FrameState frame) {
+        double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
+        double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
+
+        synchronizeCanvasDimensions(w, h);
+        redrawStaticMap();
+        renderFrame(frame);
+    }
+
+    private boolean canvasDimensionsOutOfSync(double w, double h) {
+        return Math.abs(staticCanvas.getWidth() - w) > 0.5
+                || Math.abs(staticCanvas.getHeight() - h) > 0.5
+                || Math.abs(dynamicCanvas.getWidth() - w) > 0.5
+                || Math.abs(dynamicCanvas.getHeight() - h) > 0.5;
+    }
+
+    private void synchronizeCanvasDimensions(double w, double h) {
+        lastWidth = w;
+        lastHeight = h;
+
+        if (Math.abs(staticCanvas.getWidth() - w) > 0.5) {
+            staticCanvas.setWidth(w);
+        }
+        if (Math.abs(staticCanvas.getHeight() - h) > 0.5) {
+            staticCanvas.setHeight(h);
+        }
+        if (Math.abs(dynamicCanvas.getWidth() - w) > 0.5) {
+            dynamicCanvas.setWidth(w);
+        }
+        if (Math.abs(dynamicCanvas.getHeight() - h) > 0.5) {
+            dynamicCanvas.setHeight(h);
+        }
     }
 
     private void drawGridLines(GraphicsContext gc, double w, double h) {

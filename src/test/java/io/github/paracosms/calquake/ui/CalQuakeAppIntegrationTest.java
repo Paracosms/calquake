@@ -107,4 +107,61 @@ public class CalQuakeAppIntegrationTest {
             }
         });
     }
+
+    @Test
+    void testWindowLifecyclePreservesPlaybackAcrossRepeatedRestores() throws Exception {
+        CalQuakeApp[] appRef = new CalQuakeApp[1];
+        Stage[] stageRef = new Stage[1];
+
+        try {
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = new CalQuakeApp();
+                app.init();
+                Stage stage = new Stage();
+                app.start(stage);
+                stage.requestFocus();
+                appRef[0] = app;
+                stageRef[0] = stage;
+            });
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                assertTrue(stageRef[0].isFocused(), "Lifecycle test requires the shown stage to be focused");
+                appRef[0].getController().play();
+                assertTrue(appRef[0].getController().isPlaying());
+            });
+
+            for (int cycle = 0; cycle < 3; cycle++) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    stageRef[0].setIconified(true);
+                    assertTrue(appRef[0].getController().isPaused(),
+                            "Playback should pause when the stage is inactive");
+                });
+
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    stageRef[0].setIconified(false);
+                    stageRef[0].requestFocus();
+                    assertTrue(appRef[0].getController().isPlaying(),
+                            "Playback should resume after restoring a previously playing stage");
+                });
+            }
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                appRef[0].getController().pause();
+                stageRef[0].setIconified(true);
+                stageRef[0].setIconified(false);
+                stageRef[0].requestFocus();
+                assertTrue(appRef[0].getController().isPaused(),
+                        "An explicitly paused replay must remain paused after restoration");
+            });
+        } finally {
+            if (appRef[0] != null) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    appRef[0].stop();
+                    if (stageRef[0] != null) {
+                        stageRef[0].close();
+                    }
+                });
+            }
+        }
+    }
 }
