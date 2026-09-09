@@ -1,29 +1,135 @@
-/* CalQuake Desktop Theme: Classic Old Windows / Frutiger Aero Era Utility Aesthetic */
+/* CalQuake Desktop Theme: Frutiger Aero / Late-Vista & Windows 7 UI Aesthetic */
 
 .root {
-    -fx-font-family: "Segoe UI", "Tahoma", "MS Sans Serif", sans-serif;
+    -fx-font-family: "Segoe UI", "Tahoma", sans-serif;
     -fx-font-size: 11px;
-    -fx-background-color: #ECE9D8;
+    -fx-background-color: #F0F3F7;
     -fx-text-fill: #000000;
 }
 
-/* Top App Header Banner */
+/* Top App Header (Windows Vista / 7 Frutiger Aero Menu Bar) */
 .app-header {
-    -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #E8EEF5 40%, #D2DEEC 100%);
-    -fx-border-color: #7F9DB9;
+    -fx-background-color: linear-gradient(to bottom, #FCFDFE 0%, #F4F7FB 50%, #E9EFF6 100%);
+    -fx-border-color: transparent transparent #D2DCE6 transparent;
     -fx-border-width: 0 0 1px 0;
-    -fx-padding: 8px 14px;
+    -fx-padding: 0 4px;
+    -fx-alignment: CENTER_LEFT;
 }
 
-.app-title {
-    -fx-font-size: 15px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #0A246A;
+.app-menu-bar {
+    -fx-background-color: transparent;
+    -fx-padding: 1px 0;
+    -fx-spacing: 2px;
 }
 
-.app-subtitle {
+/* Menu Category in Menu Bar: Mode, Settings (matching File, Edit, View in Windows 7 / Vista) */
+.app-menu-bar .menu-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-border-radius: 2px;
+    -fx-background-radius: 2px;
+    -fx-padding: 3px 8px;
+    -fx-cursor: default;
+}
+
+.app-menu-bar .menu-button .label {
+    -fx-font-family: "Segoe UI", "Tahoma", sans-serif;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: normal;
+    -fx-text-fill: #1E1E1E;
+}
+
+/* Hover state: soft Windows Vista / 7 aero blue glow */
+.app-menu-bar .menu-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(246, 250, 254, 0.95) 0%, rgba(227, 240, 252, 0.95) 50%, rgba(206, 229, 251, 0.95) 100%);
+    -fx-border-color: #7DA2CE;
+}
+
+.app-menu-bar .menu-button:hover .label {
+    -fx-text-fill: #000000;
+}
+
+/* Open / Showing state: authentic Windows Vista / 7 active menu category (like 'View' in reference photo) */
+.app-menu-bar .menu-button:showing,
+.app-menu-bar .menu-button:armed,
+.app-menu-bar .menu-button:pressed {
+    -fx-background-color: linear-gradient(to bottom, #3E9BF6 0%, #2082E6 50%, #1574D7 100%);
+    -fx-border-color: #1766B5;
+}
+
+.app-menu-bar .menu-button:showing > .label,
+.app-menu-bar .menu-button:armed > .label,
+.app-menu-bar .menu-button:pressed > .label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.app-menu-bar .menu-button > .arrow-button {
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+}
+
+.app-menu-bar .menu-button > .arrow-button > .arrow {
+    -fx-padding: 0;
+    -fx-shape: null;
+}
+
+/* Windows 7 / Late-Vista Frutiger Aero Context Menu */
+.context-menu {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #979797;
+    -fx-border-width: 1px;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-padding: 2px 1px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.35), 6, 0, 1, 2);
+}
+
+.context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-border-radius: 2px;
+    -fx-background-radius: 2px;
+    -fx-padding: 4px 20px 4px 18px;
+}
+
+.context-menu .menu-item .label,
+.context-menu .menu-item > .label,
+.context-menu .label,
+.context-menu Text {
+    -fx-font-family: "Segoe UI", "Tahoma", sans-serif;
     -fx-font-size: 11px;
-    -fx-text-fill: #333333;
+    -fx-text-fill: #000000;
+    -fx-fill: #000000;
+}
+
+.context-menu .menu-item:focused,
+.context-menu .menu-item:hover {
+    -fx-background-color: linear-gradient(to bottom, #EBF4FD 0%, #D8EBFB 50%, #C6E2FA 100%);
+    -fx-border-color: #7DA2CE;
+}
+
+.context-menu .menu-item:focused .label,
+.context-menu .menu-item:hover .label,
+.context-menu .menu-item:focused Text,
+.context-menu .menu-item:hover Text {
+    -fx-text-fill: #000000;
+    -fx-fill: #000000;
+}
+
+.context-menu .menu-item:disabled .label,
+.context-menu .menu-item:disabled Text {
+    -fx-text-fill: #8E8E8E;
+    -fx-fill: #8E8E8E;
+}
+
+.event-selector {
+    -fx-font-size: 11px;
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #7F9DB9;
+    -fx-border-width: 1px;
+    -fx-border-radius: 2px;
 }
 
 /* Group Box / Panel */
@@ -174,17 +280,19 @@
     -fx-border-width: 0 0 1px 0;
 }
 
-/* Bottom Status Bar (Classic Windows Sunken Panes) */
+/* Bottom Status Bar (Windows 7 / Late-Vista Frutiger Aero Status Bar) */
 .status-bar {
-    -fx-background-color: #ECE9D8;
-    -fx-border-color: #7F9DB9 transparent transparent transparent;
+    -fx-background-color: linear-gradient(to bottom, #F4F7FA 0%, #E2ECF5 50%, #D5E3F0 100%);
+    -fx-border-color: #9FB5C9 transparent transparent transparent;
     -fx-border-width: 1px;
     -fx-padding: 3px 8px;
 }
 
 .status-pane {
-    -fx-border-color: #848484 #FFFFFF #FFFFFF #848484;
+    -fx-border-color: #B8CBDC #FFFFFF #FFFFFF #B8CBDC;
     -fx-border-width: 1px;
+    -fx-border-radius: 2px;
+    -fx-background-radius: 2px;
     -fx-padding: 2px 6px;
-    -fx-background-color: #F0F0F0;
+    -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #EDF3F9 100%);
 }

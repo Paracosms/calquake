@@ -31,11 +31,11 @@ public class CalQuakeAppIntegrationTest {
                 MapCanvasPane mapPane = app.getMapCanvasPane();
                 assertNotNull(mapPane);
 
-                // 1. Verify map viewport dimensions in actual 1280x800 application layout
+                // 1. Verify map viewport dimensions in actual 1280x800 application layout with compact header (28 px)
                 assertEquals(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, mapPane.getWidth(), 1.0,
                         "MapCanvasPane width in 1280x800 window must match BASELINE_VIEWPORT_WIDTH (890 px)");
-                assertEquals(MapCanvasPane.BASELINE_VIEWPORT_HEIGHT, mapPane.getHeight(), 1.0,
-                        "MapCanvasPane height in 1280x800 window must match BASELINE_VIEWPORT_HEIGHT (719 px)");
+                assertEquals(744.0, mapPane.getHeight(), 1.0,
+                        "MapCanvasPane height in 1280x800 window with compact header must be 744 px");
 
                 // 2. Verify marker positions on the live mapPane match independent control calculation <= 1px
                 var bounds = app.getOutline().computeProjectedBoundingBox(mapPane.projection());
@@ -75,22 +75,22 @@ public class CalQuakeAppIntegrationTest {
                 assertEquals(w * h, RenderSnapshotTest.countOpaquePixels(image),
                         "Entire application window must be fully opaque");
 
-                // Ocean area inside map (x=80, y=350, within 890x719 viewport): #E2EDF6
+                // Ocean area inside map (x=80, y=350, within 890x744 viewport): #E2EDF6
                 Color oceanColor = image.getPixelReader().getColor(80, 350);
                 assertEquals(0.886, oceanColor.getRed(), 0.05, "Map ocean red channel must match #E2EDF6");
                 assertEquals(0.929, oceanColor.getGreen(), 0.05, "Map ocean green channel must match #E2EDF6");
                 assertEquals(0.965, oceanColor.getBlue(), 0.05, "Map ocean blue channel must match #E2EDF6");
 
-                // California landmass area inside map (x=250, y=350): #FCFAF2
-                Color landColor = image.getPixelReader().getColor(250, 350);
+                // California landmass area inside map (x=250, y=300): #FCFAF2
+                Color landColor = image.getPixelReader().getColor(250, 300);
                 assertEquals(0.988, landColor.getRed(), 0.05, "Map land red channel must match #FCFAF2");
                 assertEquals(0.980, landColor.getGreen(), 0.05, "Map land green channel must match #FCFAF2");
                 assertEquals(0.949, landColor.getBlue(), 0.05, "Map land blue channel must match #FCFAF2");
 
-                // Header area (x=50, y=25): light-blue gradient
-                Color headerColor = image.getPixelReader().getColor(50, 25);
-                assertTrue(headerColor.getBlue() >= headerColor.getRed(),
-                        "Header should have bluish gradient background");
+                // Header area (x=200, y=14): classic desktop menu bar
+                Color headerColor = image.getPixelReader().getColor(200, 14);
+                assertTrue(headerColor.getRed() > 0.40 && headerColor.getGreen() > 0.40 && headerColor.getBlue() > 0.40,
+                        "Header should have classic desktop menu bar styling");
 
                 // Sidebar area (x=1050, y=200): light sidebar panel
                 Color sidebarColor = image.getPixelReader().getColor(1050, 200);

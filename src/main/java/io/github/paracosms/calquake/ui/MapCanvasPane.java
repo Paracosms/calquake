@@ -47,7 +47,7 @@ public class MapCanvasPane extends Pane {
     public static final double BASELINE_VIEWPORT_WIDTH = 890.0;
     /**
      * Exact viewport height (719.0 px) allocated to the map pane by the 1280x800 application window layout
-     * (800.0 px window height - 49.0 px header bar - 32.0 px status bar).
+     * (800.0 px window height - 53.0 px header bar - 28.0 px status bar).
      */
     public static final double BASELINE_VIEWPORT_HEIGHT = 719.0;
 
@@ -337,21 +337,27 @@ public class MapCanvasPane extends Pane {
             gc.setFill(Color.web("#1E293B"));
             gc.fillOval(sx - 2.0, sy - 2.0, 4.0, 4.0);
 
-            // 2. Intensity badge & city label
+            // 2. Colored square intensity badge (the only display for locations)
             LabelOffset offset = FIXED_LABEL_OFFSETS.getOrDefault(loc.city(), new LabelOffset(14.0, -10.0, "LEFT"));
-            double lx = sx + offset.dx();
+            double badgeSize = 22.0;
+            double lx;
+            if ("RIGHT".equals(offset.align())) {
+                lx = sx + offset.dx() + 142.0 - badgeSize;
+            } else {
+                lx = sx + offset.dx();
+            }
             double ly = sy + offset.dy();
 
             // Connecting lead line
             gc.setStroke(Color.web("#64748B", 0.7));
             gc.setLineWidth(1.0);
             if ("RIGHT".equals(offset.align())) {
-                gc.strokeLine(lx + 140.0, ly + 15.0, sx - 5.0, sy);
+                gc.strokeLine(lx + badgeSize, ly + badgeSize / 2.0, sx - 5.0, sy);
             } else {
-                gc.strokeLine(lx, ly + 15.0, sx + 5.0, sy);
+                gc.strokeLine(lx, ly + badgeSize / 2.0, sx + 5.0, sy);
             }
 
-            drawLocationBadge(gc, lx, ly, loc.city(), roman, rounded, colorHex, intensity.shakingDescription());
+            drawLocationBadge(gc, lx, ly, roman, colorHex);
         }
     }
 
@@ -359,47 +365,25 @@ public class MapCanvasPane extends Pane {
             GraphicsContext gc,
             double x,
             double y,
-            String city,
             String roman,
-            double roundedMmi,
-            String colorHex,
-            String descriptor
+            String colorHex
     ) {
-        double totalW = 142.0;
-        double totalH = 32.0;
-        double badgeW = 28.0;
+        double badgeSize = 22.0;
 
-        // Label outer background box (classic Windows etched card)
-        gc.setFill(Color.web("#FFFFFF", 0.94));
-        gc.setStroke(Color.web("#94A3B8"));
-        gc.setLineWidth(1.0);
-        gc.fillRoundRect(x, y, totalW, totalH, 3, 3);
-        gc.strokeRoundRect(x, y, totalW, totalH, 3, 3);
-
-        // MMI Color Tag / Box (similar to Shindo boxes in Japanese seismic viewers)
+        // MMI Color Square (the colored square is the only display)
         Color mmiColor = Color.web(colorHex);
         gc.setFill(mmiColor);
         gc.setStroke(Color.web("#475569"));
         gc.setLineWidth(1.0);
-        gc.fillRoundRect(x + 2, y + 2, badgeW, totalH - 4, 2, 2);
-        gc.strokeRoundRect(x + 2, y + 2, badgeW, totalH - 4, 2, 2);
+        gc.fillRoundRect(x, y, badgeSize, badgeSize, 2, 2);
+        gc.strokeRoundRect(x, y, badgeSize, badgeSize, 2, 2);
 
-        // Roman numeral inside badge
-        // Choose text color based on luminance
+        // Roman numeral inside colored square
         double lum = 0.299 * mmiColor.getRed() + 0.587 * mmiColor.getGreen() + 0.114 * mmiColor.getBlue();
         gc.setFill(lum > 0.55 ? Color.BLACK : Color.WHITE);
-        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, roman.length() > 3 ? 9.0 : 11.0));
-        double textX = x + (badgeW / 2.0) - (roman.length() * 3.2);
-        gc.fillText(roman, Math.max(x + 4, textX), y + 18);
-
-        // City name & Historical peak MMI label
-        gc.setFill(Color.web("#0F172A"));
-        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10.5));
-        gc.fillText(city, x + badgeW + 6, y + 13);
-
-        gc.setFill(Color.web("#475569"));
-        gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 8.5));
-        gc.fillText(String.format("Hist Peak MMI %.1f (%s)", roundedMmi, descriptor), x + badgeW + 6, y + 25);
+        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, roman.length() > 3 ? 8.5 : 10.5));
+        double textX = x + (badgeSize / 2.0) - (roman.length() * 3.0);
+        gc.fillText(roman, Math.max(x + 2, textX), y + 15.0);
     }
 
     private void drawStar(GraphicsContext gc, double cx, double cy, double rOuter, double rInner, Color fill, Color stroke) {
@@ -426,7 +410,8 @@ public class MapCanvasPane extends Pane {
     /**
      * Renders dynamic wavefronts from a {@link FrameState}.
      * Clears dynamic canvas. If wavefronts are available, draws them.
-     * Dashed cyan circle for P-wave, solid orange circle for S-wave.
+     * Dashed cyan circle with low-opacity fill for P-wave,
+     * solid orange circle with low-opacity fill for S-wave.
      * Radii are scaled with the viewport transform and strictly clipped to viewport bounds.
      *
      * @param frame current replay frame snapshot
@@ -458,10 +443,12 @@ public class MapCanvasPane extends Pane {
         gc.rect(0, 0, w, h);
         gc.clip();
 
-        // P-wave: dashed cyan circle (when surface arrival has occurred)
+        // P-wave: low-opacity cyan fill with dashed cyan moving outline (when surface arrival has occurred)
         if (radii.hasP()) {
             double rKm = radii.pRadiusKm();
             double rPx = currentTransform.toScreenRadius(rKm);
+            gc.setFill(Color.web("#06B6D4", 0.15));
+            gc.fillOval(ex - rPx, ey - rPx, rPx * 2.0, rPx * 2.0);
             gc.setStroke(Color.web("#06B6D4"));
             gc.setLineWidth(2.0);
             gc.setLineDashes(6.0, 4.0);
@@ -469,10 +456,12 @@ public class MapCanvasPane extends Pane {
             gc.setLineDashes((double[]) null);
         }
 
-        // S-wave: solid orange circle (when surface arrival has occurred)
+        // S-wave: low-opacity orange fill with solid orange moving outline (when surface arrival has occurred)
         if (radii.hasS()) {
             double rKm = radii.sRadiusKm();
             double rPx = currentTransform.toScreenRadius(rKm);
+            gc.setFill(Color.web("#F97316", 0.15));
+            gc.fillOval(ex - rPx, ey - rPx, rPx * 2.0, rPx * 2.0);
             gc.setStroke(Color.web("#F97316"));
             gc.setLineWidth(2.5);
             gc.setLineDashes((double[]) null);

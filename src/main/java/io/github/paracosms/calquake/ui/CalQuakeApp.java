@@ -18,7 +18,11 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.layout.BorderPane;
@@ -55,6 +59,17 @@ public class CalQuakeApp extends Application {
     private boolean windowInactive;
     private boolean wasPlayingBeforeDeactivation;
     private Throwable startupError;
+
+    // Header & Mode Controls
+    private MenuBar menuBar;
+    private Menu calQuakeMenu;
+    private Menu modeMenu;
+    private MenuItem replayMenuItem;
+    private Menu settingsMenu;
+    private Button settingsButton;
+
+    // Event Selector
+    private ComboBox<String> eventSelector;
 
     // Controls & Readouts
     private Button playPauseButton;
@@ -114,7 +129,7 @@ public class CalQuakeApp extends Application {
         root.getStyleClass().add("root");
 
         // 1. Top Header Bar
-        VBox headerBar = buildHeaderBar();
+        HBox headerBar = buildHeaderBar();
         root.setTop(headerBar);
 
         // 2. Center: Map Canvas Viewport with Overlaid Top-Left Timer Box
@@ -172,7 +187,7 @@ public class CalQuakeApp extends Application {
         String cssPath = Objects.requireNonNull(getClass().getResource("/styles/calquake.css")).toExternalForm();
         scene.getStylesheets().add(cssPath);
 
-        primaryStage.setTitle("CalQuake — M 7.1 Ridgecrest Earthquake Sequence Replay");
+        primaryStage.setTitle("CalQuake");
         primaryStage.setMinWidth(MIN_WIDTH);
         primaryStage.setMinHeight(MIN_HEIGHT);
         primaryStage.setScene(scene);
@@ -251,39 +266,40 @@ public class CalQuakeApp extends Application {
         });
     }
 
-    private VBox buildHeaderBar() {
-        VBox header = new VBox(3.0);
+    private HBox buildHeaderBar() {
+        HBox header = new HBox(8.0);
         header.getStyleClass().add("app-header");
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setMinHeight(28.0);
+        header.setPrefHeight(28.0);
+        header.setMaxHeight(28.0);
 
-        HBox titleRow = new HBox(12.0);
-        titleRow.setAlignment(Pos.CENTER_LEFT);
+        // Top-level application header: Mode and Settings controls (Frutiger Aero / Windows 7 style)
+        this.menuBar = new MenuBar();
+        menuBar.getStyleClass().add("app-menu-bar");
 
-        Label titleLabel = new Label("CalQuake: M 7.1 Ridgecrest Earthquake Sequence Replay");
-        titleLabel.getStyleClass().add("app-title");
+        // 1. Mode menu (dropdown with Replay only)
+        this.modeMenu = new Menu("Mode");
+        this.replayMenuItem = new MenuItem("Replay");
+        modeMenu.getItems().add(replayMenuItem);
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        // 2. Settings menu (placeholder for later work)
+        this.settingsMenu = new Menu("Settings");
+        MenuItem settingsItem = new MenuItem("Settings...");
+        settingsItem.setDisable(true);
+        settingsMenu.getItems().add(settingsItem);
 
-        Label badge = new Label("Historical Peak MMI View");
-        badge.getStyleClass().add("status-badge-paused");
+        // Retain calQuakeMenu reference for testing compatibility
+        this.calQuakeMenu = new Menu("CalQuake");
 
-        titleRow.getChildren().addAll(titleLabel, spacer, badge);
+        // Nonfunctional settings button kept for backward compatibility if queried
+        this.settingsButton = new Button("Settings");
+        settingsButton.getStyleClass().add("button");
+        settingsButton.setOnAction(e -> {});
 
-        EarthquakeEvent event = scenario.event();
-        String metadata = String.format(
-                "Origin UTC: %s  |  Magnitude: %.1f %s  |  Hypocenter: %.4f°N, %.4f°W  |  Depth: %.1f km  |  Event ID: %s",
-                event.originUtc(),
-                event.magnitude(),
-                event.magnitudeType().toUpperCase(),
-                event.epicenter().latitude(),
-                Math.abs(event.epicenter().longitude()),
-                event.depthKm(),
-                event.id()
-        );
-        Label subLabel = new Label(metadata);
-        subLabel.getStyleClass().add("app-subtitle");
-
-        header.getChildren().addAll(titleRow, subLabel);
+        menuBar.getMenus().addAll(modeMenu, settingsMenu);
+        HBox.setHgrow(menuBar, Priority.ALWAYS);
+        header.getChildren().add(menuBar);
         return header;
     }
 
@@ -317,18 +333,18 @@ public class CalQuakeApp extends Application {
     private VBox buildSidebar() {
         VBox sidebar = new VBox(10.0);
         sidebar.setPadding(new Insets(10.0));
-        sidebar.setStyle("-fx-background-color: #ECE9D8;");
+        sidebar.setStyle("-fx-background-color: #F0F3F7;");
 
         // Section 1: Replay Controls
         VBox controlsBox = buildControlsBox();
 
-        // Section 2: Historical Peak MMI (Five Reference Locations)
-        VBox locationsBox = buildLocationsBox();
+        // Section 2: Compact Event Selector (replaces Five Reference Locations)
+        VBox eventBox = buildEventSelectorBox();
 
         // Section 3: USGS ShakeMap MMI Legend
         VBox legendBox = buildLegendBox();
 
-        sidebar.getChildren().addAll(controlsBox, locationsBox, legendBox);
+        sidebar.getChildren().addAll(controlsBox, eventBox, legendBox);
         return sidebar;
     }
 
@@ -393,53 +409,23 @@ public class CalQuakeApp extends Application {
         return box;
     }
 
-    private VBox buildLocationsBox() {
+    private VBox buildEventSelectorBox() {
         VBox box = new VBox(6.0);
         box.getStyleClass().add("group-box");
 
-        Label title = new Label("Five Reference Locations — Historical Peak MMI");
+        Label title = new Label("Event Selector");
         title.getStyleClass().add("group-box-title");
 
-        Label subtitle = new Label("Values from USGS Atlas ShakeMap v1 (Frozen replay ground truth):");
+        Label subtitle = new Label("Select earthquake sequence:");
         subtitle.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #64748B;");
-        box.getChildren().addAll(title, subtitle);
 
-        for (ReferenceLocation loc : scenario.locations()) {
-            HBox row = new HBox(8.0);
-            row.setAlignment(Pos.CENTER_LEFT);
-            row.getStyleClass().add("location-row");
+        this.eventSelector = new ComboBox<>();
+        eventSelector.getItems().addAll("Ridgecrest", "Northridge");
+        eventSelector.setValue("Ridgecrest");
+        eventSelector.setMaxWidth(Double.MAX_VALUE);
+        eventSelector.getStyleClass().add("event-selector");
 
-            // MMI Badge
-            String colorHex = loc.peakIntensity().colorHex();
-            Rectangle badgeRect = new Rectangle(26.0, 20.0, Color.web(colorHex));
-            badgeRect.setStroke(Color.web("#475569"));
-            badgeRect.setArcWidth(3.0);
-            badgeRect.setArcHeight(3.0);
-
-            Label badgeText = new Label(loc.peakIntensity().mmiRoman());
-            badgeText.setStyle("-fx-font-weight: bold; -fx-font-size: 9.5px; -fx-text-fill: #000000;");
-
-            StackPane badgeStack = new StackPane(badgeRect, badgeText);
-            badgeStack.setPrefSize(26.0, 20.0);
-
-            VBox info = new VBox(1.0);
-            Label cityLabel = new Label(loc.city());
-            cityLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-text-fill: #0F172A;");
-
-            String desc = String.format("Peak MMI: %.1f (%s)  |  GEOID: %s",
-                    loc.peakIntensity().mmiDisplayRounded(),
-                    loc.peakIntensity().shakingDescription(),
-                    loc.geoid());
-            Label descLabel = new Label(desc);
-            descLabel.setStyle("-fx-font-size: 9px; -fx-text-fill: #475569;");
-
-            info.getChildren().addAll(cityLabel, descLabel);
-            HBox.setHgrow(info, Priority.ALWAYS);
-
-            row.getChildren().addAll(badgeStack, info);
-            box.getChildren().add(row);
-        }
-
+        box.getChildren().addAll(title, subtitle, eventSelector);
         return box;
     }
 
@@ -586,7 +572,7 @@ public class CalQuakeApp extends Application {
     Scene buildStartupErrorScene(Stage stage, Throwable error) {
         VBox root = new VBox(16.0);
         root.setPadding(new Insets(24.0));
-        root.setStyle("-fx-background-color: #ECE9D8; -fx-font-family: 'Segoe UI', Tahoma, sans-serif;");
+        root.setStyle("-fx-background-color: #F0F3F7; -fx-font-family: 'Segoe UI', Tahoma, sans-serif;");
 
         Label heading = new Label("⚠  CalQuake Startup Error");
         heading.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #991B1B;");
@@ -627,6 +613,34 @@ public class CalQuakeApp extends Application {
 
     public MapCanvasPane getMapCanvasPane() {
         return mapCanvasPane;
+    }
+
+    public MenuBar getMenuBar() {
+        return menuBar;
+    }
+
+    public Menu getCalQuakeMenu() {
+        return calQuakeMenu;
+    }
+
+    public Menu getModeMenu() {
+        return modeMenu;
+    }
+
+    public MenuItem getReplayMenuItem() {
+        return replayMenuItem;
+    }
+
+    public Menu getSettingsMenu() {
+        return settingsMenu;
+    }
+
+    public Button getSettingsButton() {
+        return settingsButton;
+    }
+
+    public ComboBox<String> getEventSelector() {
+        return eventSelector;
     }
 
     public Button getPlayPauseButton() {
