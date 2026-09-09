@@ -225,6 +225,10 @@ public class CalQuakeApp extends Application {
         }
 
         boolean inactive = !lifecycleStage.isFocused() || lifecycleStage.isIconified();
+        applyWindowActivityState(inactive);
+    }
+
+    void applyWindowActivityState(boolean inactive) {
         if (inactive == windowInactive) {
             return;
         }

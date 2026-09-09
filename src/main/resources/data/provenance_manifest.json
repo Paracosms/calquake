@@ -94,19 +94,19 @@
       "sha256_b64": "4rUFqbBCkd2z8KCIkrqHBYxWzPir/x0FPyOkgXes1ls="
     },
     "observed_picks_ci38457511.json": {
-      "size_bytes": 58589,
-      "sha256_hex": "8939996690377729141584859ebb1a7c8d6dbd3205cf394cc88f7996fb0dd178",
-      "sha256_b64": "iTmZZpA3dykUFYSFnrsafI1tvTIFzzlMyI95lvsN0Xg="
+      "size_bytes": 56365,
+      "sha256_hex": "df2834d84134a66d97320a6cdca9da9cd0739c63044c0ab537f04e9546477471",
+      "sha256_b64": "3yg02EE0pm2XMgps3KnanNBznGMETAq1N/BOlUZHdHE="
     },
     "mmi_legend.json": {
-      "size_bytes": 3134,
-      "sha256_hex": "93fb7124d4d23d4b579b88eca71587b5ee720d39c01c41b0eddbd33ff734a355",
-      "sha256_b64": "k/txJNTSPUtXm4jspxWHte5yDTnAHEGw7dvTP/c0o1U="
+      "size_bytes": 3020,
+      "sha256_hex": "8f12fbc455e01ab3297cfb269d5c425cd0ea5982d1feb7e29fdad3e7ec0819eb",
+      "sha256_b64": "jxL7xFXgGrMpfPsmnVxCXNDqWYLR/rfin9rT5+wIGes="
     },
     "california_outline.json": {
-      "size_bytes": 43944,
-      "sha256_hex": "8d198d6e6b0f3b43640772081f60e5fb7dca2022850d7f383bb2f01111597569",
-      "sha256_b64": "jRmNbmsPO0NkB3IIH2Dl+33KICKFDX84O7LwERFZdWk="
+      "size_bytes": 42017,
+      "sha256_hex": "ac9b7f29d3996eef77f780a4a0acd22a96fc3958bb8670769e3bd9bb1e88c09a",
+      "sha256_b64": "rJt/KdOZbu9394CkoKzSKpb8OVi7hnB2njvZux6IwJo="
     }
   }
 }
