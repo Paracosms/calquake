@@ -29,6 +29,9 @@ jobs:
       - name: Install Linux GUI / Xvfb dependencies
         if: runner.os == 'Linux'
         run: |
+          # Chrome is preinstalled on hosted runners, and its unrelated APT
+          # repository can briefly be inconsistent while Google publishes it.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update
           sudo apt-get install -y xvfb libxrender1 libxtst6 libxi6 libgl1 libglx-mesa0
 
