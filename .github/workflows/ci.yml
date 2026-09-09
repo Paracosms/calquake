@@ -29,10 +29,12 @@ jobs:
       - name: Install Linux GUI / Xvfb dependencies
         if: runner.os == 'Linux'
         run: |
-          # Chrome is preinstalled on hosted runners, and its unrelated APT
-          # repository can briefly be inconsistent while Google publishes it.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
-          sudo apt-get update
+          # Only Ubuntu packages are needed here. Ignore third-party runner
+          # repositories, whose metadata may be inconsistent while publishing.
+          sudo apt-get update \
+            -o Dir::Etc::sourcelist="sources.list.d/ubuntu.sources" \
+            -o Dir::Etc::sourceparts="-" \
+            -o APT::Get::List-Cleanup="0"
           sudo apt-get install -y xvfb libxrender1 libxtst6 libxi6 libgl1 libglx-mesa0
 
       - name: Run Maven Verify (Windows)
