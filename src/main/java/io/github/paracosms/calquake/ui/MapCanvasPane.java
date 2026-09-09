@@ -426,17 +426,23 @@ public class MapCanvasPane extends Pane {
     /**
      * Renders dynamic wavefronts from a {@link FrameState}.
      * Clears dynamic canvas. If wavefronts are available, draws them.
-     * (Full animation connected in Stage 6).
+     * Dashed cyan circle for P-wave, solid orange circle for S-wave.
+     * Radii are scaled with the viewport transform and strictly clipped to viewport bounds.
      *
      * @param frame current replay frame snapshot
      */
     public void renderFrame(FrameState frame) {
         this.lastFrame = frame;
-        GraphicsContext gc = dynamicCanvas.getGraphicsContext2D();
         double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
         double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
+        synchronizeCanvasDimensions(w, h);
 
+        GraphicsContext gc = dynamicCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, w, h);
+
+        if (currentTransform == null) {
+            redrawStaticMap();
+        }
 
         if (frame == null || currentTransform == null) {
             return;
@@ -446,6 +452,11 @@ public class MapCanvasPane extends Pane {
         ScreenPoint epiScreen = currentTransform.toScreen(0.0, 0.0);
         double ex = epiScreen.xPx();
         double ey = epiScreen.yPx();
+
+        gc.save();
+        gc.beginPath();
+        gc.rect(0, 0, w, h);
+        gc.clip();
 
         // P-wave: dashed cyan circle (when surface arrival has occurred)
         if (radii.hasP()) {
@@ -464,8 +475,23 @@ public class MapCanvasPane extends Pane {
             double rPx = currentTransform.toScreenRadius(rKm);
             gc.setStroke(Color.web("#F97316"));
             gc.setLineWidth(2.5);
+            gc.setLineDashes((double[]) null);
             gc.strokeOval(ex - rPx, ey - rPx, rPx * 2.0, rPx * 2.0);
         }
+
+        gc.restore();
+    }
+
+    public Canvas getDynamicCanvas() {
+        return dynamicCanvas;
+    }
+
+    public Canvas getStaticCanvas() {
+        return staticCanvas;
+    }
+
+    public FrameState getLastFrame() {
+        return lastFrame;
     }
 
     public ViewportTransform currentTransform() {

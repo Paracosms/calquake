@@ -54,6 +54,7 @@ public class CalQuakeApp extends Application {
     private Stage lifecycleStage;
     private boolean windowInactive;
     private boolean wasPlayingBeforeDeactivation;
+    private Throwable startupError;
 
     // Controls & Readouts
     private Button playPauseButton;
@@ -63,23 +64,52 @@ public class CalQuakeApp extends Application {
     private Label hudStateLabel;
     private Label controlStateLabel;
     private Label controlTimeLabel;
+    private Label statusReplayLabel;
+    private AnimationTimer animationTimer;
+
+    public CalQuakeApp() {
+    }
+
+    public CalQuakeApp(Scenario scenario, CaliforniaOutline outline, ReplayController controller) {
+        this.scenario = scenario;
+        this.outline = outline;
+        this.controller = controller;
+    }
 
     @Override
     public void init() {
-        // Load default frozen scenario, outline, and models
-        ScenarioLoader loader = new ScenarioLoader();
-        this.scenario = loader.loadDefaultScenario();
-        this.outline = CaliforniaOutline.loadDefault();
-
-        TravelTimeModel model = new HadleyKanamoriTauPModel();
-        ReplayEngine engine = ReplayEngine.create(scenario, model);
-        this.controller = new ReplayController(scenario, engine);
+        if (this.scenario != null && this.outline != null && this.controller != null) {
+            return;
+        }
+        try {
+            // Load default frozen scenario, outline, and models
+            if (this.scenario == null) {
+                ScenarioLoader loader = new ScenarioLoader();
+                this.scenario = loader.loadDefaultScenario();
+            }
+            if (this.outline == null) {
+                this.outline = CaliforniaOutline.loadDefault();
+            }
+            if (this.controller == null) {
+                TravelTimeModel model = new HadleyKanamoriTauPModel();
+                ReplayEngine engine = ReplayEngine.create(scenario, model);
+                this.controller = new ReplayController(scenario, engine);
+            }
+        } catch (Throwable t) {
+            this.startupError = t;
+        }
     }
-
-    private AnimationTimer animationTimer;
 
     @Override
     public void start(Stage primaryStage) {
+        if (startupError != null) {
+            Scene errorScene = buildStartupErrorScene(primaryStage, startupError);
+            primaryStage.setTitle("CalQuake — Startup Error");
+            primaryStage.setScene(errorScene);
+            primaryStage.show();
+            return;
+        }
+
         BorderPane root = new BorderPane();
         root.getStyleClass().add("root");
 
@@ -331,7 +361,35 @@ public class CalQuakeApp extends Application {
 
         statusInfo.getChildren().addAll(controlStateLabel, controlTimeLabel);
 
-        box.getChildren().addAll(title, buttonsRow, statusInfo);
+        // Wavefront legend indicators
+        VBox frontLegendBox = new VBox(4.0);
+        frontLegendBox.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 6px; -fx-border-color: #CBD5E1; -fx-border-width: 1px; -fx-border-radius: 3px;");
+
+        Label frontTitle = new Label("Wavefront Fronts (TauP Hadley-Kanamori):");
+        frontTitle.setStyle("-fx-font-size: 9px; -fx-font-weight: bold; -fx-text-fill: #475569;");
+
+        HBox pRow = new HBox(6.0);
+        pRow.setAlignment(Pos.CENTER_LEFT);
+        javafx.scene.shape.Line pLine = new javafx.scene.shape.Line(0, 0, 22, 0);
+        pLine.setStroke(Color.web("#06B6D4"));
+        pLine.setStrokeWidth(2.0);
+        pLine.getStrokeDashArray().addAll(6.0, 4.0);
+        Label pText = new Label("P-Wave: Dashed cyan circle (Compressional)");
+        pText.setStyle("-fx-font-size: 9px; -fx-text-fill: #0E7490; -fx-font-weight: bold;");
+        pRow.getChildren().addAll(pLine, pText);
+
+        HBox sRow = new HBox(6.0);
+        sRow.setAlignment(Pos.CENTER_LEFT);
+        javafx.scene.shape.Line sLine = new javafx.scene.shape.Line(0, 0, 22, 0);
+        sLine.setStroke(Color.web("#F97316"));
+        sLine.setStrokeWidth(2.5);
+        Label sText = new Label("S-Wave: Solid orange circle (Shear)");
+        sText.setStyle("-fx-font-size: 9px; -fx-text-fill: #C2410C; -fx-font-weight: bold;");
+        sRow.getChildren().addAll(sLine, sText);
+
+        frontLegendBox.getChildren().addAll(frontTitle, pRow, sRow);
+
+        box.getChildren().addAll(title, buttonsRow, statusInfo, frontLegendBox);
         return box;
     }
 
@@ -444,11 +502,11 @@ public class CalQuakeApp extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Label p4 = new Label("Stage 5 Static Screen: READY");
-        p4.getStyleClass().add("status-pane");
-        p4.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
+        this.statusReplayLabel = new Label("Replay: READY (0.00s / 120.00s)");
+        statusReplayLabel.getStyleClass().add("status-pane");
+        statusReplayLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
 
-        bar.getChildren().addAll(p1, p2, p3, spacer, p4);
+        bar.getChildren().addAll(p1, p2, p3, spacer, statusReplayLabel);
         return bar;
     }
 
@@ -456,6 +514,10 @@ public class CalQuakeApp extends Application {
         playPauseButton.setOnAction(e -> {
             controller.togglePlayPause();
             updateControlStates();
+            updateTimeDisplays();
+            if (mapCanvasPane != null) {
+                mapCanvasPane.renderFrame(controller.currentFrame());
+            }
         });
 
         restartButton.setOnAction(e -> {
@@ -464,27 +526,47 @@ public class CalQuakeApp extends Application {
             updateControlStates();
             updateTimeDisplays();
             if (mapCanvasPane != null) {
-                mapCanvasPane.renderFrame(null);
+                mapCanvasPane.renderFrame(controller.currentFrame());
             }
         });
     }
 
     private void updateControlStates() {
+        double elapsed = controller.elapsedSeconds();
         if (controller.isPlaying()) {
+            playPauseButton.setDisable(false);
             playPauseButton.setText("⏸  Pause");
             hudStateLabel.setText("PLAYING");
             hudStateLabel.getStyleClass().setAll("status-badge-playing");
             controlStateLabel.setText("State: PLAYING");
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText(String.format("Replay: PLAYING (T + %.1f s)", elapsed));
+            }
         } else if (controller.isPaused()) {
+            playPauseButton.setDisable(false);
             playPauseButton.setText("▶  Play");
             hudStateLabel.setText("PAUSED");
             hudStateLabel.getStyleClass().setAll("status-badge-paused");
-            controlStateLabel.setText("State: PAUSED");
+            if (elapsed == 0.0) {
+                controlStateLabel.setText("State: PAUSED (Ready)");
+                if (statusReplayLabel != null) {
+                    statusReplayLabel.setText("Replay: READY (0.00s / 120.00s)");
+                }
+            } else {
+                controlStateLabel.setText("State: PAUSED");
+                if (statusReplayLabel != null) {
+                    statusReplayLabel.setText(String.format("Replay: PAUSED (T + %.1f s)", elapsed));
+                }
+            }
         } else if (controller.isFinished()) {
+            playPauseButton.setDisable(true);
             playPauseButton.setText("▶  Play");
             hudStateLabel.setText("FINISHED");
             hudStateLabel.getStyleClass().setAll("status-badge-finished");
             controlStateLabel.setText("State: FINISHED (Require Restart)");
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Replay: FINISHED (Require Restart)");
+            }
         }
     }
 
@@ -499,6 +581,35 @@ public class CalQuakeApp extends Application {
         elapsedDigitsLabel.setText(formatted);
         elapsedSubLabel.setText(String.format("T + %.1f s  (Max: %.1f s)", elapsed, ReplayController.MAX_REPLAY_SECONDS));
         controlTimeLabel.setText(String.format("Elapsed: %.2f s / %.2f s", elapsed, ReplayController.MAX_REPLAY_SECONDS));
+    }
+
+    Scene buildStartupErrorScene(Stage stage, Throwable error) {
+        VBox root = new VBox(16.0);
+        root.setPadding(new Insets(24.0));
+        root.setStyle("-fx-background-color: #ECE9D8; -fx-font-family: 'Segoe UI', Tahoma, sans-serif;");
+
+        Label heading = new Label("⚠  CalQuake Startup Error");
+        heading.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #991B1B;");
+
+        Label desc = new Label("Failed to initialize offline replay resources:\n" +
+                (error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName()));
+        desc.setWrapText(true);
+        desc.setStyle("-fx-font-size: 12px; -fx-text-fill: #1E293B;");
+
+        java.io.StringWriter sw = new java.io.StringWriter();
+        error.printStackTrace(new java.io.PrintWriter(sw));
+        javafx.scene.control.TextArea stackArea = new javafx.scene.control.TextArea(sw.toString());
+        stackArea.setEditable(false);
+        stackArea.setWrapText(false);
+        stackArea.setPrefRowCount(10);
+        VBox.setVgrow(stackArea, Priority.ALWAYS);
+
+        Button exitBtn = new Button("Exit");
+        exitBtn.setOnAction(e -> stage.close());
+        exitBtn.setPrefWidth(90.0);
+
+        root.getChildren().addAll(heading, desc, stackArea, exitBtn);
+        return new Scene(root, 640.0, 400.0);
     }
 
     // Accessors for testing and verification
@@ -516,6 +627,50 @@ public class CalQuakeApp extends Application {
 
     public MapCanvasPane getMapCanvasPane() {
         return mapCanvasPane;
+    }
+
+    public Button getPlayPauseButton() {
+        return playPauseButton;
+    }
+
+    public Button getRestartButton() {
+        return restartButton;
+    }
+
+    public Label getHudStateLabel() {
+        return hudStateLabel;
+    }
+
+    public Label getControlStateLabel() {
+        return controlStateLabel;
+    }
+
+    public Label getElapsedDigitsLabel() {
+        return elapsedDigitsLabel;
+    }
+
+    public Label getElapsedSubLabel() {
+        return elapsedSubLabel;
+    }
+
+    public Label getControlTimeLabel() {
+        return controlTimeLabel;
+    }
+
+    public Label getStatusReplayLabel() {
+        return statusReplayLabel;
+    }
+
+    public AnimationTimer getAnimationTimer() {
+        return animationTimer;
+    }
+
+    public Throwable getStartupError() {
+        return startupError;
+    }
+
+    void setStartupErrorForTesting(Throwable t) {
+        this.startupError = t;
     }
 
     public static void main(String[] args) {
