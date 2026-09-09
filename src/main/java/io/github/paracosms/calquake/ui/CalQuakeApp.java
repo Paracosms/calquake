@@ -531,7 +531,7 @@ public class CalQuakeApp extends Application {
         });
     }
 
-    private void updateControlStates() {
+    void updateControlStates() {
         double elapsed = controller.elapsedSeconds();
         if (controller.isPlaying()) {
             playPauseButton.setDisable(false);
@@ -570,7 +570,7 @@ public class CalQuakeApp extends Application {
         }
     }
 
-    private void updateTimeDisplays() {
+    void updateTimeDisplays() {
         double elapsed = controller.elapsedSeconds();
         int minutes = (int) (elapsed / 60.0);
         int seconds = (int) (elapsed % 60.0);
