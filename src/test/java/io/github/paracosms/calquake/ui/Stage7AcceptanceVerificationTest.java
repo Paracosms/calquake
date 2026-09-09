@@ -40,6 +40,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -150,8 +151,13 @@ class Stage7AcceptanceVerificationTest {
         try (InputStream is = getClass().getResourceAsStream(resourcePath)) {
             assertNotNull(is, "Missing resource: " + resourcePath);
             byte[] bytes = is.readAllBytes();
+            // Git may check text resources out with CRLF on Windows. The
+            // provenance manifest records the canonical LF representation.
+            String canonicalText = new String(bytes, StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n")
+                    .replace('\r', '\n');
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(bytes);
+            byte[] digest = md.digest(canonicalText.getBytes(StandardCharsets.UTF_8));
             String actualHex = HexFormat.of().formatHex(digest);
             assertEquals(expectedHex.toLowerCase(), actualHex.toLowerCase(), "SHA-256 mismatch for " + resourcePath);
         }

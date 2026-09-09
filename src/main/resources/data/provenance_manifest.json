@@ -89,9 +89,9 @@
   },
   "derivative_fixtures": {
     "five_reference_locations.json": {
-      "size_bytes": 4597,
-      "sha256_hex": "4e5814552d9f61cbfea9912b7ab5aecf5cc20ed4110963047cfc13052f8939d4",
-      "sha256_b64": "TlgUVS2fYcv+qZErerWuz1zCDtQRCWMEfPwTBS+JOdQ="
+      "size_bytes": 4431,
+      "sha256_hex": "e2b505a9b04291ddb3f0a08892ba87058c56ccf8abff1d053f23a48177acd65b",
+      "sha256_b64": "4rUFqbBCkd2z8KCIkrqHBYxWzPir/x0FPyOkgXes1ls="
     },
     "observed_picks_ci38457511.json": {
       "size_bytes": 58589,

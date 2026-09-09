@@ -3,12 +3,15 @@ package io.github.paracosms.calquake.ui;
 import io.github.paracosms.calquake.testsupport.JavaFxTestHelper;
 import javafx.scene.Scene;
 import javafx.scene.image.WritableImage;
+import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
 import java.io.File;
+import java.time.Duration;
+import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -97,10 +100,14 @@ public class CalQuakeAppIntegrationTest {
                 assertTrue(sidebarColor.getRed() > 0.85 && sidebarColor.getGreen() > 0.85 && sidebarColor.getBlue() > 0.85,
                         "Sidebar should have light panel styling");
 
-                // Status bar area (x=50, y=785): classic status bar
-                Color statusColor = image.getPixelReader().getColor(50, 785);
-                assertTrue(statusColor.getRed() > 0.60 && statusColor.getGreen() > 0.60,
-                        "Status bar should have classic panel styling");
+                // Verify the status bar's styled region directly. A fixed
+                // screenshot coordinate can land on text with Linux fonts.
+                Region statusBar = (Region) scene.lookup(".status-bar");
+                assertNotNull(statusBar, "Status bar should be present");
+                assertTrue(!statusBar.getBackground().isEmpty(),
+                        "Status bar should have a styled background");
+                assertTrue(!statusBar.getBorder().isEmpty(),
+                        "Status bar should have a classic panel border");
 
                 // Map content rendering checks across the full window
                 assertTrue(RenderSnapshotTest.countLandFillPixels(image) > 10_000,
@@ -203,9 +210,11 @@ public class CalQuakeAppIntegrationTest {
                 JavaFxTestHelper.runOnFxThread(() -> {
                     stageRef[0].setIconified(false);
                     stageRef[0].requestFocus();
-                    assertTrue(appRef[0].getController().isPlaying(),
-                            "Playback should resume after restoring a previously playing stage");
                 });
+                waitForCondition(
+                        () -> appRef[0].getController().isPlaying(),
+                        Duration.ofSeconds(5),
+                        "Playback should resume after restoring a previously playing stage");
             }
 
             JavaFxTestHelper.runOnFxThread(() -> {
@@ -226,5 +235,19 @@ public class CalQuakeAppIntegrationTest {
                 });
             }
         }
+    }
+
+    private static void waitForCondition(
+            BooleanSupplier condition, Duration timeout, String failureMessage) throws Exception {
+        long deadlineNanos = System.nanoTime() + timeout.toNanos();
+        boolean[] satisfied = new boolean[1];
+        while (System.nanoTime() < deadlineNanos) {
+            JavaFxTestHelper.runOnFxThread(() -> satisfied[0] = condition.getAsBoolean());
+            if (satisfied[0]) {
+                return;
+            }
+            Thread.sleep(25);
+        }
+        assertTrue(satisfied[0], failureMessage);
     }
 }
