@@ -43,4 +43,4 @@ jobs:
 
       - name: Run Maven Verify with Xvfb (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum ./mvnw clean verify --no-transfer-progress
+        run: xvfb-run --auto-servernum bash ./mvnw clean verify --no-transfer-progress
