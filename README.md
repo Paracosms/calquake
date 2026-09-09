@@ -3,7 +3,7 @@
 > **Offline seismic wavefront replay of the 2019 M 7.1 Ridgecrest Earthquake Sequence**  
 > Built with Java 21, JavaFX 21, TauP 3.2.1, and USGS ShakeMap historical peak intensities.
 
-![CalQuake Ridgecrest Test Demo](.\screenshots\ridgecrest-demo.png)
+![CalQuake Ridgecrest Test Demo](./screenshots/ridgecrest-demo.png)
 
 ---
 
