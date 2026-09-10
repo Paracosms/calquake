@@ -107,6 +107,38 @@ class MapCanvasPaneIntegrationTest {
         });
     }
 
+    @Test
+    void mmiIconsDisplayDirectlyOnCityDotCenterWhenSWaveArrives() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            MapCanvasPane pane = new MapCanvasPane(scenario, outline);
+            pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
+            pane.redrawStaticMap();
+
+            // Locate screen point for Ridgecrest
+            var ridgecrestPoint = pane.getLocationScreenPoint("Ridgecrest");
+            int rx = (int) Math.round(ridgecrestPoint.xPx());
+            int ry = (int) Math.round(ridgecrestPoint.yPx());
+
+            // t = 0.0: S-wave has not arrived
+            FrameState f0 = engine.frameAt(scenario, 0.0);
+            pane.renderFrame(f0);
+
+            SnapshotParameters params = new SnapshotParameters();
+            params.setFill(Color.TRANSPARENT);
+            WritableImage dynImg0 = pane.getDynamicCanvas().snapshot(params, null);
+            int alphaAtDot0 = (dynImg0.getPixelReader().getArgb(rx, ry) >>> 24);
+            assertEquals(0, alphaAtDot0, "City dot position on dynamic canvas must be transparent before S-wave arrival");
+
+            // t = 10.0: Ridgecrest S-wave arrival has occurred (~5.8s)
+            FrameState f10 = engine.frameAt(scenario, 10.0);
+            pane.renderFrame(f10);
+
+            WritableImage dynImg10 = pane.getDynamicCanvas().snapshot(params, null);
+            int alphaAtDot10 = (dynImg10.getPixelReader().getArgb(rx, ry) >>> 24);
+            assertTrue(alphaAtDot10 > 0, "MMI icon must be rendered directly on the center of the city dot on S-wave arrival");
+        });
+    }
+
     private static void clear(Canvas canvas) {
         canvas.getGraphicsContext2D().clearRect(0.0, 0.0, canvas.getWidth(), canvas.getHeight());
     }

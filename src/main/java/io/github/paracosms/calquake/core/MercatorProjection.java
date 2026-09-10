@@ -1,45 +1,58 @@
 package io.github.paracosms.calquake.core;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
- * Epicenter-centered Azimuthal Equidistant Projection on a fixed 6,371 km sphere.
+ * Standard conformal spherical Mercator projection with a fixed geographic origin.
  * <p>
  * Forward projection formula:
  * <pre>
- *   x = d * sin(azimuth)
- *   y = -d * cos(azimuth)
+ *   x = R * (lon - lon0)
+ *   y = -R * (ln(tan(pi/4 + lat/2)) - y0_raw)
  * </pre>
  * where:
  * <ul>
- *   <li>{@code d} is the great-circle epicentral distance in kilometers on the 6,371 km sphere.</li>
- *   <li>{@code azimuth} is the initial bearing from epicenter to target point.</li>
+ *   <li>{@code R} is the 6,371 km fixed sphere radius.</li>
  *   <li>{@code +x} points East, {@code -x} points West.</li>
  *   <li>{@code -y} points North, {@code +y} points South (explicit screen-downwards orientation).</li>
+ *   <li>{@code (lat0, lon0)} is the fixed geographic center (default: 37.0°N, -119.5°W).</li>
  * </ul>
- * Under this projection, radial distances from the epicenter are preserved exactly,
- * and wavefronts expanding outward from the epicenter remain exact concentric circles.
+ * Under this projection:
+ * <ul>
+ *   <li>The California landmass and reference cities remain strictly stationary across scenarios.</li>
+ *   <li>True North is strictly vertical everywhere on the map.</li>
+ *   <li>Meridians and parallels form an orthogonal grid.</li>
+ * </ul>
  */
-public final class AzimuthalEquidistantProjection {
+public final class MercatorProjection {
 
     public static final double EARTH_RADIUS_KM = 6371.0;
+    public static final double DEFAULT_CENTER_LATITUDE = 37.0;
+    public static final double DEFAULT_CENTER_LONGITUDE = -119.5;
+
+    private static final MercatorProjection CALIFORNIA_DEFAULT =
+            new MercatorProjection(new GeoPoint(DEFAULT_CENTER_LATITUDE, DEFAULT_CENTER_LONGITUDE));
 
     private final GeoPoint origin;
-    private final double phi0; // latitude in radians
-    private final double lam0; // longitude in radians
-    private final double cosPhi0;
-    private final double sinPhi0;
+    private final double lam0Rad;
+    private final double y0Raw;
 
-    public AzimuthalEquidistantProjection(GeoPoint origin) {
+    public MercatorProjection(GeoPoint origin) {
         this.origin = Objects.requireNonNull(origin, "origin cannot be null");
-        this.phi0 = Math.toRadians(origin.latitude());
-        this.lam0 = Math.toRadians(origin.longitude());
-        this.cosPhi0 = Math.cos(phi0);
-        this.sinPhi0 = Math.sin(phi0);
+        double phi0Rad = Math.toRadians(origin.latitude());
+        this.lam0Rad = Math.toRadians(origin.longitude());
+        this.y0Raw = Math.log(Math.tan(Math.PI / 4.0 + phi0Rad / 2.0));
     }
 
-    public static AzimuthalEquidistantProjection centeredAt(GeoPoint origin) {
-        return new AzimuthalEquidistantProjection(origin);
+    public static MercatorProjection californiaDefault() {
+        return CALIFORNIA_DEFAULT;
+    }
+
+    public static MercatorProjection centeredAt(GeoPoint origin) {
+        return new MercatorProjection(origin);
     }
 
     public GeoPoint origin() {
@@ -59,43 +72,20 @@ public final class AzimuthalEquidistantProjection {
      * Projects a geographic coordinate into 2D projection space (kilometers).
      *
      * @param point geographic point to project
-     * @return ProjectedPoint in kilometers relative to epicenter
+     * @return ProjectedPoint in kilometers relative to origin
      */
     public ProjectedPoint project(GeoPoint point) {
         Objects.requireNonNull(point, "point cannot be null");
 
-        if (point.equals(origin) ||
-                (Math.abs(point.latitude() - origin.latitude()) < 1e-11 &&
-                 Math.abs(point.longitude() - origin.longitude()) < 1e-11)) {
-            return new ProjectedPoint(0.0, 0.0);
-        }
+        double phiRad = Math.toRadians(point.latitude());
+        double lamRad = Math.toRadians(point.longitude());
 
-        double phi = Math.toRadians(point.latitude());
-        double lam = Math.toRadians(point.longitude());
-        double dphi = phi - phi0;
-        double dlam = lam - lam0;
+        // Clamp latitude to avoid infinity at poles
+        phiRad = Math.max(-1.4844, Math.min(1.4844, phiRad)); // ~85.05 degrees
 
-        // Numerically stable haversine formula for spherical central angle Delta
-        double sinHalfDphi = Math.sin(dphi / 2.0);
-        double sinHalfDlam = Math.sin(dlam / 2.0);
-        double h = sinHalfDphi * sinHalfDphi + cosPhi0 * Math.cos(phi) * sinHalfDlam * sinHalfDlam;
-        h = Math.max(0.0, Math.min(1.0, h));
-        double delta = 2.0 * Math.asin(Math.sqrt(h));
-
-        if (delta < 1e-12) {
-            return new ProjectedPoint(0.0, 0.0);
-        }
-
-        double distKm = EARTH_RADIUS_KM * delta;
-
-        // Initial azimuth from origin to point
-        double yAz = Math.sin(dlam) * Math.cos(phi);
-        double xAz = cosPhi0 * Math.sin(phi) - sinPhi0 * Math.cos(phi) * Math.cos(dlam);
-        double azimuth = Math.atan2(yAz, xAz);
-
-        // x = d * sin(az), y = -d * cos(az)
-        double x = distKm * Math.sin(azimuth);
-        double y = -distKm * Math.cos(azimuth);
+        double x = EARTH_RADIUS_KM * (lamRad - lam0Rad);
+        double yRaw = Math.log(Math.tan(Math.PI / 4.0 + phiRad / 2.0));
+        double y = -EARTH_RADIUS_KM * (yRaw - y0Raw);
 
         return new ProjectedPoint(x, y);
     }
@@ -108,32 +98,12 @@ public final class AzimuthalEquidistantProjection {
      * @return original GeoPoint on the 6,371 km sphere
      */
     public GeoPoint unproject(double xKm, double yKm) {
-        double distKm = Math.hypot(xKm, yKm);
-        if (distKm < 1e-12) {
-            return origin;
-        }
+        double lamRad = lam0Rad + xKm / EARTH_RADIUS_KM;
+        double yRaw = y0Raw - yKm / EARTH_RADIUS_KM;
+        double phiRad = 2.0 * Math.atan(Math.exp(yRaw)) - Math.PI / 2.0;
 
-        double delta = distKm / EARTH_RADIUS_KM;
-        // x = d * sin(az), y = -d * cos(az) => sin(az) = x/d, cos(az) = -y/d
-        double azimuth = Math.atan2(xKm, -yKm);
-
-        double sinDelta = Math.sin(delta);
-        double cosDelta = Math.cos(delta);
-        double cosAz = Math.cos(azimuth);
-        double sinAz = Math.sin(azimuth);
-
-        double sinPhi = sinPhi0 * cosDelta + cosPhi0 * sinDelta * cosAz;
-        sinPhi = Math.max(-1.0, Math.min(1.0, sinPhi));
-        double phi = Math.asin(sinPhi);
-
-        double yLam = sinAz * sinDelta * cosPhi0;
-        double xLam = cosDelta - sinPhi0 * sinPhi;
-        double dlam = Math.atan2(yLam, xLam);
-        double lam = lam0 + dlam;
-
-        // Normalize longitude to [-180, 180]
-        double degLat = Math.toDegrees(phi);
-        double degLon = (Math.toDegrees(lam) + 540.0) % 360.0 - 180.0;
+        double degLat = Math.toDegrees(phiRad);
+        double degLon = (Math.toDegrees(lamRad) + 540.0) % 360.0 - 180.0;
 
         return new GeoPoint(degLat, degLon);
     }
@@ -141,6 +111,46 @@ public final class AzimuthalEquidistantProjection {
     public GeoPoint unproject(ProjectedPoint projectedPoint) {
         Objects.requireNonNull(projectedPoint, "projectedPoint cannot be null");
         return unproject(projectedPoint.xKm(), projectedPoint.yKm());
+    }
+
+    /**
+     * Generates a closed ring of projected points along a great-circle surface distance
+     * for physically exact wavefront rendering on the Mercator projection plane.
+     *
+     * @param center    epicenter origin of the wavefront
+     * @param radiusKm  ground distance in kilometers
+     * @param numPoints number of perimeter sample points
+     * @return list of projected points forming the wavefront polygon
+     */
+    public List<ProjectedPoint> geodesicCirclePoints(GeoPoint center, double radiusKm, int numPoints) {
+        Objects.requireNonNull(center, "center cannot be null");
+        if (radiusKm <= 0.0 || numPoints < 3) {
+            return List.of();
+        }
+
+        double phi1 = Math.toRadians(center.latitude());
+        double lam1 = Math.toRadians(center.longitude());
+        double delta = radiusKm / EARTH_RADIUS_KM;
+        double sinPhi1 = Math.sin(phi1);
+        double cosPhi1 = Math.cos(phi1);
+        double sinDelta = Math.sin(delta);
+        double cosDelta = Math.cos(delta);
+
+        List<ProjectedPoint> points = new ArrayList<>(numPoints);
+        double step = (2.0 * Math.PI) / numPoints;
+        for (int i = 0; i < numPoints; i++) {
+            double theta = i * step;
+            double sinPhi2 = sinPhi1 * cosDelta + cosPhi1 * sinDelta * Math.cos(theta);
+            sinPhi2 = Math.max(-1.0, Math.min(1.0, sinPhi2));
+            double phi2 = Math.asin(sinPhi2);
+            double yLam = Math.sin(theta) * sinDelta * cosPhi1;
+            double xLam = cosDelta - sinPhi1 * sinPhi2;
+            double lam2 = lam1 + Math.atan2(yLam, xLam);
+            double degLat = Math.toDegrees(phi2);
+            double degLon = (Math.toDegrees(lam2) + 540.0) % 360.0 - 180.0;
+            points.add(project(new GeoPoint(degLat, degLon)));
+        }
+        return Collections.unmodifiableList(points);
     }
 
     /**
@@ -171,7 +181,7 @@ public final class AzimuthalEquidistantProjection {
 
     /**
      * Linear viewport transformation preserving 1:1 aspect ratio.
-     * Uniform scale ensures circle wavefronts remain circular when rendered.
+     * Uniform scale ensures conformal shapes remain undistorted when rendered.
      */
     public record ViewportTransform(
             double scalePxPerKm,

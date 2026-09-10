@@ -1,19 +1,20 @@
 package io.github.paracosms.calquake.ui;
 
-import io.github.paracosms.calquake.core.AzimuthalEquidistantProjection;
-import io.github.paracosms.calquake.core.AzimuthalEquidistantProjection.BoundingBox;
-import io.github.paracosms.calquake.core.AzimuthalEquidistantProjection.ProjectedPoint;
-import io.github.paracosms.calquake.core.AzimuthalEquidistantProjection.ScreenPoint;
-import io.github.paracosms.calquake.core.AzimuthalEquidistantProjection.ViewportTransform;
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.LocationIntensityState;
+import io.github.paracosms.calquake.core.MercatorProjection;
+import io.github.paracosms.calquake.core.MercatorProjection.BoundingBox;
+import io.github.paracosms.calquake.core.MercatorProjection.ProjectedPoint;
+import io.github.paracosms.calquake.core.MercatorProjection.ScreenPoint;
+import io.github.paracosms.calquake.core.MercatorProjection.ViewportTransform;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
 import io.github.paracosms.calquake.core.WavefrontRadii;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -35,7 +36,7 @@ import java.util.Objects;
  *   <li>{@code dynamicCanvas}: Layered directly on top, transparent, strictly clipped to viewport bounds,
  *       ready to receive {@link FrameState} wavefront circles.</li>
  * </ul>
- * Preserves strict 1:1 aspect ratio across resizing via {@link AzimuthalEquidistantProjection}.
+ * Preserves strict 1:1 aspect ratio across resizing via {@link MercatorProjection}.
  */
 public class MapCanvasPane extends Pane {
 
@@ -68,7 +69,7 @@ public class MapCanvasPane extends Pane {
 
     private Scenario scenario;
     private CaliforniaOutline outline;
-    private AzimuthalEquidistantProjection projection;
+    private MercatorProjection projection;
     private BoundingBox projectedBounds;
     private ViewportTransform currentTransform;
 
@@ -80,7 +81,7 @@ public class MapCanvasPane extends Pane {
         this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
         this.outline = Objects.requireNonNull(outline, "outline cannot be null");
 
-        this.projection = AzimuthalEquidistantProjection.centeredAt(scenario.event().epicenter());
+        this.projection = MercatorProjection.californiaDefault();
         this.projectedBounds = outline.computeProjectedBoundingBox(projection);
 
         this.staticCanvas = new Canvas();
@@ -116,12 +117,11 @@ public class MapCanvasPane extends Pane {
     }
 
     /**
-     * Updates the bound scenario and recalculates projection bounds.
+     * Updates the bound scenario and refreshes the map.
+     * The static California landmass remains fixed on the Mercator projection.
      */
     public void setScenario(Scenario scenario) {
         this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
-        this.projection = AzimuthalEquidistantProjection.centeredAt(scenario.event().epicenter());
-        this.projectedBounds = outline.computeProjectedBoundingBox(projection);
         redrawStaticMap();
     }
 
@@ -224,25 +224,28 @@ public class MapCanvasPane extends Pane {
         gc.setStroke(Color.web("#CFDFED"));
         gc.setLineWidth(0.75);
 
-        // 50 km distance coordinate grid lines from epicenter
-        double originX = currentTransform.originScreenXPx();
-        double originY = currentTransform.originScreenYPx();
-        double stepPx = currentTransform.toScreenRadius(100.0); // 100 km grid
-
-        if (stepPx > 15.0) {
-            for (double x = originX % stepPx; x < w; x += stepPx) {
-                gc.strokeLine(x, 0, x, h);
+        // Fixed geographic graticule lines every 2 degrees of longitude and latitude
+        for (double lon = -124.0; lon <= -114.0; lon += 2.0) {
+            ProjectedPoint p = projection.project(new GeoPoint(MercatorProjection.DEFAULT_CENTER_LATITUDE, lon));
+            ScreenPoint sp = currentTransform.toScreen(p);
+            if (sp.xPx() >= 0 && sp.xPx() <= w) {
+                gc.strokeLine(sp.xPx(), 0, sp.xPx(), h);
             }
-            for (double y = originY % stepPx; y < h; y += stepPx) {
-                gc.strokeLine(0, y, w, y);
+        }
+        for (double lat = 32.0; lat <= 42.0; lat += 2.0) {
+            ProjectedPoint p = projection.project(new GeoPoint(lat, MercatorProjection.DEFAULT_CENTER_LONGITUDE));
+            ScreenPoint sp = currentTransform.toScreen(p);
+            if (sp.yPx() >= 0 && sp.yPx() <= h) {
+                gc.strokeLine(0, sp.yPx(), w, sp.yPx());
             }
         }
     }
 
     private void drawCartographicScale(GraphicsContext gc, double w, double h) {
-        // Distance scale bar (100 km) in bottom-left corner
+        // Distance scale bar (100 km) in bottom-left corner (evaluated at mean CA latitude 37°N)
         double scaleKm = 100.0;
-        double scalePx = currentTransform.toScreenRadius(scaleKm);
+        double cosLat = Math.cos(Math.toRadians(MercatorProjection.DEFAULT_CENTER_LATITUDE));
+        double scalePx = currentTransform.toScreenRadius(scaleKm / cosLat);
 
         double barX = 20.0;
         double barY = h - 25.0;
@@ -275,7 +278,7 @@ public class MapCanvasPane extends Pane {
     }
 
     private void drawEpicenter(GraphicsContext gc) {
-        ScreenPoint epiScreen = currentTransform.toScreen(0.0, 0.0);
+        ScreenPoint epiScreen = currentTransform.toScreen(projection.project(scenario.event().epicenter()));
         double ex = epiScreen.xPx();
         double ey = epiScreen.yPx();
 
@@ -338,6 +341,7 @@ public class MapCanvasPane extends Pane {
         if (frame == null || frame.locationIntensities() == null) {
             return;
         }
+        double badgeSize = 24.0;
         for (LocationIntensityState state : frame.locationIntensities()) {
             if (!state.sWaveArrived()) {
                 continue;
@@ -348,30 +352,11 @@ public class MapCanvasPane extends Pane {
             double sx = sp.xPx();
             double sy = sp.yPx();
 
-            String colorHex = state.colorHex();
-            String roman = state.mmiRoman();
+            // Display MMI icon directly centered on the city dot
+            double lx = sx - (badgeSize / 2.0);
+            double ly = sy - (badgeSize / 2.0);
 
-            // Colored square intensity badge revealed at S-wave arrival
-            LabelOffset offset = FIXED_LABEL_OFFSETS.getOrDefault(loc.city(), new LabelOffset(14.0, -10.0, "LEFT"));
-            double badgeSize = 22.0;
-            double lx;
-            if ("RIGHT".equals(offset.align())) {
-                lx = sx + offset.dx() + 142.0 - badgeSize;
-            } else {
-                lx = sx + offset.dx();
-            }
-            double ly = sy + offset.dy();
-
-            // Connecting lead line
-            gc.setStroke(Color.web("#64748B", 0.7));
-            gc.setLineWidth(1.0);
-            if ("RIGHT".equals(offset.align())) {
-                gc.strokeLine(lx + badgeSize, ly + badgeSize / 2.0, sx - 5.0, sy);
-            } else {
-                gc.strokeLine(lx, ly + badgeSize / 2.0, sx + 5.0, sy);
-            }
-
-            drawLocationBadge(gc, lx, ly, roman, colorHex);
+            drawLocationBadge(gc, lx, ly, state.mmiRoman(), state.colorHex(), badgeSize);
         }
     }
 
@@ -382,7 +367,26 @@ public class MapCanvasPane extends Pane {
             String roman,
             String colorHex
     ) {
-        double badgeSize = 22.0;
+        drawLocationBadge(gc, x, y, roman, colorHex, 24.0);
+    }
+
+    private void drawLocationBadge(
+            GraphicsContext gc,
+            double x,
+            double y,
+            String roman,
+            String colorHex,
+            double badgeSize
+    ) {
+        try {
+            Image icon = MmiIconLoader.getIcon(roman);
+            if (icon != null && !icon.isError()) {
+                gc.drawImage(icon, x, y, badgeSize, badgeSize);
+                return;
+            }
+        } catch (Exception ignored) {
+            // Fall back to procedural drawing if icon resource is unavailable
+        }
 
         // MMI Color Square (the colored square is the only display)
         Color mmiColor = Color.web(colorHex);
@@ -448,9 +452,6 @@ public class MapCanvasPane extends Pane {
         }
 
         WavefrontRadii radii = frame.frontRadii();
-        ScreenPoint epiScreen = currentTransform.toScreen(0.0, 0.0);
-        double ex = epiScreen.xPx();
-        double ey = epiScreen.yPx();
 
         gc.save();
         gc.beginPath();
@@ -460,32 +461,51 @@ public class MapCanvasPane extends Pane {
         // P-wave: low-opacity cyan fill with dashed cyan moving outline (when surface arrival has occurred)
         if (radii.hasP()) {
             double rKm = radii.pRadiusKm();
-            double rPx = currentTransform.toScreenRadius(rKm);
-            gc.setFill(Color.web("#06B6D4", 0.15));
-            gc.fillOval(ex - rPx, ey - rPx, rPx * 2.0, rPx * 2.0);
-            gc.setStroke(Color.web("#06B6D4"));
-            gc.setLineWidth(2.0);
-            gc.setLineDashes(6.0, 4.0);
-            gc.strokeOval(ex - rPx, ey - rPx, rPx * 2.0, rPx * 2.0);
-            gc.setLineDashes((double[]) null);
+            renderWavefrontRing(gc, frame.epicenter(), rKm,
+                    Color.web("#06B6D4", 0.15), Color.web("#06B6D4"), 2.0, new double[]{6.0, 4.0});
         }
 
         // S-wave: low-opacity orange fill with solid orange moving outline (when surface arrival has occurred)
         if (radii.hasS()) {
             double rKm = radii.sRadiusKm();
-            double rPx = currentTransform.toScreenRadius(rKm);
-            gc.setFill(Color.web("#F97316", 0.15));
-            gc.fillOval(ex - rPx, ey - rPx, rPx * 2.0, rPx * 2.0);
-            gc.setStroke(Color.web("#F97316"));
-            gc.setLineWidth(2.5);
-            gc.setLineDashes((double[]) null);
-            gc.strokeOval(ex - rPx, ey - rPx, rPx * 2.0, rPx * 2.0);
+            renderWavefrontRing(gc, frame.epicenter(), rKm,
+                    Color.web("#F97316", 0.15), Color.web("#F97316"), 2.5, null);
         }
 
         // Draw revealed MMI badges on dynamic canvas when S-wave arrival has occurred
         drawRevealedIntensityBadges(gc, frame);
 
         gc.restore();
+    }
+
+    private void renderWavefrontRing(GraphicsContext gc, GeoPoint epicenter, double radiusKm,
+                                     Color fill, Color stroke, double strokeWidth, double[] dashes) {
+        List<ProjectedPoint> points = projection.geodesicCirclePoints(epicenter, radiusKm, 48);
+        if (points.isEmpty()) {
+            return;
+        }
+
+        gc.beginPath();
+        ScreenPoint first = currentTransform.toScreen(points.get(0));
+        gc.moveTo(first.xPx(), first.yPx());
+        for (int i = 1; i < points.size(); i++) {
+            ScreenPoint pt = currentTransform.toScreen(points.get(i));
+            gc.lineTo(pt.xPx(), pt.yPx());
+        }
+        gc.closePath();
+
+        gc.setFill(fill);
+        gc.fill();
+
+        gc.setStroke(stroke);
+        gc.setLineWidth(strokeWidth);
+        if (dashes != null) {
+            gc.setLineDashes(dashes);
+        } else {
+            gc.setLineDashes((double[]) null);
+        }
+        gc.stroke();
+        gc.setLineDashes((double[]) null);
     }
 
     public Canvas getDynamicCanvas() {
@@ -504,7 +524,7 @@ public class MapCanvasPane extends Pane {
         return currentTransform;
     }
 
-    public AzimuthalEquidistantProjection projection() {
+    public MercatorProjection projection() {
         return projection;
     }
 
@@ -516,7 +536,7 @@ public class MapCanvasPane extends Pane {
         if (currentTransform == null) {
             redrawStaticMap();
         }
-        return currentTransform.toScreen(0.0, 0.0);
+        return currentTransform.toScreen(projection.project(scenario.event().epicenter()));
     }
 
     public ScreenPoint getLocationScreenPoint(String cityName) {

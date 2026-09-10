@@ -22,4 +22,30 @@ public record GeoPoint(double latitude, double longitude) {
             throw new IllegalArgumentException("Longitude must be between -180.0 and 180.0 degrees: " + longitude);
         }
     }
+
+    public static final double EARTH_RADIUS_KM = 6371.0;
+
+    /**
+     * Calculates the great-circle epicentral distance in kilometers to another point on a 6,371 km sphere.
+     *
+     * @param other target point
+     * @return great-circle distance in kilometers
+     */
+    public double distanceKmTo(GeoPoint other) {
+        java.util.Objects.requireNonNull(other, "other cannot be null");
+        if (this.equals(other) || (Math.abs(latitude - other.latitude) < 1e-11 && Math.abs(longitude - other.longitude) < 1e-11)) {
+            return 0.0;
+        }
+        double phi1 = Math.toRadians(latitude);
+        double lam1 = Math.toRadians(longitude);
+        double phi2 = Math.toRadians(other.latitude);
+        double lam2 = Math.toRadians(other.longitude);
+        double dphi = phi2 - phi1;
+        double dlam = lam2 - lam1;
+        double sinHalfDphi = Math.sin(dphi / 2.0);
+        double sinHalfDlam = Math.sin(dlam / 2.0);
+        double h = sinHalfDphi * sinHalfDphi + Math.cos(phi1) * Math.cos(phi2) * sinHalfDlam * sinHalfDlam;
+        h = Math.max(0.0, Math.min(1.0, h));
+        return 2.0 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+    }
 }

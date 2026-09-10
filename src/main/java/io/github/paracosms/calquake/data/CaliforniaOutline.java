@@ -1,7 +1,7 @@
 package io.github.paracosms.calquake.data;
 
-import io.github.paracosms.calquake.core.AzimuthalEquidistantProjection;
 import io.github.paracosms.calquake.core.GeoPoint;
+import io.github.paracosms.calquake.core.MercatorProjection;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -175,11 +175,11 @@ public final class CaliforniaOutline {
      * @param projection projection to apply
      * @return projected polygon rings in kilometers
      */
-    public List<List<AzimuthalEquidistantProjection.ProjectedPoint>> projectRings(AzimuthalEquidistantProjection projection) {
+    public List<List<MercatorProjection.ProjectedPoint>> projectRings(MercatorProjection projection) {
         Objects.requireNonNull(projection, "projection cannot be null");
-        List<List<AzimuthalEquidistantProjection.ProjectedPoint>> projected = new ArrayList<>(rings.size());
+        List<List<MercatorProjection.ProjectedPoint>> projected = new ArrayList<>(rings.size());
         for (List<GeoPoint> ring : rings) {
-            List<AzimuthalEquidistantProjection.ProjectedPoint> projectedRing = new ArrayList<>(ring.size());
+            List<MercatorProjection.ProjectedPoint> projectedRing = new ArrayList<>(ring.size());
             for (GeoPoint pt : ring) {
                 projectedRing.add(projection.project(pt));
             }
@@ -194,7 +194,7 @@ public final class CaliforniaOutline {
      * @param projection projection to apply
      * @return bounding box in kilometers
      */
-    public AzimuthalEquidistantProjection.BoundingBox computeProjectedBoundingBox(AzimuthalEquidistantProjection projection) {
+    public MercatorProjection.BoundingBox computeProjectedBoundingBox(MercatorProjection projection) {
         Objects.requireNonNull(projection, "projection cannot be null");
         double minX = Double.POSITIVE_INFINITY;
         double minY = Double.POSITIVE_INFINITY;
@@ -203,7 +203,7 @@ public final class CaliforniaOutline {
 
         for (List<GeoPoint> ring : rings) {
             for (GeoPoint pt : ring) {
-                AzimuthalEquidistantProjection.ProjectedPoint p = projection.project(pt);
+                MercatorProjection.ProjectedPoint p = projection.project(pt);
                 minX = Math.min(minX, p.xKm());
                 maxX = Math.max(maxX, p.xKm());
                 minY = Math.min(minY, p.yKm());
@@ -211,6 +211,6 @@ public final class CaliforniaOutline {
             }
         }
 
-        return new AzimuthalEquidistantProjection.BoundingBox(minX, minY, maxX, maxY);
+        return new MercatorProjection.BoundingBox(minX, minY, maxX, maxY);
     }
 }

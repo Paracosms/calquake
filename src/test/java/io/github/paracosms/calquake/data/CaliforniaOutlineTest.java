@@ -1,7 +1,7 @@
 package io.github.paracosms.calquake.data;
 
-import io.github.paracosms.calquake.core.AzimuthalEquidistantProjection;
 import io.github.paracosms.calquake.core.GeoPoint;
+import io.github.paracosms.calquake.core.MercatorProjection;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -13,9 +13,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests verifying CaliforniaOutline loading, structural fidelity, and projection.
  */
 class CaliforniaOutlineTest {
-
-    // Frozen Ridgecrest CI epicenter
-    private static final GeoPoint EPICENTER = new GeoPoint(35.7695, -117.5993333);
 
     @Test
     @DisplayName("Verify default California outline loads with exactly 6 rings and 468 vertices")
@@ -34,27 +31,27 @@ class CaliforniaOutlineTest {
     }
 
     @Test
-    @DisplayName("Verify projected rings and bounding box centered at Ridgecrest epicenter")
+    @DisplayName("Verify projected rings and bounding box in California default Mercator projection")
     void testProjectRingsAndBoundingBox() {
         CaliforniaOutline outline = CaliforniaOutline.loadDefault();
-        AzimuthalEquidistantProjection proj = AzimuthalEquidistantProjection.centeredAt(EPICENTER);
+        MercatorProjection proj = MercatorProjection.californiaDefault();
 
-        List<List<AzimuthalEquidistantProjection.ProjectedPoint>> projectedRings = outline.projectRings(proj);
+        List<List<MercatorProjection.ProjectedPoint>> projectedRings = outline.projectRings(proj);
         assertEquals(6, projectedRings.size());
 
-        AzimuthalEquidistantProjection.BoundingBox bbox = outline.computeProjectedBoundingBox(proj);
+        MercatorProjection.BoundingBox bbox = outline.computeProjectedBoundingBox(proj);
         assertNotNull(bbox);
 
-        // Expected bounds derived from haversine projection of vertices:
-        // minX ≈ -576.48 km, maxX ≈ 317.98 km
-        // minY ≈ -712.03 km, maxY ≈ 359.65 km
-        assertEquals(-576.48, bbox.minXKm(), 0.5);
-        assertEquals(317.98, bbox.maxXKm(), 0.5);
-        assertEquals(-712.03, bbox.minYKm(), 0.5);
-        assertEquals(359.65, bbox.maxYKm(), 0.5);
+        // Expected bounds derived from Mercator projection of vertices:
+        // minX ≈ -545.92 km, maxX ≈ 596.11 km
+        // minY ≈ -722.45 km, maxY ≈ 604.80 km
+        assertEquals(-545.92, bbox.minXKm(), 0.5);
+        assertEquals(596.11, bbox.maxXKm(), 0.5);
+        assertEquals(-722.45, bbox.minYKm(), 0.5);
+        assertEquals(604.80, bbox.maxYKm(), 0.5);
 
-        assertTrue(bbox.widthKm() > 890.0 && bbox.widthKm() < 900.0);
-        assertTrue(bbox.heightKm() > 1065.0 && bbox.heightKm() < 1075.0);
+        assertTrue(bbox.widthKm() > 1140.0 && bbox.widthKm() < 1145.0);
+        assertTrue(bbox.heightKm() > 1325.0 && bbox.heightKm() < 1330.0);
     }
 
     @Test

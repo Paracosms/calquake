@@ -45,11 +45,11 @@ public final class ReplayEngine {
     }
 
     private static List<LocationMetadata> computeMetadata(Scenario sc, TravelTimeModel m, IntensitySource src) {
-        AzimuthalEquidistantProjection proj = AzimuthalEquidistantProjection.centeredAt(sc.event().epicenter());
+        GeoPoint epicenter = sc.event().epicenter();
         double depthKm = sc.event().depthKm();
         List<LocationMetadata> list = new ArrayList<>();
         for (ReferenceLocation loc : sc.locations()) {
-            double distKm = proj.project(loc.internalPoint()).distanceFromOriginKm();
+            double distKm = loc.internalPoint().distanceKmTo(epicenter);
             double pTime = m.travelTimeSeconds("P", distKm, depthKm);
             double sTime = m.travelTimeSeconds("S", distKm, depthKm);
             ReferenceLocation.PeakIntensity intensity = src.getPeakIntensity(loc);

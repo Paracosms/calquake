@@ -15,7 +15,7 @@ The application features:
 - **Deterministic 0–120s Replay:** Monotonically clocked offline playback at 1&times; speed with Play, Pause, and Restart controls.
 - **Physical Wavefront Modeling:** Expanding compressional P-wave (dashed cyan circle) and shear S-wave (solid orange circle) calculated via the published **Hadley–Kanamori (1977)** crustal velocity model and the **TauP 3.2.1** seismic ray engine.
 - **Historical Peak Intensity Replay:** Displays verified **USGS ShakeMap peak MMI** values and color badges for five key California reference locations (Ridgecrest, Trona, Bakersfield, Los Angeles, and Fresno), continuously visible throughout playback.
-- **Geodetic Accuracy:** Epicenter-centered azimuthal equidistant projection on a reference 6,371 km sphere ensuring circular wavefronts and exact radial distance scaling.
+- **Geodetic Accuracy:** Standard conformal Mercator projection on a reference 6,371 km sphere ensuring static state boundaries, true vertical orientation, and exact physical geodesic wavefront modeling.
 - **Self-Contained & Offline:** 100% bundled local assets with zero external runtime network dependencies.
 
 ---
