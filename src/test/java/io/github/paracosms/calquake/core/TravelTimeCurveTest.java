@@ -49,6 +49,18 @@ class TravelTimeCurveTest {
                 "P distance domain must exceed 900 km (reaches: " + pCurve.maxDistanceKm() + " km)");
         assertTrue(sCurve.maxDistanceKm() >= 500.0,
                 "S distance domain must exceed 500 km (reaches: " + sCurve.maxDistanceKm() + " km)");
+
+        double[][] frozenRadii = {
+                {10.0, 59.92, 33.24},
+                {30.0, 196.70, 106.25}
+        };
+        for (double[] control : frozenRadii) {
+            WavefrontRadii radii = wavefronts.radiiAt(control[0]);
+            assertEquals(control[1], radii.pRadiusKm(), 0.1,
+                    "P radius must match the frozen propagation control at t=" + control[0]);
+            assertEquals(control[2], radii.sRadiusKm(), 0.1,
+                    "S radius must match the frozen propagation control at t=" + control[0]);
+        }
     }
 
     @Test

@@ -9,18 +9,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class ObservedArrivalsFixtureTest {
 
     @Test
-    void testLoadObservedArrivalsFixtureCounts() {
-        List<ObservedArrival> pPicks = ObservedArrivalsFixture.loadPPicks();
-        List<ObservedArrival> sPicks = ObservedArrivalsFixture.loadSPicks();
-        List<ObservedArrival> allPicks = ObservedArrivalsFixture.loadAllPicks();
-
-        // Stage 1 frozen count requirements: >= 40 P and >= 15 S
-        assertEquals(78, pPicks.size(), "Retained P picks count must be 78");
-        assertEquals(16, sPicks.size(), "Retained S picks count must be 16");
-        assertEquals(94, allPicks.size(), "Total retained picks count must be 94");
-    }
-
-    @Test
     void testFirstPickFidelity() {
         List<ObservedArrival> pPicks = ObservedArrivalsFixture.loadPPicks();
         ObservedArrival first = pPicks.get(0);

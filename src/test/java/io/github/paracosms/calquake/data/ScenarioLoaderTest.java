@@ -7,8 +7,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -110,6 +116,34 @@ class ScenarioLoaderTest {
         assertEquals(3.1, fresno.peakIntensity().mmiDisplayRounded(), 1e-9);
         assertEquals("II-III", fresno.peakIntensity().mmiRoman());
         assertEquals("#acdbff", fresno.peakIntensity().colorHex());
+    }
+
+    @Test
+    void testDerivativeFixturesMatchProvenanceManifest() throws Exception {
+        JsonNode manifest;
+        try (InputStream input = getClass().getResourceAsStream("/data/provenance_manifest.json")) {
+            assertNotNull(input, "provenance manifest must be present");
+            manifest = new ObjectMapper().readTree(input);
+        }
+
+        JsonNode derivatives = manifest.get("derivative_fixtures");
+        assertNotNull(derivatives, "provenance manifest must identify the derived fixtures");
+        assertResourceHash("/data/five_reference_locations.json", derivatives, "five_reference_locations.json");
+        assertResourceHash("/data/mmi_legend.json", derivatives, "mmi_legend.json");
+        assertResourceHash("/data/california_outline.json", derivatives, "california_outline.json");
+        assertResourceHash("/fixtures/observed_picks_ci38457511.json", derivatives,
+                "observed_picks_ci38457511.json");
+    }
+
+    private void assertResourceHash(String resourcePath, JsonNode derivatives, String manifestKey) throws Exception {
+        try (InputStream input = getClass().getResourceAsStream(resourcePath)) {
+            assertNotNull(input, "Missing resource: " + resourcePath);
+            String normalized = new String(input.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
+            String actual = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(normalized.getBytes(StandardCharsets.UTF_8)));
+            String expected = derivatives.get(manifestKey).get("sha256_hex").asText();
+            assertEquals(expected.toLowerCase(), actual.toLowerCase(), "SHA-256 mismatch for " + resourcePath);
+        }
     }
 
     @Test

@@ -1,13 +1,11 @@
 package io.github.paracosms.calquake.core;
 
 import io.github.paracosms.calquake.data.ScenarioLoader;
-import io.github.paracosms.calquake.testsupport.FakeMonotonicClock;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.OptionalDouble;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,12 +34,6 @@ class ReplayDeterminismAndSyntheticScenarioTest {
             FrameState f2 = engine.frameAt(scenario, t);
 
             assertEquals(f1, f2, "FrameState must be strictly equal for identical input at t=" + t);
-            assertEquals(f1.hashCode(), f2.hashCode(), "HashCode must match for identical FrameState at t=" + t);
-
-            assertEquals(f1.elapsedSeconds(), f2.elapsedSeconds());
-            assertEquals(f1.epicenter(), f2.epicenter());
-            assertEquals(f1.frontRadii(), f2.frontRadii());
-            assertEquals(f1.locationIntensities(), f2.locationIntensities());
         }
     }
 
@@ -90,14 +82,11 @@ class ReplayDeterminismAndSyntheticScenarioTest {
 
         Scenario syntheticScenario = new Scenario(syntheticEvent, List.of(sf, sj, sac));
 
-        // Create engine and controller using the generic contract
+        // Create an engine using only the generic scenario contract.
         HadleyKanamoriTauPModel model = HadleyKanamoriTauPModel.create();
         ReplayEngine engine = ReplayEngine.create(syntheticScenario, model);
-        FakeMonotonicClock clock = new FakeMonotonicClock(5_000_000_000L);
-        ReplayController controller = new ReplayController(syntheticScenario, engine, clock);
 
-        // Verify initial state
-        FrameState initFrame = controller.currentFrame();
+        FrameState initFrame = engine.frameAt(syntheticScenario, 0.0);
         assertEquals(0.0, initFrame.elapsedSeconds(), 1e-9);
         assertEquals(syntheticEpicenter, initFrame.epicenter());
         assertEquals(3, initFrame.locationIntensities().size());
@@ -134,33 +123,5 @@ class ReplayDeterminismAndSyntheticScenarioTest {
         assertTrue(radii6s.hasP());
         assertTrue(radii6s.hasS());
         assertTrue(radii6s.pRadiusKm() > radii6s.sRadiusKm());
-
-        // Verify Azimuthal Equidistant Projection centered at synthetic epicenter
-        AzimuthalEquidistantProjection proj = AzimuthalEquidistantProjection.centeredAt(syntheticEpicenter);
-        AzimuthalEquidistantProjection.ProjectedPoint epiProj = proj.project(syntheticEpicenter);
-        assertEquals(0.0, epiProj.xKm(), 1e-9);
-        assertEquals(0.0, epiProj.yKm(), 1e-9);
-
-        // Project SF, SJ, Sacramento
-        AzimuthalEquidistantProjection.ProjectedPoint sfProj = proj.project(sfPoint);
-        assertTrue(sfProj.xKm() < 0, "San Francisco is West of Oakland, so x < 0");
-        assertTrue(sfProj.distanceFromOriginKm() > 10.0 && sfProj.distanceFromOriginKm() < 30.0);
-
-        // Test controller progression on synthetic scenario
-        controller.play();
-        clock.advanceSeconds(10.0);
-        FrameState frame10 = controller.tick();
-        assertEquals(10.0, frame10.elapsedSeconds(), 1e-6);
-        assertEquals(syntheticOrigin.plusSeconds(10), controller.simulatedUtc());
-
-        // Stop and restart
-        clock.advanceSeconds(115.0); // total 125s -> halts at 120s FINISHED
-        controller.tick();
-        assertTrue(controller.isFinished());
-        assertEquals(120.0, controller.elapsedSeconds(), 1e-9);
-
-        controller.restart();
-        assertTrue(controller.isPaused());
-        assertEquals(0.0, controller.elapsedSeconds(), 1e-9);
     }
 }

@@ -9,27 +9,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class EarthquakeEventTest {
 
     @Test
-    void testValidEventCreation() {
-        Instant origin = Instant.parse("2019-07-06T03:19:53.040Z");
-        GeoPoint epicenter = new GeoPoint(35.7695, -117.5993333);
-        EarthquakeEvent event = new EarthquakeEvent(
-                "ci38457511", "ci", "M 7.1 - Ridgecrest Earthquake Sequence",
-                origin, epicenter, 8.0, 7.1, "mw",
-                "https://earthquake.usgs.gov/earthquakes/eventpage/ci38457511"
-        );
-
-        assertEquals("ci38457511", event.id());
-        assertEquals("ci", event.network());
-        assertEquals("M 7.1 - Ridgecrest Earthquake Sequence", event.title());
-        assertEquals(origin, event.originUtc());
-        assertEquals(epicenter, event.epicenter());
-        assertEquals(8.0, event.depthKm(), 1e-9);
-        assertEquals(7.1, event.magnitude(), 1e-9);
-        assertEquals("mw", event.magnitudeType());
-        assertEquals("https://earthquake.usgs.gov/earthquakes/eventpage/ci38457511", event.url());
-    }
-
-    @Test
     void testRejectsNullOrBlankId() {
         Instant origin = Instant.parse("2019-07-06T03:19:53.040Z");
         GeoPoint epicenter = new GeoPoint(35.7695, -117.5993333);

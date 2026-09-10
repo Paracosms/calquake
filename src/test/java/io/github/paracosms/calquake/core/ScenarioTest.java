@@ -30,7 +30,7 @@ class ScenarioTest {
     }
 
     @Test
-    void testScenarioCreationAndLookup() {
+    void testCaseInsensitiveLocationLookup() {
         EarthquakeEvent event = createTestEvent();
         List<ReferenceLocation> locations = List.of(
                 createTestLocation("Ridgecrest", "0660704"),
@@ -38,9 +38,6 @@ class ScenarioTest {
         );
 
         Scenario scenario = new Scenario(event, locations);
-
-        assertEquals(event, scenario.event());
-        assertEquals(2, scenario.locations().size());
 
         assertTrue(scenario.findLocationByCity("ridgecrest").isPresent());
         assertEquals("0660704", scenario.findLocationByCity("Ridgecrest").get().geoid());

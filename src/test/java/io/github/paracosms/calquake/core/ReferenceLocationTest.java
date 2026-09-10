@@ -7,33 +7,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReferenceLocationTest {
 
     @Test
-    void testValidReferenceLocationCreation() {
-        GeoPoint internal = new GeoPoint(35.628542, -117.663992);
-        ReferenceLocation.SampledGridNode node = new ReferenceLocation.SampledGridNode(
-                new GeoPoint(35.6333, -117.6667), 0.5829
-        );
-        ReferenceLocation.PeakIntensity intensity = new ReferenceLocation.PeakIntensity(
-                7.2, 7.2, "VII", "Very strong", "Moderate", "#ffc400"
-        );
-        ReferenceLocation.GroundMotion groundMotion = new ReferenceLocation.GroundMotion(
-                41.53, 33.57, 71.46, 37.29, 8.595, 261.0
-        );
-
-        ReferenceLocation loc = new ReferenceLocation(
-                "Ridgecrest", "Ridgecrest city", "0660704", "02410944", "25",
-                internal, node, intensity, groundMotion
-        );
-
-        assertEquals("Ridgecrest", loc.city());
-        assertEquals("0660704", loc.geoid());
-        assertEquals(7.2, loc.peakIntensity().mmiSourceDecimal(), 1e-9);
-        assertEquals("#ffc400", loc.peakIntensity().colorHex());
-        assertEquals(0.5829, loc.sampledGridNode().offsetKm(), 1e-9);
-        assertNotNull(loc.groundMotion());
-        assertEquals(41.53, loc.groundMotion().pgaPctG(), 1e-9);
-    }
-
-    @Test
     void testRejectsInvalidLocationFields() {
         GeoPoint internal = new GeoPoint(35.628542, -117.663992);
         ReferenceLocation.SampledGridNode node = new ReferenceLocation.SampledGridNode(

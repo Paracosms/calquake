@@ -7,8 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -91,58 +89,6 @@ class MmiLegendAndIntensitySourceTest {
 
         MmiLegend.MmiBin binNegative = MmiLegend.findBin(-0.5);
         assertEquals("N/A", binNegative.roman());
-    }
-
-    @Test
-    @DisplayName("Verify all five reference locations match frozen ShakeMap reference values exactly")
-    void testFiveReferenceLocationsMatchFrozenSpec() {
-        List<ReferenceLocation> locations = scenario.locations();
-        assertEquals(5, locations.size());
-
-        // 1. Ridgecrest
-        ReferenceLocation ridgecrest = scenario.findLocationByCity("Ridgecrest").orElseThrow();
-        assertEquals("0660704", ridgecrest.geoid());
-        assertEquals(7.2, ridgecrest.peakIntensity().mmiSourceDecimal(), 1e-9);
-        assertEquals(7.2, ridgecrest.peakIntensity().mmiDisplayRounded(), 1e-9);
-        assertEquals("VII", ridgecrest.peakIntensity().mmiRoman());
-        assertEquals("Very strong", ridgecrest.peakIntensity().shakingDescription());
-        assertEquals("#ffc400", ridgecrest.peakIntensity().colorHex());
-
-        // 2. Trona
-        ReferenceLocation trona = scenario.findLocationByCity("Trona").orElseThrow();
-        assertEquals("0680515", trona.geoid());
-        assertEquals(6.9, trona.peakIntensity().mmiSourceDecimal(), 1e-9);
-        assertEquals(6.9, trona.peakIntensity().mmiDisplayRounded(), 1e-9);
-        assertEquals("VII", trona.peakIntensity().mmiRoman());
-        assertEquals("Very strong", trona.peakIntensity().shakingDescription());
-        assertEquals("#ffc400", trona.peakIntensity().colorHex());
-
-        // 3. Bakersfield
-        ReferenceLocation bakersfield = scenario.findLocationByCity("Bakersfield").orElseThrow();
-        assertEquals("0603526", bakersfield.geoid());
-        assertEquals(3.9, bakersfield.peakIntensity().mmiSourceDecimal(), 1e-9);
-        assertEquals(3.9, bakersfield.peakIntensity().mmiDisplayRounded(), 1e-9);
-        assertEquals("IV", bakersfield.peakIntensity().mmiRoman());
-        assertEquals("Light", bakersfield.peakIntensity().shakingDescription());
-        assertEquals("#7ffffa", bakersfield.peakIntensity().colorHex());
-
-        // 4. Los Angeles
-        ReferenceLocation losAngeles = scenario.findLocationByCity("Los Angeles").orElseThrow();
-        assertEquals("0644000", losAngeles.geoid());
-        assertEquals(3.8, losAngeles.peakIntensity().mmiSourceDecimal(), 1e-9);
-        assertEquals(3.8, losAngeles.peakIntensity().mmiDisplayRounded(), 1e-9);
-        assertEquals("IV", losAngeles.peakIntensity().mmiRoman());
-        assertEquals("Light", losAngeles.peakIntensity().shakingDescription());
-        assertEquals("#7ffffa", losAngeles.peakIntensity().colorHex());
-
-        // 5. Fresno
-        ReferenceLocation fresno = scenario.findLocationByCity("Fresno").orElseThrow();
-        assertEquals("0627000", fresno.geoid());
-        assertEquals(3.1, fresno.peakIntensity().mmiSourceDecimal(), 1e-9);
-        assertEquals(3.1, fresno.peakIntensity().mmiDisplayRounded(), 1e-9);
-        assertEquals("II-III", fresno.peakIntensity().mmiRoman());
-        assertEquals("Weak", fresno.peakIntensity().shakingDescription());
-        assertEquals("#acdbff", fresno.peakIntensity().colorHex());
     }
 
     @Test

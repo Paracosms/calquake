@@ -16,8 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Executes the frozen scientific arrival benchmark for P and S phases, verifies
- * scientific gate criteria, performs the source consistency audit, and prints
- * reproducible Markdown audit tables.
+ * scientific gate criteria and performs the source consistency audit.
  */
 class ScientificGateArrivalBenchmarkTest {
 
@@ -38,8 +37,6 @@ class ScientificGateArrivalBenchmarkTest {
 
         ArrivalBenchmarkResult result = runner.runBenchmark("P", pPicks);
 
-        System.out.println(ArrivalBenchmarkRunner.generateMarkdownReport(result));
-
         // Gate acceptance requirements: >= 40 stations, >= 95% pass rate
         assertTrue(result.totalCount() >= 40, "Eligible P stations must be >= 40");
         assertTrue(result.passRatePct() >= 95.0,
@@ -48,7 +45,8 @@ class ScientificGateArrivalBenchmarkTest {
 
         assertEquals(75, result.passCount(), "Exactly 75 of 78 P picks must pass");
         assertEquals(96.15, result.passRatePct(), 0.01, "P pass rate must be 96.15%");
-        assertTrue(result.maeSec() < 0.5, "P MAE must be < 0.5 s (actual: " + result.maeSec() + ")");
+        assertEquals(0.445, result.maeSec(), 0.01, "P MAE must remain near the audited baseline");
+        assertEquals(-0.380, result.biasSec(), 0.01, "P signed bias must remain near the audited baseline");
     }
 
     @Test
@@ -59,11 +57,10 @@ class ScientificGateArrivalBenchmarkTest {
 
         ArrivalBenchmarkResult result = runner.runBenchmark("S", sPicks);
 
-        System.out.println(ArrivalBenchmarkRunner.generateMarkdownReport(result));
-
         // Audit check: 12 of 16 pass = 75.00%
         assertEquals(12, result.passCount(), "Exactly 12 of 16 S picks pass");
         assertEquals(75.0, result.passRatePct(), 0.01, "S pass rate is 75.00%");
+        assertEquals(1.435, result.maeSec(), 0.01, "S MAE must remain near the audited baseline");
 
         // Verify the 4 failing stations identified during audit
         Set<String> failingStations = result.evaluations().stream()

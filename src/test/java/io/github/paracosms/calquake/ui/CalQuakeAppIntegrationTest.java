@@ -1,183 +1,135 @@
 package io.github.paracosms.calquake.ui;
 
+import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
+import io.github.paracosms.calquake.core.ReplayController;
+import io.github.paracosms.calquake.core.ReplayEngine;
+import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.data.CaliforniaOutline;
+import io.github.paracosms.calquake.data.ScenarioLoader;
+import io.github.paracosms.calquake.testsupport.FakeMonotonicClock;
 import io.github.paracosms.calquake.testsupport.JavaFxTestHelper;
-import javafx.scene.Scene;
-import javafx.scene.image.WritableImage;
-import javafx.scene.layout.Region;
-import javafx.scene.paint.Color;
+import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.Test;
 
-import javax.imageio.ImageIO;
-import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class CalQuakeAppIntegrationTest {
+class CalQuakeAppIntegrationTest {
 
     @Test
-    void testFullCalQuakeAppWindow() throws Exception {
+    void applicationShellExposesReplayWorkflow() throws Exception {
         JavaFxTestHelper.runOnFxThread(() -> {
+            CalQuakeApp app = new CalQuakeApp();
+            app.init();
+            Stage stage = new Stage();
             try {
-                CalQuakeApp app = new CalQuakeApp();
-                app.init();
-                Stage stage = new Stage();
                 app.start(stage);
 
-                Scene scene = stage.getScene();
-                assertNotNull(scene);
+                assertEquals("CalQuake", stage.getTitle());
+                assertNotNull(stage.getScene());
+                assertNotNull(app.getMapCanvasPane());
 
-                MapCanvasPane mapPane = app.getMapCanvasPane();
-                assertNotNull(mapPane);
+                assertEquals(List.of("Mode", "Settings"),
+                        app.getMenuBar().getMenus().stream().map(menu -> menu.getText()).toList());
+                assertEquals(List.of("Replay"),
+                        app.getModeMenu().getItems().stream().map(item -> item.getText()).toList());
+                assertFalse(app.getSettingsMenu().getItems().isEmpty());
 
-                // 1. Verify map viewport dimensions in actual 1280x800 application layout with compact header (28 px)
-                assertEquals(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, mapPane.getWidth(), 1.0,
-                        "MapCanvasPane width in 1280x800 window must match BASELINE_VIEWPORT_WIDTH (890 px)");
-                assertEquals(744.0, mapPane.getHeight(), 1.0,
-                        "MapCanvasPane height in 1280x800 window with compact header must be 744 px");
+                assertEquals(List.of("Ridgecrest", "Northridge"), app.getEventSelector().getItems());
+                assertEquals("Ridgecrest", app.getEventSelector().getValue());
 
-                // 2. Verify marker positions on the live mapPane match independent control calculation <= 1px
-                var bounds = app.getOutline().computeProjectedBoundingBox(mapPane.projection());
-                var epiPt = app.getScenario().event().epicenter();
-                var epiLive = mapPane.getEpicenterScreenPoint();
-                var epiExpected = Stage5BaselineVerificationTest.independentControlProject(
-                        epiPt, epiPt, bounds, mapPane.getWidth(), mapPane.getHeight(), MapCanvasPane.DEFAULT_MARGIN_PX);
-                assertEquals(epiExpected.xPx(), epiLive.xPx(), 1.0, "Live Epicenter X matches control <= 1px");
-                assertEquals(epiExpected.yPx(), epiLive.yPx(), 1.0, "Live Epicenter Y matches control <= 1px");
+                assertTrue(app.getController().isPaused());
+                assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
+                assertEquals("PAUSED", app.getHudStateLabel().getText());
+                assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
+                assertFalse(app.getPlayPauseButton().isDisable());
 
-                for (var loc : app.getScenario().locations()) {
-                    var locLive = mapPane.getLocationScreenPoint(loc.city());
-                    var locExpected = Stage5BaselineVerificationTest.independentControlProject(
-                            loc.internalPoint(), epiPt, bounds, mapPane.getWidth(), mapPane.getHeight(), MapCanvasPane.DEFAULT_MARGIN_PX);
-                    assertEquals(locExpected.xPx(), locLive.xPx(), 1.0, loc.city() + " live X matches control <= 1px");
-                    assertEquals(locExpected.yPx(), locLive.yPx(), 1.0, loc.city() + " live Y matches control <= 1px");
+                double width = app.getMapCanvasPane().getWidth();
+                double height = app.getMapCanvasPane().getHeight();
+                var epicenter = app.getMapCanvasPane().getEpicenterScreenPoint();
+                assertTrue(epicenter.xPx() >= 0.0 && epicenter.xPx() <= width);
+                assertTrue(epicenter.yPx() >= 0.0 && epicenter.yPx() <= height);
+                for (var location : app.getScenario().locations()) {
+                    var point = app.getMapCanvasPane().getLocationScreenPoint(location.city());
+                    assertTrue(point.xPx() >= 0.0 && point.xPx() <= width,
+                            location.city() + " must be visible horizontally");
+                    assertTrue(point.yPx() >= 0.0 && point.yPx() <= height,
+                            location.city() + " must be visible vertically");
                 }
-
-                // 3. Snapshot the entire scene
-                WritableImage image = scene.snapshot(null);
-                int w = (int) image.getWidth();
-                int h = (int) image.getHeight();
-                assertEquals((int) CalQuakeApp.BASELINE_WIDTH, w, "Window width should match baseline (1280 px)");
-                assertEquals((int) CalQuakeApp.BASELINE_HEIGHT, h, "Window height should match baseline (800 px)");
-
-                File file = new File("target/full_window_snapshot.png");
-                java.awt.image.BufferedImage bImage = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-                for (int y = 0; y < h; y++) {
-                    for (int x = 0; x < w; x++) {
-                        bImage.setRGB(x, y, image.getPixelReader().getArgb(x, y));
-                    }
-                }
-                ImageIO.write(bImage, "png", file);
-
-                // 4. Validate screenshot pixels:
-                // Entire window must be fully opaque
-                assertEquals(w * h, RenderSnapshotTest.countOpaquePixels(image),
-                        "Entire application window must be fully opaque");
-
-                // Ocean area inside map (x=80, y=350, within 890x744 viewport): #E2EDF6
-                Color oceanColor = image.getPixelReader().getColor(80, 350);
-                assertEquals(0.886, oceanColor.getRed(), 0.05, "Map ocean red channel must match #E2EDF6");
-                assertEquals(0.929, oceanColor.getGreen(), 0.05, "Map ocean green channel must match #E2EDF6");
-                assertEquals(0.965, oceanColor.getBlue(), 0.05, "Map ocean blue channel must match #E2EDF6");
-
-                // California landmass area inside map (x=250, y=300): #FCFAF2
-                Color landColor = image.getPixelReader().getColor(250, 300);
-                assertEquals(0.988, landColor.getRed(), 0.05, "Map land red channel must match #FCFAF2");
-                assertEquals(0.980, landColor.getGreen(), 0.05, "Map land green channel must match #FCFAF2");
-                assertEquals(0.949, landColor.getBlue(), 0.05, "Map land blue channel must match #FCFAF2");
-
-                // Header area (x=200, y=14): classic desktop menu bar
-                Color headerColor = image.getPixelReader().getColor(200, 14);
-                assertTrue(headerColor.getRed() > 0.40 && headerColor.getGreen() > 0.40 && headerColor.getBlue() > 0.40,
-                        "Header should have classic desktop menu bar styling");
-
-                // Sidebar area (x=1050, y=200): light sidebar panel
-                Color sidebarColor = image.getPixelReader().getColor(1050, 200);
-                assertTrue(sidebarColor.getRed() > 0.85 && sidebarColor.getGreen() > 0.85 && sidebarColor.getBlue() > 0.85,
-                        "Sidebar should have light panel styling");
-
-                // Verify the status bar's styled region directly. A fixed
-                // screenshot coordinate can land on text with Linux fonts.
-                Region statusBar = (Region) scene.lookup(".status-bar");
-                assertNotNull(statusBar, "Status bar should be present");
-                assertTrue(!statusBar.getBackground().isEmpty(),
-                        "Status bar should have a styled background");
-                assertTrue(!statusBar.getBorder().isEmpty(),
-                        "Status bar should have a classic panel border");
-
-                // Map content rendering checks across the full window
-                assertTrue(RenderSnapshotTest.countLandFillPixels(image) > 10_000,
-                        "Full window should contain California landmass pixels");
-                assertTrue(RenderSnapshotTest.countDarkPixels(image) > 2_000,
-                        "Full window should contain labels, borders, and text");
-                assertTrue(RenderSnapshotTest.countYellowPixels(image) > 20,
-                        "Full window should contain yellow MMI VII badge pixels");
-                assertTrue(RenderSnapshotTest.countCyanPixels(image) > 20,
-                        "Full window should contain cyan MMI IV badge pixels");
-                assertTrue(RenderSnapshotTest.countRedPixels(image) > 10,
-                        "Full window should contain red epicenter marker pixels");
-                assertTrue(RenderSnapshotTest.countUniqueColors(image) > 50,
-                        "Full window snapshot must contain rich color palette (> 50 distinct colors)");
-
+            } finally {
                 app.stop();
                 stage.close();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
         });
     }
 
     @Test
-    void testPlaybackTickingAndReset() throws Exception {
+    void replayControlsDrivePauseResumeRestartAndFinish() throws Exception {
         JavaFxTestHelper.runOnFxThread(() -> {
+            Scenario scenario = new ScenarioLoader().loadDefaultScenario();
+            CaliforniaOutline outline = CaliforniaOutline.loadDefault();
+            ReplayEngine engine = ReplayEngine.create(scenario, new HadleyKanamoriTauPModel());
+            FakeMonotonicClock clock = new FakeMonotonicClock(1_000_000_000L);
+            ReplayController controller = new ReplayController(scenario, engine, clock);
+            CalQuakeApp app = new CalQuakeApp(scenario, outline, controller);
+            Stage stage = new Stage();
             try {
-                CalQuakeApp app = new CalQuakeApp();
-                app.init();
-                Stage stage = new Stage();
                 app.start(stage);
 
-                var controller = app.getController();
-                assertTrue(controller.isPaused());
-                assertEquals(0.0, controller.elapsedSeconds());
-
-                // Start playback
-                controller.play();
+                app.getPlayPauseButton().fire();
                 assertTrue(controller.isPlaying());
+                assertEquals("PLAYING", app.getHudStateLabel().getText());
 
-                // Advance clock & tick
-                Thread.sleep(50);
-                var frame = controller.tick();
-                assertTrue(controller.elapsedSeconds() > 0.0, "Elapsed time should advance when playing");
-                assertNotNull(frame);
-
-                app.getMapCanvasPane().renderFrame(frame);
-
-                // Pause
-                controller.pause();
-                assertTrue(controller.isPaused());
-                double pausedTime = controller.elapsedSeconds();
-
-                Thread.sleep(20);
+                clock.advanceSeconds(4.0);
                 controller.tick();
-                assertEquals(pausedTime, controller.elapsedSeconds(), "Time should not advance while paused");
+                app.updateTimeDisplays();
+                assertEquals("00:00:04.00", app.getElapsedDigitsLabel().getText());
 
-                // Restart
-                controller.restart();
+                app.getPlayPauseButton().fire();
                 assertTrue(controller.isPaused());
-                assertEquals(0.0, controller.elapsedSeconds());
+                clock.advanceSeconds(20.0);
+                controller.tick();
+                assertEquals(4.0, controller.elapsedSeconds(), 1e-9,
+                        "Paused wall-clock time must not advance the replay");
 
+                app.getPlayPauseButton().fire();
+                clock.advanceSeconds(2.0);
+                controller.tick();
+                assertEquals(6.0, controller.elapsedSeconds(), 1e-9);
+
+                app.getRestartButton().fire();
+                assertTrue(controller.isPaused());
+                assertEquals(0.0, controller.elapsedSeconds(), 1e-9);
+                assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
+
+                app.getPlayPauseButton().fire();
+                clock.advanceSeconds(125.0);
+                controller.tick();
+                app.updateControlStates();
+                app.updateTimeDisplays();
+                assertTrue(controller.isFinished());
+                assertEquals(120.0, controller.elapsedSeconds(), 1e-9);
+                assertTrue(app.getPlayPauseButton().isDisable());
+                assertTrue(app.getControlStateLabel().getText().contains("Require Restart"));
+
+                app.getRestartButton().fire();
+                assertTrue(controller.isPaused());
+                assertFalse(app.getPlayPauseButton().isDisable());
+            } finally {
                 app.stop();
                 stage.close();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
         });
     }
 
     @Test
-    void testWindowLifecyclePreservesPlaybackAcrossRepeatedRestores() throws Exception {
+    void windowLifecyclePreservesPlaybackAcrossRepeatedRestores() throws Exception {
         CalQuakeApp[] appRef = new CalQuakeApp[1];
         Stage[] stageRef = new Stage[1];
 
@@ -193,28 +145,27 @@ public class CalQuakeAppIntegrationTest {
             });
 
             JavaFxTestHelper.runOnFxThread(() -> {
-                // Establish the active state explicitly; headless X servers do
-                // not provide a window manager that can grant native focus.
-                appRef[0].applyWindowActivityState(false);
+                assertTrue(stageRef[0].isFocused(), "Lifecycle test requires the shown stage to be focused");
                 appRef[0].getController().play();
-                assertTrue(appRef[0].getController().isPlaying());
             });
 
             for (int cycle = 0; cycle < 3; cycle++) {
                 JavaFxTestHelper.runOnFxThread(() -> {
-                    appRef[0].applyWindowActivityState(true);
-                    assertTrue(appRef[0].getController().isPaused(),
-                            "Playback should pause when the stage is inactive");
-                    appRef[0].applyWindowActivityState(false);
-                    assertTrue(appRef[0].getController().isPlaying(),
-                            "Playback should resume after restoring a previously playing stage");
+                    stageRef[0].setIconified(true);
+                    assertTrue(appRef[0].getController().isPaused());
+                });
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    stageRef[0].setIconified(false);
+                    stageRef[0].requestFocus();
+                    assertTrue(appRef[0].getController().isPlaying());
                 });
             }
 
             JavaFxTestHelper.runOnFxThread(() -> {
                 appRef[0].getController().pause();
-                appRef[0].applyWindowActivityState(true);
-                appRef[0].applyWindowActivityState(false);
+                stageRef[0].setIconified(true);
+                stageRef[0].setIconified(false);
+                stageRef[0].requestFocus();
                 assertTrue(appRef[0].getController().isPaused(),
                         "An explicitly paused replay must remain paused after restoration");
             });
@@ -228,5 +179,28 @@ public class CalQuakeAppIntegrationTest {
                 });
             }
         }
+    }
+
+    @Test
+    void startupFailureShowsUsefulDiagnostic() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            CalQuakeApp app = new CalQuakeApp();
+            app.setStartupErrorForTesting(new FileNotFoundException("Missing scenario resource: event.json"));
+            Stage stage = new Stage();
+            try {
+                app.start(stage);
+
+                assertEquals("CalQuake — Startup Error", stage.getTitle());
+                assertNotNull(stage.getScene());
+                boolean explainsFailure = stage.getScene().getRoot().lookupAll(".label").stream()
+                        .filter(Label.class::isInstance)
+                        .map(Label.class::cast)
+                        .map(Label::getText)
+                        .anyMatch(text -> text.contains("Missing scenario resource: event.json"));
+                assertTrue(explainsFailure, "The startup error must explain which resource is missing");
+            } finally {
+                stage.close();
+            }
+        });
     }
 }

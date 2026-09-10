@@ -132,6 +132,13 @@ class AzimuthalEquidistantProjectionTest {
         assertEquals(deltaPxX, deltaPxY, 1e-9,
                 "Horizontal and vertical pixel scales must be identical to preserve 1:1 aspect ratio");
 
+        AzimuthalEquidistantProjection.ScreenPoint boundsCenter =
+                vt.toScreen(bounds.centerXKm(), bounds.centerYKm());
+        assertEquals(screenW / 2.0, boundsCenter.xPx(), 1e-9,
+                "Projected bounds must remain horizontally centered");
+        assertEquals(screenH / 2.0, boundsCenter.yPx(), 1e-9,
+                "Projected bounds must remain vertically centered");
+
         // Radius scaling
         double rKm = 75.0;
         double rPx = vt.toScreenRadius(rKm);
