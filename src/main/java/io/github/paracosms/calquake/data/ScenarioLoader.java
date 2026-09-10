@@ -2,8 +2,19 @@ package io.github.paracosms.calquake.data;
 
 import io.github.paracosms.calquake.core.EarthquakeEvent;
 import io.github.paracosms.calquake.core.GeoPoint;
+import io.github.paracosms.calquake.core.EventSource;
+import io.github.paracosms.calquake.core.Mechanism;
 import io.github.paracosms.calquake.core.ReferenceLocation;
+import io.github.paracosms.calquake.core.ReferenceIntensity;
+import io.github.paracosms.calquake.core.RuptureGeometry;
 import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.core.ScenarioInputs;
+import io.github.paracosms.calquake.core.ScenarioReferences;
+import io.github.paracosms.calquake.core.ScientificConfiguration;
+import io.github.paracosms.calquake.core.SimulationSite;
+import io.github.paracosms.calquake.core.SiteCondition;
+import io.github.paracosms.calquake.core.SiteConditionProvenance;
+import io.github.paracosms.calquake.core.TravelTimeConfiguration;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -13,7 +24,9 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -27,6 +40,7 @@ public class ScenarioLoader {
     public static final String DEFAULT_LOCATIONS_RESOURCE = "/data/five_reference_locations.json";
     public static final String NORTHRIDGE_EVENT_RESOURCE = "/data/northridge/event.json";
     public static final String NORTHRIDGE_LOCATIONS_RESOURCE = "/data/northridge/five_reference_locations.json";
+    public static final String SCIENTIFIC_INPUTS_RESOURCE = "/data/scientific_inputs.json";
 
     private final JsonMapper jsonMapper;
 
@@ -65,6 +79,104 @@ public class ScenarioLoader {
         }
         return loadDefaultScenario();
     }
+
+    /** Loads the legacy display scenario plus structurally separated inputs and references. */
+    public ScenarioBundle loadScenarioBundle(String eventName) {
+        Scenario scenario = loadScenario(eventName);
+        JsonNode manifest;
+        try (InputStream stream = getResourceStream(SCIENTIFIC_INPUTS_RESOURCE)) {
+            manifest = jsonMapper.readTree(stream);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to read scientific input manifest", e);
+        }
+        JsonNode eventNode = manifest.get("events").get(scenario.event().id());
+        if (eventNode == null || !eventNode.isObject()) {
+            throw new IllegalArgumentException("No scientific inputs for bundled event " + scenario.event().id());
+        }
+        JsonNode mechanismNode = requireObject(eventNode, "mechanism");
+        Mechanism mechanism = new Mechanism(
+                requireDouble(mechanismNode, "rake_degrees"),
+                requireDouble(mechanismNode, "strike_degrees"),
+                requireDouble(mechanismNode, "dip_degrees"),
+                optionalText(mechanismNode, "style", ""),
+                optionalText(mechanismNode, "provenance", ""));
+        JsonNode ruptureNode = requireObject(eventNode, "rupture");
+        RuptureGeometry rupture = parseRupture(ruptureNode, mechanism);
+
+        Map<String, String> eventMetadata = new LinkedHashMap<>();
+        if (!scenario.event().url().isBlank()) eventMetadata.put("catalogUrl", scenario.event().url());
+        eventMetadata.put("scientificManifest", SCIENTIFIC_INPUTS_RESOURCE);
+        EventSource source = new EventSource(
+                scenario.event().id(), scenario.event().network(), scenario.event().title(),
+                scenario.event().originUtc(), scenario.event().magnitude(), scenario.event().magnitudeType(),
+                scenario.event().epicenter(), scenario.event().depthKm(),
+                java.util.Optional.of(rupture), java.util.Optional.of(mechanism), eventMetadata);
+
+        JsonNode conditions = requireObject(eventNode, "site_conditions");
+        List<SimulationSite> sites = new ArrayList<>();
+        LinkedHashMap<String, ReferenceIntensity> references = new LinkedHashMap<>();
+        for (ReferenceLocation location : scenario.locations()) {
+            JsonNode value = conditions.get(location.geoid());
+            if (value == null || !value.isNumber()) {
+                throw new IllegalArgumentException("Missing bundled Vs30 for site " + location.geoid());
+            }
+            SiteCondition siteCondition = new SiteCondition(value.asDouble(),
+                    SiteConditionProvenance.MAPPED_PROXY, "USGS-ShakeMap-Atlas-SVEL-Vs30-grid");
+            sites.add(new SimulationSite(location.geoid(), location.city(),
+                    location.internalPoint(), siteCondition));
+            references.put(location.geoid(), ReferenceIntensity.fromReferenceLocation(location));
+        }
+        JsonNode models = requireObject(manifest, "models");
+        ScientificConfiguration configuration = new ScientificConfiguration(
+                Map.of(
+                        "bssa14", optionalText(requireObject(models, "bssa14"), "revision", ""),
+                        "worden2012", optionalText(requireObject(models, "worden2012"), "id", ""),
+                        "envelope", optionalText(requireObject(models, "envelope"), "id", "")),
+                Map.of(
+                        "timelineStepSeconds", requireDouble(requireObject(models, "timeline"), "step_seconds"),
+                        "convergenceStepSeconds", requireDouble(requireObject(models, "timeline"), "convergence_step_seconds")));
+        ScenarioInputs inputs = new ScenarioInputs(source, sites,
+                new TravelTimeConfiguration("Hadley-Kanamori (TauP)", "TauP-3.2.1",
+                        Map.of("resource", "/data/hadley_kanamori.nd")), configuration);
+        return new ScenarioBundle(scenario, inputs, new ScenarioReferences(references));
+    }
+
+    public ScenarioInputs loadScenarioInputs(String eventName) {
+        return loadScenarioBundle(eventName).inputs();
+    }
+
+    public ScenarioReferences loadScenarioReferences(String eventName) {
+        return loadScenarioBundle(eventName).references();
+    }
+
+    private RuptureGeometry parseRupture(JsonNode node, Mechanism mechanism) {
+        JsonNode partsNode = node.get("surface_projection_parts");
+        if (partsNode == null || !partsNode.isArray() || partsNode.isEmpty()) {
+            throw new IllegalArgumentException("Rupture surface_projection_parts must be a non-empty array");
+        }
+        List<List<GeoPoint>> parts = new ArrayList<>();
+        for (JsonNode partNode : partsNode) {
+            if (!partNode.isArray() || partNode.size() < 2) {
+                throw new IllegalArgumentException("Rupture parts require at least two [lat, lon] points");
+            }
+            List<GeoPoint> part = new ArrayList<>();
+            for (JsonNode point : partNode) {
+                if (!point.isArray() || point.size() < 2
+                        || !point.get(0).isNumber() || !point.get(1).isNumber()) {
+                    throw new IllegalArgumentException("Invalid rupture [lat, lon] point");
+                }
+                part.add(new GeoPoint(point.get(0).asDouble(), point.get(1).asDouble()));
+            }
+            parts.add(part);
+        }
+        return new RuptureGeometry(parts,
+                requireDouble(node, "top_depth_km"), requireDouble(node, "bottom_depth_km"),
+                mechanism.strikeDegrees(), mechanism.dipDegrees(),
+                optionalText(node, "source_id", ""), optionalText(node, "source_sha256", ""), false);
+    }
+
+    /** One load operation yielding display data, predictor inputs, and evaluation references. */
+    public record ScenarioBundle(Scenario scenario, ScenarioInputs inputs, ScenarioReferences references) {}
 
     /**
      * Loads a scenario from specified classpath resources.

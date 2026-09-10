@@ -2,6 +2,9 @@ package io.github.paracosms.calquake.ui;
 
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
+import io.github.paracosms.calquake.core.MmiMode;
+import io.github.paracosms.calquake.core.PreparedReplay;
+import io.github.paracosms.calquake.core.ReplayPreparer;
 import io.github.paracosms.calquake.core.ReplayEngine;
 import io.github.paracosms.calquake.core.Scenario;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
@@ -50,7 +53,7 @@ class MapCanvasPaneIntegrationTest {
             assertTrue(countVisiblePixels(pane.getDynamicCanvas()) > 0,
                     "P and S wavefronts must render after their arrivals");
 
-            FrameState finalFrame = engine.frameAt(scenario, 120.0);
+            FrameState finalFrame = engine.frameAt(scenario, engine.preparedReplay().durationSeconds());
             assertDoesNotThrow(() -> pane.renderFrame(finalFrame),
                     "Wavefronts extending beyond the viewport must be clipped safely");
             assertEquals(finalFrame, pane.getLastFrame());
@@ -90,7 +93,8 @@ class MapCanvasPaneIntegrationTest {
             int frameCount = 500;
             FrameState[] frames = new FrameState[frameCount];
             for (int i = 0; i < frameCount; i++) {
-                frames[i] = engine.frameAt(scenario, i * 120.0 / frameCount);
+                frames[i] = engine.frameAt(scenario,
+                        i * engine.preparedReplay().durationSeconds() / frameCount);
             }
             for (int i = 0; i < 50; i++) {
                 pane.renderFrame(frames[i]);
@@ -136,6 +140,36 @@ class MapCanvasPaneIntegrationTest {
             WritableImage dynImg10 = pane.getDynamicCanvas().snapshot(params, null);
             int alphaAtDot10 = (dynImg10.getPixelReader().getArgb(rx, ry) >>> 24);
             assertTrue(alphaAtDot10 > 0, "MMI icon must be rendered directly on the center of the city dot on S-wave arrival");
+        });
+    }
+
+    @Test
+    void simulatedPreparedFramesRenderProgressiveBadgesFromFrameState() throws Exception {
+        ScenarioLoader.ScenarioBundle bundle = new ScenarioLoader().loadScenarioBundle("Ridgecrest");
+        HadleyKanamoriTauPModel model = new HadleyKanamoriTauPModel();
+        PreparedReplay replay = new ReplayPreparer(model)
+                .prepare(bundle.inputs(), bundle.references(), MmiMode.SIMULATED);
+        ReplayEngine simulated = ReplayEngine.createPrepared(bundle.scenario(), model, replay);
+        var timeline = replay.timelinesBySiteId().values().iterator().next();
+        double firstAvailable = timeline.samples().stream()
+                .filter(sample -> sample.mmi().isPresent())
+                .findFirst().orElseThrow().elapsedSeconds();
+
+        JavaFxTestHelper.runOnFxThread(() -> {
+            MapCanvasPane pane = new MapCanvasPane(bundle.scenario(), outline);
+            pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
+            FrameState early = simulated.frameAt(firstAvailable);
+            FrameState completed = simulated.frameAt(replay.durationSeconds());
+            double earlyMmi = early.locationIntensities().stream()
+                    .filter(state -> state.geoid().equals(timeline.site().id()))
+                    .findFirst().orElseThrow().currentMmi().orElseThrow();
+            double finalMmi = completed.locationIntensities().stream()
+                    .filter(state -> state.geoid().equals(timeline.site().id()))
+                    .findFirst().orElseThrow().currentMmi().orElseThrow();
+            assertTrue(finalMmi >= earlyMmi);
+            pane.renderFrame(early);
+            pane.renderFrame(completed);
+            assertEquals(completed, pane.getLastFrame());
         });
     }
 

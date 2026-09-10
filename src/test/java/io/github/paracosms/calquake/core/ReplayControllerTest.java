@@ -10,6 +10,7 @@ import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReplayControllerTest {
@@ -33,6 +34,8 @@ class ReplayControllerTest {
         assertFalse(controller.isPlaying());
         assertFalse(controller.isFinished());
         assertEquals(0.0, controller.elapsedSeconds(), 1e-9);
+        assertEquals(controller.engine().preparedReplay().durationSeconds(),
+                controller.durationSeconds(), 1e-9);
 
         FrameState frame = controller.currentFrame();
         assertEquals(0.0, frame.elapsedSeconds(), 1e-9);
@@ -88,19 +91,19 @@ class ReplayControllerTest {
     @Test
     void replayEndRequiresRestartBeforePlaybackCanContinue() {
         controller.play();
-        clock.advanceSeconds(125.0);
+        clock.advanceSeconds(controller.durationSeconds() + 5.0);
         FrameState frame = controller.tick();
 
         assertEquals(PlaybackState.FINISHED, controller.state());
-        assertEquals(120.0, controller.elapsedSeconds(), 1e-9);
-        assertEquals(120.0, frame.elapsedSeconds(), 1e-9);
+        assertEquals(controller.durationSeconds(), controller.elapsedSeconds(), 1e-9);
+        assertEquals(controller.durationSeconds(), frame.elapsedSeconds(), 1e-9);
 
         clock.advanceSeconds(10.0);
         controller.tick();
         controller.play();
         controller.togglePlayPause();
         assertEquals(PlaybackState.FINISHED, controller.state());
-        assertEquals(120.0, controller.elapsedSeconds(), 1e-9);
+        assertEquals(controller.durationSeconds(), controller.elapsedSeconds(), 1e-9);
 
         controller.restart();
         assertTrue(controller.isPaused());
@@ -114,11 +117,11 @@ class ReplayControllerTest {
     @Test
     void pausingAtEndBoundaryAlsoFinishesReplay() {
         controller.play();
-        clock.advanceSeconds(120.5);
+        clock.advanceSeconds(controller.durationSeconds() + 0.5);
         controller.pause();
 
         assertEquals(PlaybackState.FINISHED, controller.state());
-        assertEquals(120.0, controller.elapsedSeconds(), 1e-9);
+        assertEquals(controller.durationSeconds(), controller.elapsedSeconds(), 1e-9);
     }
 
     @Test
@@ -152,9 +155,9 @@ class ReplayControllerTest {
         controller.tick();
         assertEquals(35.0, controller.elapsedSeconds(), 1e-6);
 
-        // 3. Seeking past MAX_REPLAY_SECONDS clamps to 120.0 and finishes
-        controller.seek(150.0);
-        assertEquals(120.0, controller.elapsedSeconds(), 1e-9);
+        // 3. Seeking past the prepared duration clamps to that duration and finishes
+        controller.seek(controller.durationSeconds() + 30.0);
+        assertEquals(controller.durationSeconds(), controller.elapsedSeconds(), 1e-9);
         assertTrue(controller.isFinished());
 
         // 4. Seeking backward from FINISHED transitions to PAUSED
@@ -166,5 +169,61 @@ class ReplayControllerTest {
         controller.seek(-10.0);
         assertEquals(0.0, controller.elapsedSeconds(), 1e-9);
         assertTrue(controller.isPaused());
+    }
+
+    @Test
+    void explicitShortDurationControlsTickPauseSeekAndFinish() {
+        ReplayEngine engine = ReplayEngine.create(scenario, HadleyKanamoriTauPModel.create());
+        ReplayController shortReplay = new ReplayController(scenario, engine, clock, 12.5);
+
+        assertEquals(12.5, shortReplay.durationSeconds(), 1e-9);
+
+        shortReplay.play();
+        clock.advanceSeconds(20.0);
+        FrameState finalFrame = shortReplay.tick();
+
+        assertTrue(shortReplay.isFinished());
+        assertEquals(12.5, shortReplay.elapsedSeconds(), 1e-9);
+        assertEquals(12.5, finalFrame.elapsedSeconds(), 1e-9);
+
+        shortReplay.seek(4.0);
+        assertTrue(shortReplay.isPaused());
+        assertEquals(4.0, shortReplay.elapsedSeconds(), 1e-9);
+
+        shortReplay.seek(99.0);
+        assertTrue(shortReplay.isFinished());
+        assertEquals(12.5, shortReplay.elapsedSeconds(), 1e-9);
+    }
+
+    @Test
+    void explicitLongDurationDoesNotFinishAtLegacyBoundary() {
+        ReplayEngine engine = ReplayEngine.create(scenario, HadleyKanamoriTauPModel.create());
+        ReplayController longReplay = new ReplayController(scenario, engine, clock, 180.0);
+
+        longReplay.play();
+        clock.advanceSeconds(125.0);
+        longReplay.tick();
+
+        assertTrue(longReplay.isPlaying());
+        assertEquals(125.0, longReplay.elapsedSeconds(), 1e-9);
+
+        clock.advanceSeconds(60.0);
+        longReplay.pause();
+        assertTrue(longReplay.isFinished());
+        assertEquals(180.0, longReplay.elapsedSeconds(), 1e-9);
+    }
+
+    @Test
+    void explicitDurationMustBePositiveAndFinite() {
+        ReplayEngine engine = ReplayEngine.create(scenario, HadleyKanamoriTauPModel.create());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new ReplayController(scenario, engine, clock, 0.0));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ReplayController(scenario, engine, clock, -1.0));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ReplayController(scenario, engine, clock, Double.NaN));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ReplayController(scenario, engine, clock, Double.POSITIVE_INFINITY));
     }
 }

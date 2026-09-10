@@ -4,7 +4,10 @@ import io.github.paracosms.calquake.core.EarthquakeEvent;
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.MmiLegend;
+import io.github.paracosms.calquake.core.MmiMode;
 import io.github.paracosms.calquake.core.MonotonicClock;
+import io.github.paracosms.calquake.core.PreparedReplay;
+import io.github.paracosms.calquake.core.ReplayPreparer;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.ReplayController;
 import io.github.paracosms.calquake.core.ReplayEngine;
@@ -39,6 +42,12 @@ import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 
 import java.util.Objects;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Main JavaFX application for CalQuake Demo 0.
@@ -61,6 +70,18 @@ public class CalQuakeApp extends Application {
     private boolean windowInactive;
     private boolean wasPlayingBeforeDeactivation;
     private Throwable startupError;
+    private final ScenarioLoader scenarioLoader = new ScenarioLoader();
+    private final TravelTimeModel travelTimeModel = new HadleyKanamoriTauPModel();
+    private final ReplayPreparer replayPreparer = new ReplayPreparer(travelTimeModel);
+    private final AtomicLong preparationGeneration = new AtomicLong();
+    private final ExecutorService preparationExecutor = Executors.newSingleThreadExecutor(new PreparationThreadFactory());
+    private Map<String, ScenarioLoader.ScenarioBundle> scenarioBundles = Map.of();
+    private Scenario installedScenario;
+    private PreparedReplay preparedReplay;
+    private CompletableFuture<?> preparationFuture;
+    private boolean preparingReplay;
+    private Throwable preparationError;
+    private MmiMode selectedMmiMode = MmiMode.RECORDED;
 
     // Header & Mode Controls
     private MenuBar menuBar;
@@ -72,6 +93,7 @@ public class CalQuakeApp extends Application {
 
     // Event Selector
     private ComboBox<String> eventSelector;
+    private ComboBox<MmiMode> mmiModeSelector;
 
     // Controls & Readouts
     private Button playPauseButton;
@@ -103,17 +125,26 @@ public class CalQuakeApp extends Application {
         try {
             // Load default frozen scenario, outline, and models
             if (this.scenario == null) {
-                ScenarioLoader loader = new ScenarioLoader();
-                this.scenario = loader.loadDefaultScenario();
+                ScenarioLoader.ScenarioBundle ridgecrest = scenarioLoader.loadScenarioBundle("Ridgecrest");
+                ScenarioLoader.ScenarioBundle northridge = scenarioLoader.loadScenarioBundle("Northridge");
+                this.scenarioBundles = Map.of("Ridgecrest", ridgecrest, "Northridge", northridge);
+                this.scenario = ridgecrest.scenario();
+                this.installedScenario = this.scenario;
             }
             if (this.outline == null) {
                 this.outline = CaliforniaOutline.loadDefault();
             }
             if (this.controller == null) {
-                TravelTimeModel model = new HadleyKanamoriTauPModel();
-                ReplayEngine engine = ReplayEngine.create(scenario, model);
-                this.controller = new ReplayController(scenario, engine);
+                ScenarioLoader.ScenarioBundle bundle = scenarioBundles.get("Ridgecrest");
+                this.preparedReplay = replayPreparer.prepare(
+                        bundle.inputs(), bundle.references(), MmiMode.RECORDED);
+                ReplayEngine engine = ReplayEngine.createPrepared(scenario, travelTimeModel, preparedReplay);
+                this.controller = new ReplayController(
+                        scenario, engine, MonotonicClock.system(), preparedReplay.durationSeconds());
             }
+            if (this.installedScenario == null) this.installedScenario = this.controller.scenario();
+            if (this.preparedReplay == null) this.preparedReplay = this.controller.engine().preparedReplay();
+            this.selectedMmiMode = this.preparedReplay.mode();
         } catch (Throwable t) {
             this.startupError = t;
         }
@@ -212,6 +243,8 @@ public class CalQuakeApp extends Application {
             animationTimer.stop();
         }
         lifecycleStage = null;
+        preparationGeneration.incrementAndGet();
+        preparationExecutor.shutdownNow();
     }
 
     private void setupWindowLifecycleHandlers(Stage stage) {
@@ -331,7 +364,7 @@ public class CalQuakeApp extends Application {
         this.elapsedDigitsLabel = new Label("00:00:00.00");
         elapsedDigitsLabel.getStyleClass().add("timer-digits");
 
-        this.elapsedSubLabel = new Label("T + 0.0 s  (Max: 120.0 s)");
+        this.elapsedSubLabel = new Label("T + 0.0 s");
         elapsedSubLabel.getStyleClass().add("timer-subtext");
 
         box.getChildren().addAll(topRow, elapsedDigitsLabel, elapsedSubLabel);
@@ -376,7 +409,7 @@ public class CalQuakeApp extends Application {
 
         buttonsRow.getChildren().addAll(playPauseButton, restartButton);
 
-        this.timelineScrubber = new Slider(0.0, ReplayController.MAX_REPLAY_SECONDS, 0.0);
+        this.timelineScrubber = new Slider(0.0, controller.durationSeconds(), 0.0);
         timelineScrubber.getStyleClass().add("timeline-scrubber");
         timelineScrubber.setMaxWidth(Double.MAX_VALUE);
         timelineScrubber.setBlockIncrement(1.0);
@@ -389,7 +422,7 @@ public class CalQuakeApp extends Application {
         this.controlStateLabel = new Label("State: PAUSED (Ready)");
         controlStateLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #1E293B;");
 
-        this.controlTimeLabel = new Label("Elapsed: 0.00 s / 120.00 s");
+        this.controlTimeLabel = new Label("Elapsed: 0.00 s");
         controlTimeLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #475569;");
 
         statusInfo.getChildren().addAll(controlStateLabel, controlTimeLabel);
@@ -443,7 +476,15 @@ public class CalQuakeApp extends Application {
         eventSelector.setMaxWidth(Double.MAX_VALUE);
         eventSelector.getStyleClass().add("event-selector");
 
-        box.getChildren().addAll(title, subtitle, eventSelector);
+        this.mmiModeSelector = new ComboBox<>();
+        mmiModeSelector.getItems().setAll(MmiMode.RECORDED, MmiMode.SIMULATED);
+        mmiModeSelector.setValue(selectedMmiMode);
+        mmiModeSelector.setId("mmi-mode-selector");
+        mmiModeSelector.setAccessibleText("MMI replay mode");
+        mmiModeSelector.setMaxWidth(Double.MAX_VALUE);
+        mmiModeSelector.getStyleClass().add("event-selector");
+
+        box.getChildren().addAll(title, subtitle, eventSelector, mmiModeSelector);
         return box;
     }
 
@@ -451,7 +492,7 @@ public class CalQuakeApp extends Application {
         VBox box = new VBox(6.0);
         box.getStyleClass().add("group-box");
 
-        Label title = new Label("USGS ShakeMap MMI Scale (Worden et al., 2012)");
+        Label title = new Label("MMI Scale (Worden et al., 2012)");
         title.getStyleClass().add("group-box-title");
 
         GridPane grid = new GridPane();
@@ -506,7 +547,7 @@ public class CalQuakeApp extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        this.statusReplayLabel = new Label("Replay: READY (0.00s / 120.00s)");
+        this.statusReplayLabel = new Label("Replay: READY");
         statusReplayLabel.getStyleClass().add("status-pane");
         statusReplayLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
 
@@ -563,14 +604,22 @@ public class CalQuakeApp extends Application {
                 selectEvent(selected);
             }
         });
+
+        mmiModeSelector.setOnAction(e -> {
+            MmiMode selected = mmiModeSelector.getValue();
+            if (selected != null && selected != selectedMmiMode) {
+                selectedMmiMode = selected;
+                requestPreparation(eventSelector.getValue(), selectedMmiMode);
+            }
+        });
     }
 
     public void selectEvent(String eventName) {
         if (eventName == null) {
             return;
         }
-        if (scenario != null && scenario.event() != null) {
-            boolean isNorthridge = "ci3144585".equals(scenario.event().id());
+        if (installedScenario != null && installedScenario.event() != null && !preparingReplay) {
+            boolean isNorthridge = "ci3144585".equals(installedScenario.event().id());
             boolean wantsNorthridge = eventName.equalsIgnoreCase("Northridge") || eventName.equalsIgnoreCase("ci3144585");
             if (isNorthridge == wantsNorthridge) {
                 return;
@@ -582,33 +631,101 @@ public class CalQuakeApp extends Application {
         }
         this.wasPlayingBeforeDeactivation = false;
 
-        ScenarioLoader loader = new ScenarioLoader();
-        Scenario newScenario = loader.loadScenario(eventName);
-        this.scenario = newScenario;
+        boolean wantsNorthridge = eventName.equalsIgnoreCase("Northridge") || eventName.equalsIgnoreCase("ci3144585");
+        String targetValue = wantsNorthridge ? "Northridge" : "Ridgecrest";
+        if (eventSelector != null && !targetValue.equals(eventSelector.getValue())) {
+            eventSelector.setValue(targetValue);
+            return;
+        }
+        requestPreparation(targetValue, selectedMmiMode);
+    }
 
-        TravelTimeModel model = new HadleyKanamoriTauPModel();
-        ReplayEngine newEngine = ReplayEngine.create(newScenario, model);
-        this.controller = new ReplayController(newScenario, newEngine, this.controller != null ? this.controller.clock() : MonotonicClock.system());
+    private void requestPreparation(String eventName, MmiMode mode) {
+        if (eventName == null || mode == null) return;
+        if (controller != null) {
+            controller.pause();
+            controller.restart();
+        }
+        wasPlayingBeforeDeactivation = false;
+        preparingReplay = true;
+        preparationError = null;
+        long generation = preparationGeneration.incrementAndGet();
+        updateControlStates();
+        updateTimeDisplays();
 
+        ScenarioLoader.ScenarioBundle knownBundle = scenarioBundles.get(eventName);
+        preparationFuture = CompletableFuture.supplyAsync(() -> {
+            ScenarioLoader.ScenarioBundle bundle = knownBundle != null
+                    ? knownBundle : scenarioLoader.loadScenarioBundle(eventName);
+            PreparedReplay replay = replayPreparer.prepare(bundle.inputs(), bundle.references(), mode);
+            return new PreparedInstallation(bundle, replay);
+        }, preparationExecutor).whenComplete((installation, failure) -> Platform.runLater(() -> {
+            if (generation != preparationGeneration.get()) return;
+            if (failure != null) {
+                preparingReplay = false;
+                preparationError = unwrapCompletionFailure(failure);
+                updateControlStates();
+                return;
+            }
+            installPreparedReplay(installation);
+        }));
+    }
+
+    private void installPreparedReplay(PreparedInstallation installation) {
+        MonotonicClock clock = controller != null ? controller.clock() : MonotonicClock.system();
+        ReplayEngine engine = ReplayEngine.createPrepared(
+                installation.bundle().scenario(), travelTimeModel, installation.replay());
+        ReplayController replacement = new ReplayController(
+                installation.bundle().scenario(), engine, clock, installation.replay().durationSeconds());
+        this.preparedReplay = installation.replay();
+        this.installedScenario = installation.bundle().scenario();
+        this.scenario = installation.bundle().scenario();
+        this.controller = replacement;
+        this.preparingReplay = false;
+        this.preparationError = null;
         if (mapCanvasPane != null) {
-            mapCanvasPane.setScenario(newScenario);
+            mapCanvasPane.setScenario(installedScenario);
             mapCanvasPane.renderFrame(controller.currentFrame());
         }
-
-        if (eventSelector != null) {
-            boolean wantsNorthridge = eventName.equalsIgnoreCase("Northridge") || eventName.equalsIgnoreCase("ci3144585");
-            String targetVal = wantsNorthridge ? "Northridge" : "Ridgecrest";
-            if (!targetVal.equals(eventSelector.getValue())) {
-                eventSelector.setValue(targetVal);
-            }
+        if (timelineScrubber != null) {
+            timelineScrubber.setMax(controller.durationSeconds());
+            timelineScrubber.setMajorTickUnit(Math.max(5.0, controller.durationSeconds() / 4.0));
         }
-
         updateControlStates();
         updateTimeDisplays();
     }
 
+    private static Throwable unwrapCompletionFailure(Throwable failure) {
+        Throwable current = failure;
+        while ((current instanceof java.util.concurrent.CompletionException
+                || current instanceof java.util.concurrent.ExecutionException)
+                && current.getCause() != null) current = current.getCause();
+        return current;
+    }
+
     void updateControlStates() {
         double elapsed = controller.elapsedSeconds();
+        if (preparingReplay) {
+            playPauseButton.setDisable(true);
+            timelineScrubber.setDisable(true);
+            hudStateLabel.setText("PREPARING");
+            hudStateLabel.getStyleClass().setAll("status-badge-paused");
+            controlStateLabel.setText("Preparing replay...");
+            if (statusReplayLabel != null) statusReplayLabel.setText("Preparing replay...");
+            return;
+        }
+        if (preparationError != null) {
+            playPauseButton.setDisable(true);
+            timelineScrubber.setDisable(true);
+            hudStateLabel.setText("ERROR");
+            hudStateLabel.getStyleClass().setAll("status-badge-finished");
+            String message = preparationError.getMessage() != null
+                    ? preparationError.getMessage() : preparationError.getClass().getSimpleName();
+            controlStateLabel.setText("Preparation failed: " + message);
+            if (statusReplayLabel != null) statusReplayLabel.setText("Replay preparation failed: " + message);
+            return;
+        }
+        timelineScrubber.setDisable(false);
         if (controller.isPlaying()) {
             playPauseButton.setDisable(false);
             playPauseButton.setText("⏸  Pause");
@@ -626,7 +743,7 @@ public class CalQuakeApp extends Application {
             if (elapsed == 0.0) {
                 controlStateLabel.setText("State: PAUSED (Ready)");
                 if (statusReplayLabel != null) {
-                    statusReplayLabel.setText("Replay: READY (0.00s / 120.00s)");
+                    statusReplayLabel.setText(String.format("Replay: READY (0.00s / %.2fs)", controller.durationSeconds()));
                 }
             } else {
                 controlStateLabel.setText("State: PAUSED");
@@ -655,8 +772,9 @@ public class CalQuakeApp extends Application {
 
         String formatted = String.format("00:%02d:%02d.%02d", minutes, seconds, centis);
         elapsedDigitsLabel.setText(formatted);
-        elapsedSubLabel.setText(String.format("T + %.1f s  (Max: %.1f s)", elapsed, ReplayController.MAX_REPLAY_SECONDS));
-        controlTimeLabel.setText(String.format("Elapsed: %.2f s / %.2f s", elapsed, ReplayController.MAX_REPLAY_SECONDS));
+        double duration = controller.durationSeconds();
+        elapsedSubLabel.setText(String.format("T + %.1f s  (Max: %.1f s)", elapsed, duration));
+        controlTimeLabel.setText(String.format("Elapsed: %.2f s / %.2f s", elapsed, duration));
 
         if (timelineScrubber != null && !timelineScrubber.isValueChanging()) {
             updatingScrubberFromEngine = true;
@@ -742,6 +860,22 @@ public class CalQuakeApp extends Application {
         return eventSelector;
     }
 
+    public ComboBox<MmiMode> getMmiModeSelector() { return mmiModeSelector; }
+
+    public MmiMode getSelectedMmiMode() { return selectedMmiMode; }
+
+    public PreparedReplay getPreparedReplay() { return preparedReplay; }
+
+    public Scenario getInstalledScenario() { return installedScenario; }
+
+    public boolean isPreparingReplay() { return preparingReplay; }
+
+    public Throwable getPreparationError() { return preparationError; }
+
+    public long getPreparationGeneration() { return preparationGeneration.get(); }
+
+    public CompletableFuture<?> getPreparationFuture() { return preparationFuture; }
+
     public Button getPlayPauseButton() {
         return playPauseButton;
     }
@@ -792,5 +926,16 @@ public class CalQuakeApp extends Application {
 
     public static void main(String[] args) {
         launch(args);
+    }
+
+    private record PreparedInstallation(ScenarioLoader.ScenarioBundle bundle, PreparedReplay replay) {}
+
+    private static final class PreparationThreadFactory implements ThreadFactory {
+        @Override
+        public Thread newThread(Runnable task) {
+            Thread thread = new Thread(task, "calquake-replay-preparation");
+            thread.setDaemon(true);
+            return thread;
+        }
     }
 }

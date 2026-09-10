@@ -1,6 +1,7 @@
 package io.github.paracosms.calquake.ui;
 
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
+import io.github.paracosms.calquake.core.MmiMode;
 import io.github.paracosms.calquake.core.ReplayController;
 import io.github.paracosms.calquake.core.ReplayEngine;
 import io.github.paracosms.calquake.core.Scenario;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.FileNotFoundException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -43,6 +45,11 @@ class CalQuakeAppIntegrationTest {
 
                 assertEquals(List.of("Ridgecrest", "Northridge"), app.getEventSelector().getItems());
                 assertEquals("Ridgecrest", app.getEventSelector().getValue());
+                assertEquals(List.of(MmiMode.RECORDED, MmiMode.SIMULATED),
+                        app.getMmiModeSelector().getItems());
+                assertEquals(MmiMode.RECORDED, app.getMmiModeSelector().getValue());
+                assertEquals("mmi-mode-selector", app.getMmiModeSelector().getId());
+                assertEquals("MMI replay mode", app.getMmiModeSelector().getAccessibleText());
 
                 assertTrue(app.getController().isPaused());
                 assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
@@ -52,7 +59,7 @@ class CalQuakeAppIntegrationTest {
 
                 assertNotNull(app.getTimelineScrubber());
                 assertEquals(0.0, app.getTimelineScrubber().getMin(), 1e-9);
-                assertEquals(120.0, app.getTimelineScrubber().getMax(), 1e-9);
+                assertEquals(app.getController().durationSeconds(), app.getTimelineScrubber().getMax(), 1e-9);
                 assertEquals(0.0, app.getTimelineScrubber().getValue(), 1e-9);
 
                 double width = app.getMapCanvasPane().getWidth();
@@ -114,12 +121,12 @@ class CalQuakeAppIntegrationTest {
                 assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
 
                 app.getPlayPauseButton().fire();
-                clock.advanceSeconds(125.0);
+                clock.advanceSeconds(controller.durationSeconds() + 5.0);
                 controller.tick();
                 app.updateControlStates();
                 app.updateTimeDisplays();
                 assertTrue(controller.isFinished());
-                assertEquals(120.0, controller.elapsedSeconds(), 1e-9);
+                assertEquals(controller.durationSeconds(), controller.elapsedSeconds(), 1e-9);
                 assertTrue(app.getPlayPauseButton().isDisable());
                 assertTrue(app.getControlStateLabel().getText().contains("Require Restart"));
 
@@ -228,8 +235,8 @@ class CalQuakeAppIntegrationTest {
                 assertEquals("00:00:50.00", app.getElapsedDigitsLabel().getText());
                 assertTrue(controller.isPaused());
 
-                // Scrub to 120.0 s finishes playback
-                app.getTimelineScrubber().setValue(120.0);
+                // Scrub to the prepared duration to finish playback
+                app.getTimelineScrubber().setValue(controller.durationSeconds());
                 assertTrue(controller.isFinished());
                 assertTrue(app.getPlayPauseButton().isDisable());
 
@@ -247,22 +254,30 @@ class CalQuakeAppIntegrationTest {
 
     @Test
     void eventSelectorSwitchesScenarioAndRefreshesReplayState() throws Exception {
-        JavaFxTestHelper.runOnFxThread(() -> {
-            CalQuakeApp app = new CalQuakeApp();
-            app.init();
-            Stage stage = new Stage();
-            try {
+        CalQuakeApp[] appRef = new CalQuakeApp[1];
+        Stage[] stageRef = new Stage[1];
+        try {
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = new CalQuakeApp();
+                app.init();
+                Stage stage = new Stage();
                 app.start(stage);
-
-                // Initial scenario is Ridgecrest
                 assertEquals("Ridgecrest", app.getEventSelector().getValue());
                 assertEquals("ci38457511", app.getScenario().event().id());
                 assertEquals(7.1, app.getScenario().event().magnitude(), 1e-9);
                 assertEquals(8.0, app.getScenario().event().depthKm(), 1e-9);
                 assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
-
-                // Switch to Northridge
                 app.getEventSelector().setValue("Northridge");
+                assertTrue(app.isPreparingReplay());
+                assertEquals("ci38457511", app.getInstalledScenario().event().id(),
+                        "The old replay remains atomically installed while preparation runs");
+                appRef[0] = app;
+                stageRef[0] = stage;
+            });
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
                 assertEquals("Northridge", app.getEventSelector().getValue());
                 assertEquals("ci3144585", app.getScenario().event().id());
                 assertEquals(6.7, app.getScenario().event().magnitude(), 1e-9);
@@ -275,18 +290,64 @@ class CalQuakeAppIntegrationTest {
                 assertEquals(5, app.getScenario().locations().size());
                 var la = app.getScenario().findLocationByCity("Los Angeles").orElseThrow();
                 assertEquals(7.2, la.peakIntensity().mmiSourceDecimal(), 1e-9);
-
-                // Switch back to Ridgecrest
                 app.getEventSelector().setValue("Ridgecrest");
+            });
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
                 assertEquals("Ridgecrest", app.getEventSelector().getValue());
                 assertEquals("ci38457511", app.getScenario().event().id());
                 assertEquals(7.1, app.getScenario().event().magnitude(), 1e-9);
                 assertEquals(8.0, app.getScenario().event().depthKm(), 1e-9);
                 assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
-            } finally {
-                app.stop();
-                stage.close();
+            });
+        } finally {
+            if (appRef[0] != null) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    appRef[0].stop();
+                    if (stageRef[0] != null) stageRef[0].close();
+                });
             }
-        });
+        }
+    }
+
+    @Test
+    void modeAndRapidEventChangesPrepareOffThreadAndFinalGenerationWins() throws Exception {
+        CalQuakeApp[] appRef = new CalQuakeApp[1];
+        Stage[] stageRef = new Stage[1];
+        try {
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = new CalQuakeApp();
+                app.init();
+                Stage stage = new Stage();
+                app.start(stage);
+                app.getMmiModeSelector().setValue(MmiMode.SIMULATED);
+                assertTrue(app.isPreparingReplay());
+                assertTrue(app.getPlayPauseButton().isDisable());
+                assertTrue(app.getTimelineScrubber().isDisable());
+                assertEquals("Preparing replay...", app.getControlStateLabel().getText());
+                app.getEventSelector().setValue("Northridge");
+                appRef[0] = app;
+                stageRef[0] = stage;
+            });
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+            JavaFxTestHelper.runOnFxThread(() -> {
+                assertFalse(appRef[0].isPreparingReplay());
+                assertEquals(MmiMode.SIMULATED, appRef[0].getPreparedReplay().mode());
+                assertEquals("ci3144585", appRef[0].getInstalledScenario().event().id());
+                assertEquals(0.0, appRef[0].getController().elapsedSeconds(), 0.0);
+                assertEquals(appRef[0].getPreparedReplay().durationSeconds(),
+                        appRef[0].getTimelineScrubber().getMax(), 0.0);
+            });
+        } finally {
+            if (appRef[0] != null) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    appRef[0].stop();
+                    if (stageRef[0] != null) stageRef[0].close();
+                });
+            }
+        }
     }
 }

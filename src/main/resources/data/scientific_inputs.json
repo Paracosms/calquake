@@ -1,0 +1,99 @@
+{
+  "manifest_version": "1.0",
+  "models": {
+    "bssa14": {
+      "id": "BSSA14-PGV-RotD50-base-no-basin",
+      "revision": "OpenQuake 3.21.0 boore_2014.py",
+      "source": "https://github.com/gem/oq-engine/blob/v3.21.0/openquake/hazardlib/gsim/boore_2014.py",
+      "configuration": "base, no basin, style-of-faulting enabled, deterministic median",
+      "pgv_units": "cm/s",
+      "coefficient_sha256": "31cdfae748b08d1093dc2e8a459cffcae9f38f273be6257e31d193b3abaad925",
+      "coefficient_canonical_form": "PGV|5.037,5.078,4.849,5.033,1.073,-0.1536,0.2252,6.2,-1.243,0.1489,-0.00344,5.3,0.0,-0.84,1300.0,-0.1,-0.00844,105.0,272.0,0.082,0.080,0.644,0.552,0.401,0.346|PGA|0.4473,0.4856,0.2459,0.4539,1.431,0.05053,-0.1662,5.5,-1.134,0.1917,-0.008088,4.5,0.0,-0.6,1500.0,-0.15,-0.00701,110.0,270.0,0.100,0.070,0.695,0.495,0.398,0.348"
+    },
+    "worden2012": {
+      "id": "WordenEtAl2012-PGV-California-no-MR-correction",
+      "source": "Worden et al. (2012), BSSA 102(1), 204-221",
+      "pgv_units": "cm/s",
+      "magnitude_distance_correction": "disabled",
+      "equations": "x=log10(PGV cm/s); MMI=3.78+1.47x for x<=0.53, otherwise MMI=2.89+3.16x",
+      "coefficient_sha256": "b31b0c7e22b66931ab38aa1a9b21742aaff4d37a2199d0337267530d49a3cb95"
+    },
+    "envelope": {
+      "id": "Cua-Heaton-derived-relative-PS-envelope",
+      "source": "Cua and Heaton (2009), Caltech EERL 2009-05",
+      "configuration": "relative rise/plateau/two-term-coda; combined once then normalized to BSSA14 PGV",
+      "calibration_domain": "2 < M <= 7.3; epicentral distance < 200 km",
+      "distance_convention": "epicentral great-circle distance in km; TauP P/S arrivals anchor the bodies",
+      "site_convention": "Vs30 in m/s; duration multiplier 1.12 below 464 m/s, otherwise 1.0",
+      "equations": "body rises as sin(pi*x/2)^2, plateaus, then decays as 0.75 exp(-t/fast)+0.25 exp(-t/slow); P and S durations are the CalQuake v1 magnitude/distance equations documented in docs/instantaneous-mmi.md",
+      "coefficient_sha256": "0c4d70e60c2092f294a185121a568ed9a9ce8735f2631fb53b709d9b8075f52c"
+    },
+    "timeline": {
+      "step_seconds": 0.05,
+      "convergence_step_seconds": 0.025
+    }
+  },
+  "events": {
+    "ci38457511": {
+      "mechanism": {
+        "rake_degrees": 0.0,
+        "strike_degrees": 320.0,
+        "dip_degrees": 90.0,
+        "style": "STRIKE_SLIP",
+        "provenance": "USGS Atlas ShakeMap info.json src_mech=SS; rupture metadata rake=0"
+      },
+      "rupture": {
+        "source_id": "urn:usgs-product:atlas:shakemap:ci38457511:1594160054783/download/rupture.json",
+        "source_sha256": "19d6e93ff3cf2f848dfa314398341fa92e876564098894f2551656fb7ee2675a",
+        "top_depth_km": 0.0,
+        "bottom_depth_km": 15.0,
+        "surface_projection_parts": [
+          [[35.5741994328,-117.3707820945],[35.5927834531,-117.3980967662],[35.6086552686,-117.4139780258],[35.6267094027,-117.4332402807],[35.6351681094,-117.4477484172]],
+          [[35.6471375610,-117.4768565955],[35.6737095140,-117.5140293653],[35.6880708728,-117.5367830318],[35.6993482891,-117.5525668245],[35.7044475090,-117.5582124425],[35.7161200315,-117.5672718341],[35.7330783349,-117.5808619160],[35.7354491409,-117.5826751646]],
+          [[35.7418554538,-117.5827218422],[35.7509546198,-117.5935664401],[35.7646489192,-117.6004057337],[35.7697604433,-117.6031393515],[35.7752470078,-117.6040792452],[35.7834586784,-117.6090834167],[35.7933139887,-117.6147752736],[35.8055577086,-117.6186895241],[35.8154125005,-117.6243841784],[35.8216122107,-117.6289276417],[35.8321616032,-117.6415983010]],
+          [[35.7384369101,-117.5703487519],[35.7177223566,-117.5372062823],[35.7130001040,-117.5288702531]],
+          [[35.8359812017,-117.6461247737],[35.8556005117,-117.6732648716],[35.8668861450,-117.6843790855],[35.8779667770,-117.6990931394],[35.8848651931,-117.7088254628],[35.8987339619,-117.7196478662],[35.9077349249,-117.7360785775]],
+          [[35.6351681094,-117.4477484172],[35.6389256615,-117.4569297655],[35.6380730813,-117.4587892553],[35.6471375610,-117.4768565955]],
+          [[35.8546704445,-117.6719777768],[35.8319985864,-117.6536593135],[35.8109309566,-117.6423698921],[35.8083570730,-117.6398788604],[35.7969461225,-117.6232033891]]
+        ]
+      },
+      "site_conditions": {
+        "0660704": 261.0,
+        "0680515": 265.5,
+        "0603526": 269.2,
+        "0644000": 338.4,
+        "0627000": 301.2
+      }
+    },
+    "ci3144585": {
+      "mechanism": {
+        "rake_degrees": 90.0,
+        "strike_degrees": 300.0,
+        "dip_degrees": 40.0,
+        "style": "REVERSE",
+        "provenance": "USGS Atlas ShakeMap info.json src_mech=RS; Wald et al. (1996) finite fault"
+      },
+      "rupture": {
+        "source_id": "urn:usgs-product:atlas:shakemap:ci3144585:1594159786829/download/rupture.json",
+        "source_sha256": "0d5022b05c67b2f74811097209bc85f73694766a4a9a7dd0bb64341fa0bb337c",
+        "top_depth_km": 5.0,
+        "bottom_depth_km": 20.427,
+        "surface_projection_parts": [
+          [[34.315,-118.421],[34.401,-118.587],[34.261,-118.693],[34.175,-118.527],[34.315,-118.421]]
+        ]
+      },
+      "site_conditions": {
+        "0660704": 261.0,
+        "0680515": 265.5,
+        "0603526": 269.2,
+        "0644000": 338.4,
+        "0627000": 301.2
+      }
+    }
+  },
+  "site_condition_provenance": {
+    "category": "MAPPED_PROXY",
+    "source_id": "USGS ShakeMap Atlas SVEL/Vs30 grid",
+    "definition": "Time-averaged shear-wave velocity in the upper 30 m, metres per second"
+  }
+}

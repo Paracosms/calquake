@@ -14,30 +14,59 @@ import java.util.Objects;
  *   <li>Default behavior: starts PAUSED at 0.0 s.</li>
  *   <li>Pause preserves elapsed time; resume continues it.</li>
  *   <li>Restart returns to 0.0 s and pauses.</li>
- *   <li>At 120.0 seconds, stops, enters FINISHED state, and requires Restart.</li>
+ *   <li>At the configured replay duration, stops, enters FINISHED state, and requires Restart.</li>
  *   <li>Keeps event origin UTC separate from the monotonic playback clock.</li>
  * </ul>
  */
 public final class ReplayController {
-
-    public static final double MAX_REPLAY_SECONDS = 120.0;
-
     private final Scenario scenario;
     private final ReplayEngine engine;
     private final MonotonicClock clock;
+    private final double durationSeconds;
 
     private PlaybackState state = PlaybackState.PAUSED;
     private double elapsedSeconds = 0.0;
     private long lastClockNanos = 0L;
 
     public ReplayController(Scenario scenario, ReplayEngine engine, MonotonicClock clock) {
+        this(scenario, engine, clock,
+                Objects.requireNonNull(engine, "engine cannot be null")
+                        .preparedReplay().durationSeconds());
+    }
+
+    /**
+     * Creates a controller with a scenario-specific replay duration.
+     *
+     * @param scenario replay scenario
+     * @param engine deterministic replay engine
+     * @param clock monotonic playback clock
+     * @param durationSeconds positive, finite replay duration in seconds
+     */
+    public ReplayController(
+            Scenario scenario,
+            ReplayEngine engine,
+            MonotonicClock clock,
+            double durationSeconds
+    ) {
         this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
         this.engine = Objects.requireNonNull(engine, "engine cannot be null");
         this.clock = Objects.requireNonNull(clock, "clock cannot be null");
+        if (!Double.isFinite(durationSeconds) || durationSeconds <= 0.0) {
+            throw new IllegalArgumentException(
+                    "durationSeconds must be a positive finite number: " + durationSeconds);
+        }
+        this.durationSeconds = durationSeconds;
     }
 
     public ReplayController(Scenario scenario, ReplayEngine engine) {
         this(scenario, engine, MonotonicClock.system());
+    }
+
+    /**
+     * Creates a controller with a scenario-specific replay duration and the system clock.
+     */
+    public ReplayController(Scenario scenario, ReplayEngine engine, double durationSeconds) {
+        this(scenario, engine, MonotonicClock.system(), durationSeconds);
     }
 
     /**
@@ -63,8 +92,8 @@ public final class ReplayController {
             if (deltaSec > 0.0) {
                 elapsedSeconds += deltaSec;
             }
-            if (elapsedSeconds >= MAX_REPLAY_SECONDS) {
-                elapsedSeconds = MAX_REPLAY_SECONDS;
+            if (elapsedSeconds >= durationSeconds) {
+                elapsedSeconds = durationSeconds;
                 state = PlaybackState.FINISHED;
             } else {
                 state = PlaybackState.PAUSED;
@@ -94,8 +123,8 @@ public final class ReplayController {
 
     /**
      * Seeks playback to a specific elapsed time in seconds.
-     * Preserves paused or playing state, clamping time to [0.0, MAX_REPLAY_SECONDS].
-     * If previously FINISHED and targetSeconds < MAX_REPLAY_SECONDS, transitions to PAUSED.
+     * Preserves paused or playing state, clamping time to the configured replay duration.
+     * If previously FINISHED and the target is before the end, transitions to PAUSED.
      *
      * @param targetSeconds target elapsed time in seconds
      */
@@ -106,14 +135,14 @@ public final class ReplayController {
         if (targetSeconds < 0.0) {
             targetSeconds = 0.0;
         }
-        if (targetSeconds > MAX_REPLAY_SECONDS) {
-            targetSeconds = MAX_REPLAY_SECONDS;
+        if (targetSeconds > durationSeconds) {
+            targetSeconds = durationSeconds;
         }
         this.elapsedSeconds = targetSeconds;
         this.lastClockNanos = clock.nanoTime();
 
-        if (this.elapsedSeconds >= MAX_REPLAY_SECONDS) {
-            this.elapsedSeconds = MAX_REPLAY_SECONDS;
+        if (this.elapsedSeconds >= durationSeconds) {
+            this.elapsedSeconds = durationSeconds;
             this.state = PlaybackState.FINISHED;
         } else if (this.state == PlaybackState.FINISHED) {
             this.state = PlaybackState.PAUSED;
@@ -136,8 +165,8 @@ public final class ReplayController {
                 elapsedSeconds += deltaSec;
             }
 
-            if (elapsedSeconds >= MAX_REPLAY_SECONDS) {
-                elapsedSeconds = MAX_REPLAY_SECONDS;
+            if (elapsedSeconds >= durationSeconds) {
+                elapsedSeconds = durationSeconds;
                 state = PlaybackState.FINISHED;
             }
         }
@@ -167,6 +196,13 @@ public final class ReplayController {
 
     public double elapsedSeconds() {
         return elapsedSeconds;
+    }
+
+    /**
+     * Returns the configured replay duration used for seeking, clamping, and completion.
+     */
+    public double durationSeconds() {
+        return durationSeconds;
     }
 
     public boolean isPaused() {

@@ -1,0 +1,17 @@
+{
+  "fixture_version": "1.0",
+  "source": "USGS Atlas ShakeMap stationlist.json seismic entries",
+  "component_note": "Historical station-summary horizontal component; retained distinctly from BSSA14 RotD50",
+  "stations": [
+    {"event_id":"ci38457511","site_id":"CI.CCC","name":"Christmas Canyon China Lake","latitude":35.52495,"longitude":-117.36453,"vs30":474.4,"rjb":5.494,"observed_pgv":74.7808,"instrumental_mmi":8.4},
+    {"event_id":"ci38457511","site_id":"CI.WVP2","name":"Volcano Peak 2","latitude":35.94939,"longitude":-117.81769,"vs30":658.4,"rjb":8.695,"observed_pgv":18.2615,"instrumental_mmi":6.5},
+    {"event_id":"ci38457511","site_id":"CI.TOW2","name":"Tower 2","latitude":35.80856,"longitude":-117.76488,"vs30":326.14,"rjb":9.689,"observed_pgv":54.1238,"instrumental_mmi":8.0},
+    {"event_id":"ci38457511","site_id":"CI.Q0072","name":"Lakeland Street, Ridgecrest CA","latitude":35.609617,"longitude":-117.666721,"vs30":259.76,"rjb":14.352,"observed_pgv":32.5665,"instrumental_mmi":7.3},
+    {"event_id":"ci38457511","site_id":"CI.SRT","name":"Snort","latitude":35.69235,"longitude":-117.75051,"vs30":265.12,"rjb":15.618,"observed_pgv":41.9128,"instrumental_mmi":7.6},
+    {"event_id":"ci3144585","site_id":"HI.PVR","name":"Palos Verdes Reservoir","latitude":33.772,"longitude":-118.32,"vs30":313.62,"rjb":48.623,"observed_pgv":14.808,"instrumental_mmi":6.3},
+    {"event_id":"ci3144585","site_id":"HI.PAR","name":"PAR","latitude":34.435,"longitude":-118.58,"vs30":316.0,"rjb":3.826,"observed_pgv":74.175,"instrumental_mmi":8.5},
+    {"event_id":"ci3144585","site_id":"HI.XBR","name":"Brea","latitude":33.916,"longitude":-117.9,"vs30":262.02,"rjb":64.286,"observed_pgv":7.2882,"instrumental_mmi":5.3},
+    {"event_id":"ci3144585","site_id":"HI.BGC","name":"Bell Gardens","latitude":33.965,"longitude":-118.16,"vs30":277.38,"rjb":41.113,"observed_pgv":8.426,"instrumental_mmi":5.5},
+    {"event_id":"ci3144585","site_id":"HI.RDC","name":"Rancho Cucamonga","latitude":34.169,"longitude":-117.58,"vs30":603.73,"rjb":79.148,"observed_pgv":5.8328,"instrumental_mmi":5.0}
+  ]
+}

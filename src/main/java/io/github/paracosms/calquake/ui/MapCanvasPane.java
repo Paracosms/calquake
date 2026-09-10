@@ -343,11 +343,10 @@ public class MapCanvasPane extends Pane {
         }
         double badgeSize = 24.0;
         for (LocationIntensityState state : frame.locationIntensities()) {
-            if (!state.sWaveArrived()) {
+            if (!state.isRevealed()) {
                 continue;
             }
-            ReferenceLocation loc = state.location();
-            ProjectedPoint projPt = projection.project(loc.internalPoint());
+            ProjectedPoint projPt = projection.project(state.internalPoint());
             ScreenPoint sp = currentTransform.toScreen(projPt);
             double sx = sp.xPx();
             double sy = sp.yPx();

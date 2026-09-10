@@ -9,7 +9,7 @@ import java.util.Objects;
  * @param elapsedSeconds      elapsed time in seconds from event origin
  * @param epicenter           geographic coordinates of the epicenter
  * @param frontRadii          available surface wavefront radii (P and S in km)
- * @param locationIntensities immutable list of fixed historical location intensities
+ * @param locationIntensities immutable list of prepared, frame-local location intensities
  */
 public record FrameState(
         double elapsedSeconds,

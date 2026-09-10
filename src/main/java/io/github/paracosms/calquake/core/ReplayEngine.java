@@ -1,61 +1,45 @@
 package io.github.paracosms.calquake.core;
 
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
-/**
- * Core deterministic replay engine.
- * Precomputes P and S travel-time curves once upon scenario construction,
- * allowing fast, pure-function evaluation of {@link FrameState} at any elapsed time.
- */
+/** Pure prepared-replay frame lookup engine. */
 public final class ReplayEngine {
-
     private final Scenario scenario;
     private final TravelTimeModel model;
-    private final PrecomputedWavefronts wavefronts;
     private final IntensitySource intensitySource;
-    private final List<LocationMetadata> scenarioLocationMetadata;
+    private final PreparedReplay preparedReplay;
     private final List<LocationIntensityState> fixedIntensities;
 
-    private record LocationMetadata(
-            ReferenceLocation location,
-            ReferenceLocation.PeakIntensity peakIntensity,
-            double distanceKm,
-            double pArrivalTimeSeconds,
-            double sArrivalTimeSeconds
-    ) {}
-
+    /** Legacy adapter that prepares Recorded mode once at construction. */
     public ReplayEngine(Scenario scenario, TravelTimeModel model, IntensitySource intensitySource) {
         this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
         this.model = Objects.requireNonNull(model, "model cannot be null");
         this.intensitySource = Objects.requireNonNull(intensitySource, "intensitySource cannot be null");
-
-        // Precompute curves once for scenario's hypocentral depth
-        this.wavefronts = PrecomputedWavefronts.forScenario(scenario, model);
-
-        this.scenarioLocationMetadata = computeMetadata(scenario, model, intensitySource);
-
-        // Pre-resolve immutable fixed location intensities for backward compatibility
-        List<LocationIntensityState> states = new ArrayList<>();
-        for (LocationMetadata meta : scenarioLocationMetadata) {
-            states.add(new LocationIntensityState(meta.location(), meta.peakIntensity()));
+        ScenarioInputs inputs = ScenarioInputs.fromLegacyScenario(scenario, model);
+        LinkedHashMap<String, ReferenceIntensity> refs = new LinkedHashMap<>();
+        for (ReferenceLocation location : scenario.locations()) {
+            refs.put(location.geoid(), ReferenceIntensity.fromReferenceLocation(
+                    location, intensitySource.getPeakIntensity(location)));
         }
-        this.fixedIntensities = List.copyOf(states);
+        this.preparedReplay = new RecordedReplayPreparer(model)
+                .prepare(inputs, new ScenarioReferences(refs));
+        this.fixedIntensities = inputs.sites().stream()
+                .map(site -> preparedReplay.timelinesBySiteId().get(site.id())
+                        .stateAt(preparedReplay.durationSeconds()))
+                .toList();
     }
 
-    private static List<LocationMetadata> computeMetadata(Scenario sc, TravelTimeModel m, IntensitySource src) {
-        GeoPoint epicenter = sc.event().epicenter();
-        double depthKm = sc.event().depthKm();
-        List<LocationMetadata> list = new ArrayList<>();
-        for (ReferenceLocation loc : sc.locations()) {
-            double distKm = loc.internalPoint().distanceKmTo(epicenter);
-            double pTime = m.travelTimeSeconds("P", distKm, depthKm);
-            double sTime = m.travelTimeSeconds("S", distKm, depthKm);
-            ReferenceLocation.PeakIntensity intensity = src.getPeakIntensity(loc);
-            list.add(new LocationMetadata(loc, intensity, distKm, pTime, sTime));
-        }
-        return List.copyOf(list);
+    private ReplayEngine(Scenario scenario, TravelTimeModel model, PreparedReplay replay) {
+        this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
+        this.model = Objects.requireNonNull(model, "model cannot be null");
+        this.preparedReplay = Objects.requireNonNull(replay, "replay cannot be null");
+        this.intensitySource = null;
+        this.fixedIntensities = replay.inputs().sites().stream()
+                .map(site -> replay.timelinesBySiteId().get(site.id()).stateAt(replay.durationSeconds()))
+                .toList();
     }
 
     public static ReplayEngine create(Scenario scenario, TravelTimeModel model) {
@@ -66,77 +50,44 @@ public final class ReplayEngine {
         return new ReplayEngine(scenario, model, intensitySource);
     }
 
-    /**
-     * Deterministically computes the {@link FrameState} at the given elapsed time
-     * for the bound scenario.
-     *
-     * @param elapsedSeconds elapsed time in seconds
-     * @return immutable FrameState
-     */
-    public FrameState frameAt(double elapsedSeconds) {
-        return frameAt(this.scenario, elapsedSeconds);
+    public static ReplayEngine createPrepared(
+            Scenario scenario, TravelTimeModel model, PreparedReplay preparedReplay) {
+        if (!scenario.event().id().equals(preparedReplay.inputs().event().id())) {
+            throw new IllegalArgumentException("Scenario and prepared replay event IDs differ");
+        }
+        return new ReplayEngine(scenario, model, preparedReplay);
     }
 
-    /**
-     * Deterministically computes the {@link FrameState} for a scenario at the given elapsed time.
-     *
-     * @param targetScenario scenario to evaluate
-     * @param elapsedSeconds elapsed time in seconds
-     * @return immutable FrameState
-     */
+    public FrameState frameAt(double elapsedSeconds) {
+        validateTime(elapsedSeconds);
+        List<LocationIntensityState> states = preparedReplay.inputs().sites().stream()
+                .map(site -> preparedReplay.timelinesBySiteId().get(site.id()).stateAt(elapsedSeconds))
+                .toList();
+        return new FrameState(elapsedSeconds, preparedReplay.inputs().event().epicenter(),
+                preparedReplay.wavefronts().radiiAt(elapsedSeconds), states);
+    }
+
+    /** Compatibility overload; alternate scenarios are prepared independently. */
     public FrameState frameAt(Scenario targetScenario, double elapsedSeconds) {
         Objects.requireNonNull(targetScenario, "targetScenario cannot be null");
-        if (Double.isNaN(elapsedSeconds) || Double.isInfinite(elapsedSeconds) || elapsedSeconds < 0.0) {
-            throw new IllegalArgumentException("Elapsed seconds must be a non-negative finite number: " + elapsedSeconds);
+        if (targetScenario.equals(scenario)) return frameAt(elapsedSeconds);
+        if (intensitySource == null) {
+            throw new IllegalArgumentException("A prepared engine cannot evaluate a different scenario");
         }
+        return new ReplayEngine(targetScenario, model, intensitySource).frameAt(elapsedSeconds);
+    }
 
-        WavefrontRadii radii = wavefronts.radiiAt(elapsedSeconds);
-
-        List<LocationMetadata> metadataList;
-        if (targetScenario.equals(this.scenario)) {
-            metadataList = this.scenarioLocationMetadata;
-        } else {
-            metadataList = computeMetadata(targetScenario, this.model, this.intensitySource);
+    private static void validateTime(double elapsedSeconds) {
+        if (!Double.isFinite(elapsedSeconds) || elapsedSeconds < 0.0) {
+            throw new IllegalArgumentException(
+                    "Elapsed seconds must be a non-negative finite number: " + elapsedSeconds);
         }
-
-        List<LocationIntensityState> intensities = new ArrayList<>(metadataList.size());
-        for (LocationMetadata meta : metadataList) {
-            boolean sArrived = elapsedSeconds >= meta.sArrivalTimeSeconds();
-            intensities.add(new LocationIntensityState(
-                    meta.location(),
-                    meta.peakIntensity(),
-                    sArrived,
-                    meta.sArrivalTimeSeconds(),
-                    meta.pArrivalTimeSeconds(),
-                    meta.distanceKm()
-            ));
-        }
-
-        return new FrameState(
-                elapsedSeconds,
-                targetScenario.event().epicenter(),
-                radii,
-                intensities
-        );
     }
 
-    public TravelTimeModel model() {
-        return model;
-    }
-
-    public Scenario scenario() {
-        return scenario;
-    }
-
-    public PrecomputedWavefronts wavefronts() {
-        return wavefronts;
-    }
-
-    public IntensitySource intensitySource() {
-        return intensitySource;
-    }
-
-    public List<LocationIntensityState> fixedIntensities() {
-        return fixedIntensities;
-    }
+    public TravelTimeModel model() { return model; }
+    public Scenario scenario() { return scenario; }
+    public PrecomputedWavefronts wavefronts() { return preparedReplay.wavefronts(); }
+    public IntensitySource intensitySource() { return intensitySource; }
+    public List<LocationIntensityState> fixedIntensities() { return fixedIntensities; }
+    public PreparedReplay preparedReplay() { return preparedReplay; }
 }
