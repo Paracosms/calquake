@@ -25,6 +25,8 @@ public class ScenarioLoader {
 
     public static final String DEFAULT_EVENT_RESOURCE = "/data/event.json";
     public static final String DEFAULT_LOCATIONS_RESOURCE = "/data/five_reference_locations.json";
+    public static final String NORTHRIDGE_EVENT_RESOURCE = "/data/northridge/event.json";
+    public static final String NORTHRIDGE_LOCATIONS_RESOURCE = "/data/northridge/five_reference_locations.json";
 
     private final JsonMapper jsonMapper;
 
@@ -39,6 +41,29 @@ public class ScenarioLoader {
      */
     public Scenario loadDefaultScenario() {
         return loadScenarioFromResources(DEFAULT_EVENT_RESOURCE, DEFAULT_LOCATIONS_RESOURCE);
+    }
+
+    /**
+     * Loads the 1994 Northridge scenario from classpath resources.
+     *
+     * @return validated immutable Scenario
+     */
+    public Scenario loadNorthridgeScenario() {
+        return loadScenarioFromResources(NORTHRIDGE_EVENT_RESOURCE, NORTHRIDGE_LOCATIONS_RESOURCE);
+    }
+
+    /**
+     * Loads a scenario by event name or identifier ("Ridgecrest" or "Northridge").
+     * Defaults to the Ridgecrest scenario.
+     *
+     * @param eventName event name or identifier
+     * @return validated immutable Scenario
+     */
+    public Scenario loadScenario(String eventName) {
+        if (eventName != null && (eventName.equalsIgnoreCase("Northridge") || eventName.equalsIgnoreCase("ci3144585"))) {
+            return loadNorthridgeScenario();
+        }
+        return loadDefaultScenario();
     }
 
     /**

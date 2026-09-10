@@ -296,3 +296,38 @@
     -fx-padding: 2px 6px;
     -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #EDF3F9 100%);
 }
+
+/* Timeline Scrubber Slider (Windows 7 / Frutiger Aero Desktop Style) */
+.timeline-scrubber {
+    -fx-padding: 3px 0;
+}
+
+.timeline-scrubber .track {
+    -fx-background-color: linear-gradient(to bottom, #D2DCE6 0%, #E2ECF5 100%);
+    -fx-border-color: #9DB4CA;
+    -fx-border-width: 1px;
+    -fx-background-radius: 2px;
+    -fx-border-radius: 2px;
+    -fx-pref-height: 5px;
+}
+
+.timeline-scrubber .thumb {
+    -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #E6EDF5 48%, #CFDFED 52%, #DCE8F3 100%);
+    -fx-border-color: #5B7A9C;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-pref-width: 12px;
+    -fx-pref-height: 18px;
+    -fx-cursor: hand;
+}
+
+.timeline-scrubber .thumb:hover {
+    -fx-background-color: linear-gradient(to bottom, #F5FAFF 0%, #D8EBFA 48%, #BCE0F7 52%, #D1E9FA 100%);
+    -fx-border-color: #2B72B8;
+}
+
+.timeline-scrubber .thumb:pressed {
+    -fx-background-color: linear-gradient(to bottom, #C4DCED 0%, #A9CCE5 100%);
+    -fx-border-color: #1F5A94;
+}

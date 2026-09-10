@@ -258,4 +258,87 @@ class ScenarioLoaderTest {
     void testRejectsMalformedLocationsJson(String malformedJson) {
         assertThrows(IllegalArgumentException.class, () -> loader.loadReferenceLocations(malformedJson));
     }
+
+    @Test
+    void testLoadNorthridgeScenarioFidelity() {
+        Scenario scenario = loader.loadNorthridgeScenario();
+        assertNotNull(scenario);
+
+        // 1. Verify Event Source Fidelity
+        EarthquakeEvent event = scenario.event();
+        assertEquals("ci3144585", event.id());
+        assertEquals("ci", event.network());
+        assertEquals("M 6.7 - Northridge, California, earthquake", event.title());
+        assertEquals(Instant.parse("1994-01-17T12:30:55.388Z"), event.originUtc());
+        assertEquals(34.213, event.epicenter().latitude(), 1e-9);
+        assertEquals(-118.537, event.epicenter().longitude(), 1e-9);
+        assertEquals(18.2, event.depthKm(), 1e-9);
+        assertEquals(6.7, event.magnitude(), 1e-9);
+        assertEquals("mw", event.magnitudeType());
+
+        // 2. Verify Five Reference Locations
+        List<ReferenceLocation> locations = scenario.locations();
+        assertEquals(5, locations.size());
+
+        // Los Angeles (closest, MMI 7.2)
+        ReferenceLocation losAngeles = scenario.findLocationByCity("Los Angeles").orElseThrow();
+        assertEquals("0644000", losAngeles.geoid());
+        assertEquals(7.2, losAngeles.peakIntensity().mmiSourceDecimal(), 1e-9);
+        assertEquals(7.2, losAngeles.peakIntensity().mmiDisplayRounded(), 1e-9);
+        assertEquals("VII", losAngeles.peakIntensity().mmiRoman());
+        assertEquals("Very strong", losAngeles.peakIntensity().shakingDescription());
+        assertEquals("#ffc400", losAngeles.peakIntensity().colorHex());
+        assertNotNull(losAngeles.groundMotion());
+        assertEquals(35.91, losAngeles.groundMotion().pgaPctG(), 1e-2);
+
+        // Bakersfield (MMI 4.5)
+        ReferenceLocation bakersfield = scenario.findLocationByCity("Bakersfield").orElseThrow();
+        assertEquals("0603526", bakersfield.geoid());
+        assertEquals(4.5, bakersfield.peakIntensity().mmiSourceDecimal(), 1e-9);
+        assertEquals("V", bakersfield.peakIntensity().mmiRoman());
+        assertEquals("#81ff8a", bakersfield.peakIntensity().colorHex());
+        assertEquals(4.821, bakersfield.groundMotion().pgaPctG(), 1e-3);
+
+        // Ridgecrest (MMI 5.3)
+        ReferenceLocation ridgecrest = scenario.findLocationByCity("Ridgecrest").orElseThrow();
+        assertEquals("0660704", ridgecrest.geoid());
+        assertEquals(5.3, ridgecrest.peakIntensity().mmiSourceDecimal(), 1e-9);
+        assertEquals("V", ridgecrest.peakIntensity().mmiRoman());
+        assertEquals("#81ff8a", ridgecrest.peakIntensity().colorHex());
+        assertEquals(4.202, ridgecrest.groundMotion().pgaPctG(), 1e-3);
+
+        // Trona (MMI 4.3)
+        ReferenceLocation trona = scenario.findLocationByCity("Trona").orElseThrow();
+        assertEquals("0680515", trona.geoid());
+        assertEquals(4.3, trona.peakIntensity().mmiSourceDecimal(), 1e-9);
+        assertEquals("IV", trona.peakIntensity().mmiRoman());
+        assertEquals("#7ffffa", trona.peakIntensity().colorHex());
+        assertEquals(2.064, trona.groundMotion().pgaPctG(), 1e-3);
+
+        // Fresno (MMI 3.0)
+        ReferenceLocation fresno = scenario.findLocationByCity("Fresno").orElseThrow();
+        assertEquals("0627000", fresno.geoid());
+        assertEquals(3.0, fresno.peakIntensity().mmiSourceDecimal(), 1e-9);
+        assertEquals("II-III", fresno.peakIntensity().mmiRoman());
+        assertEquals("#acdbff", fresno.peakIntensity().colorHex());
+        assertEquals(0.7956, fresno.groundMotion().pgaPctG(), 1e-4);
+    }
+
+    @Test
+    void testLoadScenarioByEventName() {
+        Scenario northridge = loader.loadScenario("Northridge");
+        assertEquals("ci3144585", northridge.event().id());
+
+        Scenario northridgeById = loader.loadScenario("ci3144585");
+        assertEquals("ci3144585", northridgeById.event().id());
+
+        Scenario ridgecrest = loader.loadScenario("Ridgecrest");
+        assertEquals("ci38457511", ridgecrest.event().id());
+
+        Scenario defaultScenario = loader.loadScenario(null);
+        assertEquals("ci38457511", defaultScenario.event().id());
+
+        Scenario unknownScenario = loader.loadScenario("unknown");
+        assertEquals("ci38457511", unknownScenario.event().id());
+    }
 }

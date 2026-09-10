@@ -1,0 +1,110 @@
+{
+  "manifest_version": "1.0",
+  "created_timestamp_utc": "2026-09-10T06:36:35.037013+00:00",
+  "event": {
+    "id": "ci3144585",
+    "network": "ci",
+    "title": "M 6.7 - Northridge, California, earthquake",
+    "origin_utc": "1994-01-17T12:30:55.388Z",
+    "origin_epoch_ms": 758809855388,
+    "latitude": 34.213,
+    "longitude": -118.537,
+    "depth_km": 18.2,
+    "magnitude": 6.7,
+    "magnitude_type": "mw",
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci3144585"
+  },
+  "discrepancy_resolutions": {
+    "station_bk_pri_exclusion": {
+      "pick_phase": "P",
+      "station_code": "PRI",
+      "network_code": "BK",
+      "channel_code": "EHZ",
+      "location_code": "",
+      "reason": "No matching Station or Channel epoch found in scedc_stations.xml. Excluded per Stage 1 active-epoch metadata protocol."
+    },
+    "quality_weight_threshold_audit": {
+      "policy": "Quality >= 0.5",
+      "explanation": "In 1994 SCSN catalog, 28 picks (including 10 S picks) were assigned quality 0.4 or 0.2 (STP weights 3-4), excluding them from the >= 0.5 cohort. Retained cohort: 132 P picks (>= 40 requirement met), 5 S picks."
+    },
+    "grid_xml_shakemap_atlas_version": {
+      "atlas_product_id": "urn:usgs-product:atlas:shakemap:ci3144585:1594159786829",
+      "code_version": "4.0.2+335.gcbad862",
+      "process_timestamp": "2020-06-03T00:41:16"
+    }
+  },
+  "source_files": {
+    "ci3144585_event.json": {
+      "size_bytes": 79567,
+      "sha256_hex": "74942fc29c303efccf40d61c38c65c358e4db3b36d36561b346ada86234caf9d",
+      "sha256_b64": "dJQvwpwwPvzPQNYcOMZcNY5Ns7NtNlYbNGrahiNMr50="
+    },
+    "ci3144585_scedc.phase": {
+      "size_bytes": 13583,
+      "sha256_hex": "3449b722758ef10b17d282b1056abe8693e73ec4d7e52f694e785fcb34047e9d",
+      "sha256_b64": "NEm3InWO8QsX0oKxBWq+hpPnPsTX5S9pTnhfyzQEfp0="
+    },
+    "grid.xml": {
+      "size_bytes": 12782231,
+      "sha256_hex": "41fe303e1b4199df243c85884167d08278f55c6933b514ae1af689e95c76af43",
+      "sha256_b64": "Qf4wPhtBmd8kPIWIQWfQgnj1XGkztRSuGvaJ6Vx2r0M="
+    },
+    "stationlist.json": {
+      "size_bytes": 3612972,
+      "sha256_hex": "069dbde3116855b6c70cf68c1b41be9c8a26405d8783c442e2c7caeb8d1866ff",
+      "sha256_b64": "Bp294xFoVbbHDPaMG0G+nIomQF2Hg8RC4sfK640YZv8="
+    },
+    "ci3144585_raster.zip": {
+      "size_bytes": 7568035,
+      "sha256_hex": "838259d9207fb06c932cf3ab991980b2ee5dab51e6108d7eb87fba1ab76768fb",
+      "sha256_b64": "g4JZ2SB/sGyTLPOrmRmAsu5dq1HmEI1+uH+6GrdnaPs="
+    },
+    "scedc_stations.xml": {
+      "size_bytes": 448765,
+      "sha256_hex": "25c7ede27a8aad0616f39d2059ae25101f186df7d7635be9b51d99496f763758",
+      "sha256_b64": "Jcft4nqKrQYW850gWa4lEB8YbffXY1vptR2ZSW92N1g="
+    },
+    "california_places_2020.txt": {
+      "size_bytes": 324004,
+      "sha256_hex": "1c16b18074084aeb15ad486f7541d00c0398d20932f8ef4aa969845473a90726",
+      "sha256_b64": "HBaxgHQISusVrUhvdUHQDAOY0gky+O9KqWmEVHOpByY="
+    },
+    "rupture.json": {
+      "size_bytes": 916,
+      "sha256_hex": "0d5022b05c67b2f74811097209bc85f73694766a4a9a7dd0bb64341fa0bb337c",
+      "sha256_b64": "DVAisFxnsvdIEQlyCbyF9zaUdmpKmn3Qu2Q0H6C7M3w="
+    },
+    "info.json": {
+      "size_bytes": 4923,
+      "sha256_hex": "695998371dfac0be44c5aedf67ac05b5f8ca9b2bedcf28ae549f2b68a9d64162",
+      "sha256_b64": "aVmYNx36wL5Exa7fZ6wFtfjKmyvtzyiuVJ8raKnWQWI="
+    },
+    "uncertainty.xml": {
+      "size_bytes": 12343554,
+      "sha256_hex": "5f0ecc6b839f75cf5deac676d41fade1da397baacd9118192345cc0b704b2f7c",
+      "sha256_b64": "Xw7Ma4Ofdc9d6sZ21B+t4do5e6rNkRgZI0XMC3BLL3w="
+    },
+    "quakeml.xml": {
+      "size_bytes": 427401,
+      "sha256_hex": "67e520322bdfac9f8ec108fcff508796cf18eca9fedf7e589bbd26e7023b517d",
+      "sha256_b64": "Z+UgMivfrJ+OwQj8/1CHls8Y7Kn+335Ym70m5wI7UX0="
+    }
+  },
+  "derivative_fixtures": {
+    "event.json": {
+      "size_bytes": 339,
+      "sha256_hex": "5815310e15286a21c3806f696c863f35d78a262f842fa0ad6477209f8e66935f",
+      "sha256_b64": "WBUxDhUoaiHDgG9pbIY/NdeKJi+EL6CtZHcgn45mk18="
+    },
+    "five_reference_locations.json": {
+      "size_bytes": 4606,
+      "sha256_hex": "aa0ab964432b3b44f4e8977359ee7bd82b0b5d22e22c1f0a64f417b818258e9c",
+      "sha256_b64": "qgq5ZEMrO0T06JdzWe572CsLXSLiLB8KZPQXuBgljpw="
+    },
+    "observed_picks_ci3144585.json": {
+      "size_bytes": 106115,
+      "sha256_hex": "54f3e69a4498612e9a9f0b200ca694aef06aee0fbd1884487617c5f89189f35e",
+      "sha256_b64": "VPPmmkSYYS6anwsgDKaUrvBq7g+9GIRIdhfF+JGJ814="
+    }
+  }
+}

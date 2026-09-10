@@ -93,6 +93,34 @@ public final class ReplayController {
     }
 
     /**
+     * Seeks playback to a specific elapsed time in seconds.
+     * Preserves paused or playing state, clamping time to [0.0, MAX_REPLAY_SECONDS].
+     * If previously FINISHED and targetSeconds < MAX_REPLAY_SECONDS, transitions to PAUSED.
+     *
+     * @param targetSeconds target elapsed time in seconds
+     */
+    public void seek(double targetSeconds) {
+        if (Double.isNaN(targetSeconds) || Double.isInfinite(targetSeconds)) {
+            throw new IllegalArgumentException("Target seconds must be a finite number: " + targetSeconds);
+        }
+        if (targetSeconds < 0.0) {
+            targetSeconds = 0.0;
+        }
+        if (targetSeconds > MAX_REPLAY_SECONDS) {
+            targetSeconds = MAX_REPLAY_SECONDS;
+        }
+        this.elapsedSeconds = targetSeconds;
+        this.lastClockNanos = clock.nanoTime();
+
+        if (this.elapsedSeconds >= MAX_REPLAY_SECONDS) {
+            this.elapsedSeconds = MAX_REPLAY_SECONDS;
+            this.state = PlaybackState.FINISHED;
+        } else if (this.state == PlaybackState.FINISHED) {
+            this.state = PlaybackState.PAUSED;
+        }
+    }
+
+    /**
      * Advances playback time based on monotonic clock difference since the previous tick.
      * Always returns the current {@link FrameState}.
      *

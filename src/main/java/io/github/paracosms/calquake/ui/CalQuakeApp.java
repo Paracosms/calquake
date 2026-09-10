@@ -4,6 +4,7 @@ import io.github.paracosms.calquake.core.EarthquakeEvent;
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.MmiLegend;
+import io.github.paracosms.calquake.core.MonotonicClock;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.ReplayController;
 import io.github.paracosms.calquake.core.ReplayEngine;
@@ -25,6 +26,7 @@ import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
+import javafx.scene.control.Slider;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -74,6 +76,8 @@ public class CalQuakeApp extends Application {
     // Controls & Readouts
     private Button playPauseButton;
     private Button restartButton;
+    private Slider timelineScrubber;
+    private boolean updatingScrubberFromEngine;
     private Label elapsedDigitsLabel;
     private Label elapsedSubLabel;
     private Label hudStateLabel;
@@ -372,6 +376,15 @@ public class CalQuakeApp extends Application {
 
         buttonsRow.getChildren().addAll(playPauseButton, restartButton);
 
+        this.timelineScrubber = new Slider(0.0, ReplayController.MAX_REPLAY_SECONDS, 0.0);
+        timelineScrubber.getStyleClass().add("timeline-scrubber");
+        timelineScrubber.setMaxWidth(Double.MAX_VALUE);
+        timelineScrubber.setBlockIncrement(1.0);
+        timelineScrubber.setMajorTickUnit(30.0);
+        timelineScrubber.setMinorTickCount(5);
+        timelineScrubber.setShowTickMarks(true);
+        timelineScrubber.setShowTickLabels(false);
+
         VBox statusInfo = new VBox(2.0);
         this.controlStateLabel = new Label("State: PAUSED (Ready)");
         controlStateLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #1E293B;");
@@ -409,7 +422,7 @@ public class CalQuakeApp extends Application {
 
         frontLegendBox.getChildren().addAll(frontTitle, pRow, sRow);
 
-        box.getChildren().addAll(title, buttonsRow, statusInfo, frontLegendBox);
+        box.getChildren().addAll(title, buttonsRow, timelineScrubber, statusInfo, frontLegendBox);
         return box;
     }
 
@@ -425,7 +438,8 @@ public class CalQuakeApp extends Application {
 
         this.eventSelector = new ComboBox<>();
         eventSelector.getItems().addAll("Ridgecrest", "Northridge");
-        eventSelector.setValue("Ridgecrest");
+        boolean isNorthridge = scenario != null && scenario.event() != null && "ci3144585".equals(scenario.event().id());
+        eventSelector.setValue(isNorthridge ? "Northridge" : "Ridgecrest");
         eventSelector.setMaxWidth(Double.MAX_VALUE);
         eventSelector.getStyleClass().add("event-selector");
 
@@ -519,6 +533,78 @@ public class CalQuakeApp extends Application {
                 mapCanvasPane.renderFrame(controller.currentFrame());
             }
         });
+
+        timelineScrubber.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (updatingScrubberFromEngine) {
+                return;
+            }
+            controller.seek(newVal.doubleValue());
+            updateControlStates();
+            updateTimeDisplays();
+            if (mapCanvasPane != null) {
+                mapCanvasPane.renderFrame(controller.currentFrame());
+            }
+        });
+
+        timelineScrubber.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
+            if (!isChanging) {
+                controller.seek(timelineScrubber.getValue());
+                updateControlStates();
+                updateTimeDisplays();
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.renderFrame(controller.currentFrame());
+                }
+            }
+        });
+
+        eventSelector.setOnAction(e -> {
+            String selected = eventSelector.getValue();
+            if (selected != null) {
+                selectEvent(selected);
+            }
+        });
+    }
+
+    public void selectEvent(String eventName) {
+        if (eventName == null) {
+            return;
+        }
+        if (scenario != null && scenario.event() != null) {
+            boolean isNorthridge = "ci3144585".equals(scenario.event().id());
+            boolean wantsNorthridge = eventName.equalsIgnoreCase("Northridge") || eventName.equalsIgnoreCase("ci3144585");
+            if (isNorthridge == wantsNorthridge) {
+                return;
+            }
+        }
+
+        if (controller != null && controller.isPlaying()) {
+            controller.pause();
+        }
+        this.wasPlayingBeforeDeactivation = false;
+
+        ScenarioLoader loader = new ScenarioLoader();
+        Scenario newScenario = loader.loadScenario(eventName);
+        this.scenario = newScenario;
+
+        TravelTimeModel model = new HadleyKanamoriTauPModel();
+        ReplayEngine newEngine = ReplayEngine.create(newScenario, model);
+        this.controller = new ReplayController(newScenario, newEngine, this.controller != null ? this.controller.clock() : MonotonicClock.system());
+
+        if (mapCanvasPane != null) {
+            mapCanvasPane.setScenario(newScenario);
+            mapCanvasPane.renderFrame(controller.currentFrame());
+        }
+
+        if (eventSelector != null) {
+            boolean wantsNorthridge = eventName.equalsIgnoreCase("Northridge") || eventName.equalsIgnoreCase("ci3144585");
+            String targetVal = wantsNorthridge ? "Northridge" : "Ridgecrest";
+            if (!targetVal.equals(eventSelector.getValue())) {
+                eventSelector.setValue(targetVal);
+            }
+        }
+
+        updateControlStates();
+        updateTimeDisplays();
     }
 
     void updateControlStates() {
@@ -571,6 +657,15 @@ public class CalQuakeApp extends Application {
         elapsedDigitsLabel.setText(formatted);
         elapsedSubLabel.setText(String.format("T + %.1f s  (Max: %.1f s)", elapsed, ReplayController.MAX_REPLAY_SECONDS));
         controlTimeLabel.setText(String.format("Elapsed: %.2f s / %.2f s", elapsed, ReplayController.MAX_REPLAY_SECONDS));
+
+        if (timelineScrubber != null && !timelineScrubber.isValueChanging()) {
+            updatingScrubberFromEngine = true;
+            try {
+                timelineScrubber.setValue(elapsed);
+            } finally {
+                updatingScrubberFromEngine = false;
+            }
+        }
     }
 
     Scene buildStartupErrorScene(Stage stage, Throwable error) {
@@ -653,6 +748,10 @@ public class CalQuakeApp extends Application {
 
     public Button getRestartButton() {
         return restartButton;
+    }
+
+    public Slider getTimelineScrubber() {
+        return timelineScrubber;
     }
 
     public Label getHudStateLabel() {

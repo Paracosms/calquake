@@ -1,0 +1,12 @@
+{
+  "id": "ci3144585",
+  "network": "ci",
+  "title": "M 6.7 - Northridge, California, earthquake",
+  "origin_utc": "1994-01-17T12:30:55.388Z",
+  "latitude": 34.213,
+  "longitude": -118.537,
+  "depth_km": 18.2,
+  "magnitude": 6.7,
+  "magnitude_type": "mw",
+  "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci3144585"
+}

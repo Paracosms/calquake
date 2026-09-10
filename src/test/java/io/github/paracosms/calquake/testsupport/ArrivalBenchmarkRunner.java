@@ -32,6 +32,11 @@ public final class ArrivalBenchmarkRunner {
         return new ArrivalBenchmarkRunner(model, new GeoPoint(35.7695, -117.5993333), 8.0);
     }
 
+    public static ArrivalBenchmarkRunner forNorthridge(TravelTimeModel model) {
+        // Northridge CI epicenter: 34.213 N, -118.537 W, depth 18.2 km
+        return new ArrivalBenchmarkRunner(model, new GeoPoint(34.213, -118.537), 18.2);
+    }
+
     public ArrivalBenchmarkResult runBenchmark(String phaseFamily, List<ObservedArrival> picks) {
         Objects.requireNonNull(phaseFamily, "phaseFamily cannot be null");
         Objects.requireNonNull(picks, "picks cannot be null");

@@ -8,11 +8,23 @@ import java.util.Objects;
  */
 public record LocationIntensityState(
         ReferenceLocation location,
-        ReferenceLocation.PeakIntensity intensity
+        ReferenceLocation.PeakIntensity intensity,
+        boolean sWaveArrived,
+        double sArrivalTimeSeconds,
+        double pArrivalTimeSeconds,
+        double distanceKm
 ) {
     public LocationIntensityState {
         Objects.requireNonNull(location, "location cannot be null");
         Objects.requireNonNull(intensity, "intensity cannot be null");
+    }
+
+    public LocationIntensityState(ReferenceLocation location, ReferenceLocation.PeakIntensity intensity) {
+        this(location, intensity, true, 0.0, 0.0, 0.0);
+    }
+
+    public boolean isRevealed() {
+        return sWaveArrived;
     }
 
     public String city() {

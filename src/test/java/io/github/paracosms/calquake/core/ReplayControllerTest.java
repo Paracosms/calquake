@@ -132,4 +132,39 @@ class ReplayControllerTest {
 
         assertEquals(origin.plus(Duration.ofMillis(45_500L)), controller.simulatedUtc());
     }
+
+    @Test
+    void seekUpdatesElapsedTimeAndTransitionsState() {
+        // 1. Seeking while paused updates elapsed time and current frame
+        controller.seek(45.0);
+        assertEquals(45.0, controller.elapsedSeconds(), 1e-9);
+        assertTrue(controller.isPaused());
+        assertEquals(45.0, controller.currentFrame().elapsedSeconds(), 1e-9);
+
+        // 2. Seeking while playing preserves playing state and smoothly continues
+        controller.play();
+        assertTrue(controller.isPlaying());
+        controller.seek(30.0);
+        assertEquals(30.0, controller.elapsedSeconds(), 1e-9);
+        assertTrue(controller.isPlaying());
+
+        clock.advanceSeconds(5.0);
+        controller.tick();
+        assertEquals(35.0, controller.elapsedSeconds(), 1e-6);
+
+        // 3. Seeking past MAX_REPLAY_SECONDS clamps to 120.0 and finishes
+        controller.seek(150.0);
+        assertEquals(120.0, controller.elapsedSeconds(), 1e-9);
+        assertTrue(controller.isFinished());
+
+        // 4. Seeking backward from FINISHED transitions to PAUSED
+        controller.seek(60.0);
+        assertEquals(60.0, controller.elapsedSeconds(), 1e-9);
+        assertTrue(controller.isPaused());
+
+        // 5. Seeking negative value clamps to 0.0
+        controller.seek(-10.0);
+        assertEquals(0.0, controller.elapsedSeconds(), 1e-9);
+        assertTrue(controller.isPaused());
+    }
 }

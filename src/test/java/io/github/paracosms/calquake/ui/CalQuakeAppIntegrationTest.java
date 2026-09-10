@@ -50,6 +50,11 @@ class CalQuakeAppIntegrationTest {
                 assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
                 assertFalse(app.getPlayPauseButton().isDisable());
 
+                assertNotNull(app.getTimelineScrubber());
+                assertEquals(0.0, app.getTimelineScrubber().getMin(), 1e-9);
+                assertEquals(120.0, app.getTimelineScrubber().getMax(), 1e-9);
+                assertEquals(0.0, app.getTimelineScrubber().getValue(), 1e-9);
+
                 double width = app.getMapCanvasPane().getWidth();
                 double height = app.getMapCanvasPane().getHeight();
                 var epicenter = app.getMapCanvasPane().getEpicenterScreenPoint();
@@ -199,6 +204,87 @@ class CalQuakeAppIntegrationTest {
                         .anyMatch(text -> text.contains("Missing scenario resource: event.json"));
                 assertTrue(explainsFailure, "The startup error must explain which resource is missing");
             } finally {
+                stage.close();
+            }
+        });
+    }
+
+    @Test
+    void timelineScrubberSeeksReplayAndUpdatesUi() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            Scenario scenario = new ScenarioLoader().loadDefaultScenario();
+            CaliforniaOutline outline = CaliforniaOutline.loadDefault();
+            ReplayEngine engine = ReplayEngine.create(scenario, new HadleyKanamoriTauPModel());
+            FakeMonotonicClock clock = new FakeMonotonicClock(1_000_000_000L);
+            ReplayController controller = new ReplayController(scenario, engine, clock);
+            CalQuakeApp app = new CalQuakeApp(scenario, outline, controller);
+            Stage stage = new Stage();
+            try {
+                app.start(stage);
+
+                // Scrub forward to 50.0 seconds
+                app.getTimelineScrubber().setValue(50.0);
+                assertEquals(50.0, controller.elapsedSeconds(), 1e-9);
+                assertEquals("00:00:50.00", app.getElapsedDigitsLabel().getText());
+                assertTrue(controller.isPaused());
+
+                // Scrub to 120.0 s finishes playback
+                app.getTimelineScrubber().setValue(120.0);
+                assertTrue(controller.isFinished());
+                assertTrue(app.getPlayPauseButton().isDisable());
+
+                // Scrubbing back from finished re-enables Play
+                app.getTimelineScrubber().setValue(25.0);
+                assertEquals(25.0, controller.elapsedSeconds(), 1e-9);
+                assertTrue(controller.isPaused());
+                assertFalse(app.getPlayPauseButton().isDisable());
+            } finally {
+                app.stop();
+                stage.close();
+            }
+        });
+    }
+
+    @Test
+    void eventSelectorSwitchesScenarioAndRefreshesReplayState() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            CalQuakeApp app = new CalQuakeApp();
+            app.init();
+            Stage stage = new Stage();
+            try {
+                app.start(stage);
+
+                // Initial scenario is Ridgecrest
+                assertEquals("Ridgecrest", app.getEventSelector().getValue());
+                assertEquals("ci38457511", app.getScenario().event().id());
+                assertEquals(7.1, app.getScenario().event().magnitude(), 1e-9);
+                assertEquals(8.0, app.getScenario().event().depthKm(), 1e-9);
+                assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
+
+                // Switch to Northridge
+                app.getEventSelector().setValue("Northridge");
+                assertEquals("Northridge", app.getEventSelector().getValue());
+                assertEquals("ci3144585", app.getScenario().event().id());
+                assertEquals(6.7, app.getScenario().event().magnitude(), 1e-9);
+                assertEquals(18.2, app.getScenario().event().depthKm(), 1e-9);
+                assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
+                assertTrue(app.getController().isPaused());
+                assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
+
+                // Verify locations for Northridge
+                assertEquals(5, app.getScenario().locations().size());
+                var la = app.getScenario().findLocationByCity("Los Angeles").orElseThrow();
+                assertEquals(7.2, la.peakIntensity().mmiSourceDecimal(), 1e-9);
+
+                // Switch back to Ridgecrest
+                app.getEventSelector().setValue("Ridgecrest");
+                assertEquals("Ridgecrest", app.getEventSelector().getValue());
+                assertEquals("ci38457511", app.getScenario().event().id());
+                assertEquals(7.1, app.getScenario().event().magnitude(), 1e-9);
+                assertEquals(8.0, app.getScenario().event().depthKm(), 1e-9);
+                assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
+            } finally {
+                app.stop();
                 stage.close();
             }
         });

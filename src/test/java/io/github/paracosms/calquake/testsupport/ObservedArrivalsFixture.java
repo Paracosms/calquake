@@ -16,7 +16,9 @@ import java.util.List;
  */
 public final class ObservedArrivalsFixture {
 
-    public static final String FIXTURE_RESOURCE = "/fixtures/observed_picks_ci38457511.json";
+    public static final String RIDGECREST_FIXTURE_RESOURCE = "/fixtures/observed_picks_ci38457511.json";
+    public static final String NORTHRIDGE_FIXTURE_RESOURCE = "/fixtures/observed_picks_ci3144585.json";
+    public static final String FIXTURE_RESOURCE = RIDGECREST_FIXTURE_RESOURCE;
 
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
@@ -31,17 +33,32 @@ public final class ObservedArrivalsFixture {
     }
 
     public static List<ObservedArrival> loadPPicks() {
-        return loadPicksForField("p_picks");
+        return loadPicksForField(FIXTURE_RESOURCE, "p_picks");
     }
 
     public static List<ObservedArrival> loadSPicks() {
-        return loadPicksForField("s_picks");
+        return loadPicksForField(FIXTURE_RESOURCE, "s_picks");
     }
 
-    private static List<ObservedArrival> loadPicksForField(String fieldName) {
-        try (InputStream is = ObservedArrivalsFixture.class.getResourceAsStream(FIXTURE_RESOURCE)) {
+    public static List<ObservedArrival> loadNorthridgeAllPicks() {
+        List<ObservedArrival> all = new ArrayList<>();
+        all.addAll(loadNorthridgePPicks());
+        all.addAll(loadNorthridgeSPicks());
+        return List.copyOf(all);
+    }
+
+    public static List<ObservedArrival> loadNorthridgePPicks() {
+        return loadPicksForField(NORTHRIDGE_FIXTURE_RESOURCE, "p_picks");
+    }
+
+    public static List<ObservedArrival> loadNorthridgeSPicks() {
+        return loadPicksForField(NORTHRIDGE_FIXTURE_RESOURCE, "s_picks");
+    }
+
+    private static List<ObservedArrival> loadPicksForField(String resourcePath, String fieldName) {
+        try (InputStream is = ObservedArrivalsFixture.class.getResourceAsStream(resourcePath)) {
             if (is == null) {
-                throw new IllegalStateException("Missing test fixture resource: " + FIXTURE_RESOURCE);
+                throw new IllegalStateException("Missing test fixture resource: " + resourcePath);
             }
             JsonNode root = MAPPER.readTree(is);
             JsonNode picksNode = root.get(fieldName);

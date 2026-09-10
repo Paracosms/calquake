@@ -12,25 +12,50 @@ import java.util.Objects;
 public final class ReplayEngine {
 
     private final Scenario scenario;
+    private final TravelTimeModel model;
     private final PrecomputedWavefronts wavefronts;
     private final IntensitySource intensitySource;
+    private final List<LocationMetadata> scenarioLocationMetadata;
     private final List<LocationIntensityState> fixedIntensities;
+
+    private record LocationMetadata(
+            ReferenceLocation location,
+            ReferenceLocation.PeakIntensity peakIntensity,
+            double distanceKm,
+            double pArrivalTimeSeconds,
+            double sArrivalTimeSeconds
+    ) {}
 
     public ReplayEngine(Scenario scenario, TravelTimeModel model, IntensitySource intensitySource) {
         this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
-        Objects.requireNonNull(model, "model cannot be null");
+        this.model = Objects.requireNonNull(model, "model cannot be null");
         this.intensitySource = Objects.requireNonNull(intensitySource, "intensitySource cannot be null");
 
         // Precompute curves once for scenario's hypocentral depth
         this.wavefronts = PrecomputedWavefronts.forScenario(scenario, model);
 
-        // Pre-resolve immutable fixed location intensities
+        this.scenarioLocationMetadata = computeMetadata(scenario, model, intensitySource);
+
+        // Pre-resolve immutable fixed location intensities for backward compatibility
         List<LocationIntensityState> states = new ArrayList<>();
-        for (ReferenceLocation loc : scenario.locations()) {
-            ReferenceLocation.PeakIntensity intensity = intensitySource.getPeakIntensity(loc);
-            states.add(new LocationIntensityState(loc, intensity));
+        for (LocationMetadata meta : scenarioLocationMetadata) {
+            states.add(new LocationIntensityState(meta.location(), meta.peakIntensity()));
         }
         this.fixedIntensities = List.copyOf(states);
+    }
+
+    private static List<LocationMetadata> computeMetadata(Scenario sc, TravelTimeModel m, IntensitySource src) {
+        AzimuthalEquidistantProjection proj = AzimuthalEquidistantProjection.centeredAt(sc.event().epicenter());
+        double depthKm = sc.event().depthKm();
+        List<LocationMetadata> list = new ArrayList<>();
+        for (ReferenceLocation loc : sc.locations()) {
+            double distKm = proj.project(loc.internalPoint()).distanceFromOriginKm();
+            double pTime = m.travelTimeSeconds("P", distKm, depthKm);
+            double sTime = m.travelTimeSeconds("S", distKm, depthKm);
+            ReferenceLocation.PeakIntensity intensity = src.getPeakIntensity(loc);
+            list.add(new LocationMetadata(loc, intensity, distKm, pTime, sTime));
+        }
+        return List.copyOf(list);
     }
 
     public static ReplayEngine create(Scenario scenario, TravelTimeModel model) {
@@ -67,15 +92,24 @@ public final class ReplayEngine {
 
         WavefrontRadii radii = wavefronts.radiiAt(elapsedSeconds);
 
-        List<LocationIntensityState> intensities;
+        List<LocationMetadata> metadataList;
         if (targetScenario.equals(this.scenario)) {
-            intensities = this.fixedIntensities;
+            metadataList = this.scenarioLocationMetadata;
         } else {
-            List<LocationIntensityState> custom = new ArrayList<>();
-            for (ReferenceLocation loc : targetScenario.locations()) {
-                custom.add(new LocationIntensityState(loc, intensitySource.getPeakIntensity(loc)));
-            }
-            intensities = List.copyOf(custom);
+            metadataList = computeMetadata(targetScenario, this.model, this.intensitySource);
+        }
+
+        List<LocationIntensityState> intensities = new ArrayList<>(metadataList.size());
+        for (LocationMetadata meta : metadataList) {
+            boolean sArrived = elapsedSeconds >= meta.sArrivalTimeSeconds();
+            intensities.add(new LocationIntensityState(
+                    meta.location(),
+                    meta.peakIntensity(),
+                    sArrived,
+                    meta.sArrivalTimeSeconds(),
+                    meta.pArrivalTimeSeconds(),
+                    meta.distanceKm()
+            ));
         }
 
         return new FrameState(
@@ -84,6 +118,10 @@ public final class ReplayEngine {
                 radii,
                 intensities
         );
+    }
+
+    public TravelTimeModel model() {
+        return model;
     }
 
     public Scenario scenario() {

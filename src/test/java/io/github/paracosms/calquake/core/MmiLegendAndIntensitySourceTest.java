@@ -106,4 +106,65 @@ class MmiLegendAndIntensitySourceTest {
             assertEquals("#ffc400", ridgecrest.colorHex());
         }
     }
+
+    @Test
+    @DisplayName("Verify city MMI rating reveal occurs strictly upon S-wave arrival")
+    void testSWaveArrivalMmiRevealTiming() {
+        // At t = 0.0 s, no location has received S wave
+        FrameState f0 = engine.frameAt(0.0);
+        for (LocationIntensityState loc : f0.locationIntensities()) {
+            assertFalse(loc.sWaveArrived(), loc.city() + " must not have S-wave arrived at t=0");
+            assertFalse(loc.isRevealed(), loc.city() + " must not be revealed at t=0");
+        }
+
+        // Check arrival times are ordered by distance from Ridgecrest epicenter:
+        // Ridgecrest (~16.8 km, ~5.8s), Trona (~23 km, ~7.7s), Bakersfield (~138 km, ~40s),
+        // Los Angeles (~207 km, ~59s), Fresno (~228 km, ~64s)
+        LocationIntensityState rc = f0.locationIntensities().get(0);
+        LocationIntensityState trona = f0.locationIntensities().get(1);
+        LocationIntensityState bakersfield = f0.locationIntensities().get(2);
+        LocationIntensityState la = f0.locationIntensities().get(3);
+        LocationIntensityState fresno = f0.locationIntensities().get(4);
+
+        double tRc = rc.sArrivalTimeSeconds();
+        double tTrona = trona.sArrivalTimeSeconds();
+        double tBakersfield = bakersfield.sArrivalTimeSeconds();
+        double tLa = la.sArrivalTimeSeconds();
+        double tFresno = fresno.sArrivalTimeSeconds();
+
+        assertTrue(tRc < tTrona);
+        assertTrue(tTrona < tBakersfield);
+        assertTrue(tBakersfield < tLa);
+        assertTrue(tLa < tFresno);
+
+        // Before Ridgecrest S arrival: none revealed
+        FrameState fBeforeRc = engine.frameAt(tRc - 0.1);
+        assertFalse(fBeforeRc.locationIntensities().get(0).isRevealed());
+
+        // After Ridgecrest S arrival: only Ridgecrest revealed
+        FrameState fAfterRc = engine.frameAt(tRc + 0.1);
+        assertTrue(fAfterRc.locationIntensities().get(0).isRevealed(), "Ridgecrest revealed");
+        assertFalse(fAfterRc.locationIntensities().get(1).isRevealed(), "Trona not revealed");
+
+        // After Trona S arrival: Ridgecrest & Trona revealed
+        FrameState fAfterTrona = engine.frameAt(tTrona + 0.1);
+        assertTrue(fAfterTrona.locationIntensities().get(0).isRevealed());
+        assertTrue(fAfterTrona.locationIntensities().get(1).isRevealed());
+        assertFalse(fAfterTrona.locationIntensities().get(2).isRevealed());
+
+        // After Bakersfield S arrival: Ridgecrest, Trona, and Bakersfield revealed
+        FrameState fAfterBakersfield = engine.frameAt(tBakersfield + 0.1);
+        assertTrue(fAfterBakersfield.locationIntensities().get(2).isRevealed());
+        assertFalse(fAfterBakersfield.locationIntensities().get(3).isRevealed());
+
+        // Before Fresno S arrival: Fresno not yet revealed
+        FrameState fBeforeFresno = engine.frameAt(tFresno - 0.1);
+        assertFalse(fBeforeFresno.locationIntensities().get(4).isRevealed(), "Fresno not revealed before its arrival");
+
+        // After Fresno S arrival: all 5 locations revealed
+        FrameState fAfterFresno = engine.frameAt(tFresno + 0.1);
+        for (LocationIntensityState loc : fAfterFresno.locationIntensities()) {
+            assertTrue(loc.isRevealed(), loc.city() + " must be revealed after its arrival");
+        }
+    }
 }

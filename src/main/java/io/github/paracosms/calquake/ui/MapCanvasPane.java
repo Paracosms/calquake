@@ -173,8 +173,8 @@ public class MapCanvasPane extends Pane {
         // 4. Epicenter marker and label
         drawEpicenter(gc);
 
-        // 5. Five Reference Locations with Peak MMI Badges
-        drawReferenceLocations(gc);
+        // 5. Reference Location Station Dots (neutral base map markers)
+        drawReferenceLocationDots(gc);
     }
 
     /**
@@ -316,19 +316,14 @@ public class MapCanvasPane extends Pane {
         gc.fillText(sub, lx + 6, ly + 27);
     }
 
-    private void drawReferenceLocations(GraphicsContext gc) {
+    private void drawReferenceLocationDots(GraphicsContext gc) {
         for (ReferenceLocation loc : scenario.locations()) {
             ProjectedPoint projPt = projection.project(loc.internalPoint());
             ScreenPoint sp = currentTransform.toScreen(projPt);
             double sx = sp.xPx();
             double sy = sp.yPx();
 
-            ReferenceLocation.PeakIntensity intensity = loc.peakIntensity();
-            String colorHex = intensity.colorHex();
-            String roman = intensity.mmiRoman();
-            double rounded = intensity.mmiDisplayRounded();
-
-            // 1. Station location dot
+            // Station location dot (white circle with dark border and inner center dot)
             gc.setFill(Color.WHITE);
             gc.setStroke(Color.web("#1E293B"));
             gc.setLineWidth(1.5);
@@ -336,8 +331,27 @@ public class MapCanvasPane extends Pane {
             gc.strokeOval(sx - 4.5, sy - 4.5, 9.0, 9.0);
             gc.setFill(Color.web("#1E293B"));
             gc.fillOval(sx - 2.0, sy - 2.0, 4.0, 4.0);
+        }
+    }
 
-            // 2. Colored square intensity badge (the only display for locations)
+    private void drawRevealedIntensityBadges(GraphicsContext gc, FrameState frame) {
+        if (frame == null || frame.locationIntensities() == null) {
+            return;
+        }
+        for (LocationIntensityState state : frame.locationIntensities()) {
+            if (!state.sWaveArrived()) {
+                continue;
+            }
+            ReferenceLocation loc = state.location();
+            ProjectedPoint projPt = projection.project(loc.internalPoint());
+            ScreenPoint sp = currentTransform.toScreen(projPt);
+            double sx = sp.xPx();
+            double sy = sp.yPx();
+
+            String colorHex = state.colorHex();
+            String roman = state.mmiRoman();
+
+            // Colored square intensity badge revealed at S-wave arrival
             LabelOffset offset = FIXED_LABEL_OFFSETS.getOrDefault(loc.city(), new LabelOffset(14.0, -10.0, "LEFT"));
             double badgeSize = 22.0;
             double lx;
@@ -467,6 +481,9 @@ public class MapCanvasPane extends Pane {
             gc.setLineDashes((double[]) null);
             gc.strokeOval(ex - rPx, ey - rPx, rPx * 2.0, rPx * 2.0);
         }
+
+        // Draw revealed MMI badges on dynamic canvas when S-wave arrival has occurred
+        drawRevealedIntensityBadges(gc, frame);
 
         gc.restore();
     }
