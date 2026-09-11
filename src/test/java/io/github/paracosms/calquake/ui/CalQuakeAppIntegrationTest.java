@@ -483,11 +483,15 @@ class CalQuakeAppIntegrationTest {
                 assertTrue(app.getDepthField().isDisable());
                 assertTrue(app.getIntensityDisplaySelector().isDisable());
                 assertTrue(app.getApplyButton().isDisable());
+                assertTrue(app.getSaveButton().isDisable(), "Save must be disabled while playing");
+                assertTrue(app.getImportButton().isDisable(), "Import must be disabled while playing");
 
                 app.getPlayPauseButton().fire();
                 assertTrue(app.getController().isPaused());
                 assertFalse(app.getEpicenterLatField().isDisable());
                 assertFalse(app.getApplyButton().isDisable());
+                assertFalse(app.getSaveButton().isDisable(), "Save must be enabled while paused");
+                assertFalse(app.getImportButton().isDisable(), "Import must be enabled while paused");
 
                 // 3. Draft editing marks stale and disables Play button
                 app.getEpicenterLatField().setText("36.2000");
@@ -553,6 +557,70 @@ class CalQuakeAppIntegrationTest {
                 assertTrue(app.getSimLegendMeaningLabel().getText().contains("Maximum estimated MMI reached"));
             });
         } finally {
+            if (appRef[0] != null) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    appRef[0].stop();
+                    if (stageRef[0] != null) stageRef[0].close();
+                });
+            }
+        }
+    }
+
+    @Test
+    void simulationSaveAndImportRoundTripWorkflow() throws Exception {
+        CalQuakeApp[] appRef = new CalQuakeApp[1];
+        Stage[] stageRef = new Stage[1];
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("calquake-ui-test-", ".calquake.json");
+        java.nio.file.Path badFile = java.nio.file.Files.createTempFile("calquake-ui-bad-", ".json");
+        try {
+            java.nio.file.Files.writeString(badFile, "{ \"schema_version\": 999, \"type\": \"bad\" }");
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = new CalQuakeApp();
+                app.init();
+                Stage stage = new Stage();
+                app.start(stage);
+                appRef[0] = app;
+                stageRef[0] = stage;
+
+                // 1. Save valid initial scenario to temp file
+                app.saveScenarioToFile(app.getSimulationDraftSettings(), tempFile);
+                assertTrue(java.nio.file.Files.exists(tempFile));
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("Saved"));
+
+                // 2. Modify draft
+                app.getEpicenterLatField().setText("34.1234");
+                app.getMagnitudeField().setText("7.4");
+
+                // 3. Import invalid file -> fails transactionally without mutating state
+                boolean importedBad = app.importScenarioFromFile(badFile);
+                assertFalse(importedBad);
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("Import failed"));
+                assertEquals("34.1234", app.getEpicenterLatField().getText());
+                assertEquals("7.4", app.getMagnitudeField().getText());
+
+                // 4. Import previously saved valid scenario
+                boolean importedGood = app.importScenarioFromFile(tempFile);
+                assertTrue(importedGood);
+                assertTrue(app.isPreparingReplay());
+            });
+
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                assertFalse(app.isPreparingReplay());
+                assertFalse(app.isDraftStale());
+                assertEquals(35.5, app.getSimulationInstalledSettings().epicenter().latitude(), 1e-6);
+                assertEquals(6.5, app.getSimulationInstalledSettings().magnitude(), 1e-6);
+                assertEquals("35.5000", app.getEpicenterLatField().getText());
+                assertEquals("6.5", app.getMagnitudeField().getText());
+                assertFalse(app.getPlayPauseButton().isDisable());
+            });
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempFile);
+            java.nio.file.Files.deleteIfExists(badFile);
             if (appRef[0] != null) {
                 JavaFxTestHelper.runOnFxThread(() -> {
                     appRef[0].stop();

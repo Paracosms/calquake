@@ -27,6 +27,7 @@ import io.github.paracosms.calquake.core.SimulationValidator;
 import io.github.paracosms.calquake.core.TravelTimeModel;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
 import io.github.paracosms.calquake.data.ScenarioLoader;
+import io.github.paracosms.calquake.data.SimulationScenarioSerializer;
 import io.github.paracosms.calquake.data.SimulationSiteCatalog;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
@@ -55,8 +56,11 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -795,12 +799,10 @@ public class CalQuakeApp extends Application {
         this.saveButton = new Button("Save to File…");
         saveButton.getStyleClass().add("button");
         saveButton.setPrefWidth(120.0);
-        saveButton.setDisable(true);
 
         this.importButton = new Button("Import…");
         importButton.getStyleClass().add("button");
         importButton.setPrefWidth(120.0);
-        importButton.setDisable(true);
 
         buttonsRow.getChildren().addAll(saveButton, importButton);
         box.getChildren().addAll(title, buttonsRow);
@@ -1160,6 +1162,14 @@ public class CalQuakeApp extends Application {
             applyButton.setOnAction(e -> handleApplySettings());
         }
 
+        if (saveButton != null) {
+            saveButton.setOnAction(e -> handleSaveScenario());
+        }
+
+        if (importButton != null) {
+            importButton.setOnAction(e -> handleImportScenario());
+        }
+
         // Replay Controls
         if (replayPlayPauseButton != null) {
             replayPlayPauseButton.setOnAction(e -> {
@@ -1270,15 +1280,199 @@ public class CalQuakeApp extends Application {
         IntensityDisplayMode displayMode = IntensityDisplayMode.fromLabel(
                 intensityDisplaySelector != null ? intensityDisplaySelector.getValue() : null);
 
+        String scenarioId = simulationDraftSettings != null ? simulationDraftSettings.scenarioId()
+                : (simulationInstalledSettings != null ? simulationInstalledSettings.scenarioId() : "custom-california-scenario-v1");
+        String name = simulationDraftSettings != null ? simulationDraftSettings.displayName()
+                : (simulationInstalledSettings != null ? simulationInstalledSettings.displayName() : "Custom California Scenario");
+        Instant createdUtc = simulationDraftSettings != null ? simulationDraftSettings.createdUtc()
+                : (simulationInstalledSettings != null ? simulationInstalledSettings.createdUtc() : Instant.now());
+        String assumptionSetId = simulationDraftSettings != null ? simulationDraftSettings.assumptionSetId()
+                : (simulationInstalledSettings != null ? simulationInstalledSettings.assumptionSetId() : SimulationAssumptionSet.DEFAULT_ID);
+
         SimulationScenarioSettings newSettings = new SimulationScenarioSettings(
-                simulationInstalledSettings != null ? simulationInstalledSettings.scenarioId() : "custom-california-scenario-v1",
-                simulationInstalledSettings != null ? simulationInstalledSettings.displayName() : "Custom California Scenario",
-                simulationInstalledSettings != null ? simulationInstalledSettings.createdUtc() : Instant.now(),
-                new GeoPoint(lat, lon), mag, depth, displayMode, SimulationAssumptionSet.DEFAULT_ID);
+                scenarioId, name, createdUtc,
+                new GeoPoint(lat, lon), mag, depth, displayMode, assumptionSetId);
 
         simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
         simSettingsStatusLabel.setText("Preparing scenario...");
         requestSimulationPreparation(newSettings, validation.warnings());
+    }
+
+    private static String sanitizeFileName(String name) {
+        if (name == null || name.isBlank()) return "simulation-scenario";
+        String clean = name.trim().toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9_-]+", "-");
+        clean = clean.replaceAll("-+", "-").replaceAll("^-|-$", "");
+        return clean.isEmpty() ? "simulation-scenario" : clean;
+    }
+
+    void handleSaveScenario() {
+        ReplayController ctrl = getController();
+        if (ctrl != null && ctrl.isPlaying()) {
+            return;
+        }
+
+        String latText = epicenterLatField != null ? epicenterLatField.getText().trim() : "";
+        String lonText = epicenterLonField != null ? epicenterLonField.getText().trim() : "";
+        String magText = magnitudeField != null ? magnitudeField.getText().trim() : "";
+        String depthText = depthField != null ? depthField.getText().trim() : "";
+
+        List<SimulationSite> sites = simulationSiteCatalog != null
+                ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
+        SimulationValidator.ValidationResult validation = SimulationValidator.validateRaw(
+                latText, lonText, magText, depthText, sites, outline);
+
+        if (!validation.isValid()) {
+            if (simSettingsStatusLabel != null) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                simSettingsStatusLabel.setText("Cannot save: " + String.join(", ", validation.errors()));
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Simulation: Cannot save (invalid draft)");
+            }
+            return;
+        }
+
+        double lat = Double.parseDouble(latText);
+        double lon = Double.parseDouble(lonText);
+        double mag = Double.parseDouble(magText);
+        double depth = Double.parseDouble(depthText);
+        IntensityDisplayMode displayMode = IntensityDisplayMode.fromLabel(
+                intensityDisplaySelector != null ? intensityDisplaySelector.getValue() : null);
+
+        String scenarioId = simulationDraftSettings != null ? simulationDraftSettings.scenarioId()
+                : (simulationInstalledSettings != null ? simulationInstalledSettings.scenarioId() : "custom-california-scenario-v1");
+        String name = simulationDraftSettings != null ? simulationDraftSettings.displayName()
+                : (simulationInstalledSettings != null ? simulationInstalledSettings.displayName() : "Custom California Scenario");
+        Instant createdUtc = simulationDraftSettings != null ? simulationDraftSettings.createdUtc()
+                : (simulationInstalledSettings != null ? simulationInstalledSettings.createdUtc() : Instant.now());
+        String assumptionSetId = simulationDraftSettings != null ? simulationDraftSettings.assumptionSetId()
+                : (simulationInstalledSettings != null ? simulationInstalledSettings.assumptionSetId() : SimulationAssumptionSet.DEFAULT_ID);
+
+        SimulationScenarioSettings draftToSave = new SimulationScenarioSettings(
+                scenarioId, name, createdUtc, new GeoPoint(lat, lon), mag, depth, displayMode, assumptionSetId);
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Simulation Scenario");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("CalQuake Simulation Scenario (*.calquake.json)", "*.calquake.json"),
+                new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+        );
+        fileChooser.setInitialFileName(sanitizeFileName(name) + ".calquake.json");
+
+        Stage stage = lifecycleStage;
+        if (stage == null && saveButton != null && saveButton.getScene() != null) {
+            stage = (Stage) saveButton.getScene().getWindow();
+        }
+        File selected = fileChooser.showSaveDialog(stage);
+        if (selected != null) {
+            saveScenarioToFile(draftToSave, selected.toPath());
+        }
+    }
+
+    public void saveScenarioToFile(SimulationScenarioSettings settings, Path targetFile) {
+        try {
+            SimulationScenarioSerializer.writeToFile(settings, targetFile);
+            if (simSettingsStatusLabel != null) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #166534;");
+                simSettingsStatusLabel.setText("Saved: " + targetFile.getFileName().toString());
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Simulation: Saved " + targetFile.getFileName().toString());
+            }
+        } catch (Exception e) {
+            if (simSettingsStatusLabel != null) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                simSettingsStatusLabel.setText("Save failed: " + e.getMessage());
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Simulation: Save failed");
+            }
+        }
+    }
+
+    void handleImportScenario() {
+        ReplayController ctrl = getController();
+        if (ctrl != null && ctrl.isPlaying()) {
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Import Simulation Scenario");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("CalQuake Simulation Scenario (*.calquake.json)", "*.calquake.json"),
+                new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+        );
+
+        Stage stage = lifecycleStage;
+        if (stage == null && importButton != null && importButton.getScene() != null) {
+            stage = (Stage) importButton.getScene().getWindow();
+        }
+        File selected = fileChooser.showOpenDialog(stage);
+        if (selected != null) {
+            importScenarioFromFile(selected.toPath());
+        }
+    }
+
+    public boolean importScenarioFromFile(Path path) {
+        if (path == null) return false;
+        SimulationScenarioSettings imported;
+        try {
+            imported = SimulationScenarioSerializer.readFromFile(path);
+        } catch (Exception e) {
+            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            if (simSettingsStatusLabel != null) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                simSettingsStatusLabel.setText("Import failed: " + message);
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Simulation: Import failed");
+            }
+            return false;
+        }
+        return applyImportedScenario(imported);
+    }
+
+    public boolean applyImportedScenario(SimulationScenarioSettings imported) {
+        if (imported == null) return false;
+
+        if (currentMode != ApplicationMode.SIMULATION) {
+            switchMode(ApplicationMode.SIMULATION);
+        }
+
+        if (epicenterLatField != null) {
+            epicenterLatField.setText(String.format(java.util.Locale.US, "%.4f", imported.epicenter().latitude()));
+        }
+        if (epicenterLonField != null) {
+            epicenterLonField.setText(String.format(java.util.Locale.US, "%.4f", imported.epicenter().longitude()));
+        }
+        if (magnitudeField != null) {
+            magnitudeField.setText(String.format(java.util.Locale.US, "%.1f", imported.magnitude()));
+        }
+        if (depthField != null) {
+            depthField.setText(String.format(java.util.Locale.US, "%.1f", imported.depthKm()));
+        }
+        if (intensityDisplaySelector != null) {
+            intensityDisplaySelector.setValue(imported.intensityDisplayMode().label());
+        }
+
+        this.simulationDraftSettings = imported;
+        this.draftStale = false;
+
+        List<SimulationSite> sites = simulationSiteCatalog != null
+                ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
+        SimulationValidator.ValidationResult result = SimulationValidator.validate(
+                imported.epicenter().latitude(), imported.epicenter().longitude(),
+                imported.magnitude(), imported.depthKm(), sites, outline);
+
+        if (simSettingsStatusLabel != null) {
+            simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+            simSettingsStatusLabel.setText("Imported " + imported.displayName() + ". Preparing scenario...");
+        }
+
+        requestSimulationPreparation(imported, result.warnings());
+        return true;
     }
 
     public void selectEvent(String eventName) {
@@ -1501,6 +1695,11 @@ public class CalQuakeApp extends Application {
             if (depthField != null) depthField.setDisable(isPlaying);
             if (intensityDisplaySelector != null) intensityDisplaySelector.setDisable(isPlaying);
             if (applyButton != null) applyButton.setDisable(isPlaying || preparingReplay);
+            if (saveButton != null) saveButton.setDisable(isPlaying || preparingReplay);
+            if (importButton != null) importButton.setDisable(isPlaying || preparingReplay);
+        } else {
+            if (saveButton != null) saveButton.setDisable(true);
+            if (importButton != null) importButton.setDisable(true);
         }
 
         if (preparingReplay) {

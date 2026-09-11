@@ -5,6 +5,7 @@ import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.core.ScenarioInputs;
 import io.github.paracosms.calquake.core.SimulationScenarioSettings;
 import io.github.paracosms.calquake.core.SimulationSite;
 import org.junit.jupiter.api.BeforeEach;
@@ -438,6 +439,134 @@ class ScenarioLoaderTest {
         assertEquals(6.5, settings.magnitude(), 1e-6);
         assertEquals(10.0, settings.depthKm(), 1e-6);
         assertEquals("calquake-custom-v1", settings.assumptionSetId());
+    }
+
+    @Test
+    void testSimulationScenarioSerializerRoundTripAndAtomicWrite() throws Exception {
+        SimulationScenarioSettings original = new SimulationScenarioSettings(
+                "custom-test-scenario-1",
+                "Custom Test Scenario",
+                Instant.parse("2026-09-11T10:15:30Z"),
+                new GeoPoint(34.0522, -118.2437),
+                7.2,
+                12.5,
+                io.github.paracosms.calquake.core.IntensityDisplayMode.CURRENT_SHAKING,
+                "calquake-custom-v1"
+        );
+
+        String json = SimulationScenarioSerializer.toJson(original);
+        assertNotNull(json);
+        assertTrue(json.contains("\"schema_version\" : 1"));
+        assertTrue(json.contains("\"type\" : \"calquake-simulation-scenario\""));
+        assertTrue(json.contains("\"CURRENT_SHAKING\""));
+
+        SimulationScenarioSettings deserialized = SimulationScenarioSerializer.fromJson(json);
+        assertEquals(original.scenarioId(), deserialized.scenarioId());
+        assertEquals(original.displayName(), deserialized.displayName());
+        assertEquals(original.createdUtc(), deserialized.createdUtc());
+        assertEquals(original.epicenter().latitude(), deserialized.epicenter().latitude(), 1e-6);
+        assertEquals(original.epicenter().longitude(), deserialized.epicenter().longitude(), 1e-6);
+        assertEquals(original.magnitude(), deserialized.magnitude(), 1e-6);
+        assertEquals(original.depthKm(), deserialized.depthKm(), 1e-6);
+        assertEquals(original.intensityDisplayMode(), deserialized.intensityDisplayMode());
+        assertEquals(original.assumptionSetId(), deserialized.assumptionSetId());
+
+        // Test atomic file write and read
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("calquake-test-", ".calquake.json");
+        try {
+            SimulationScenarioSerializer.writeToFile(original, tempFile);
+            assertTrue(java.nio.file.Files.size(tempFile) > 0);
+
+            SimulationScenarioSettings fromFile = SimulationScenarioSerializer.readFromFile(tempFile);
+            assertEquals(original, fromFile);
+
+            // Verify input signature reproducibility
+            HadleyKanamoriTauPModel model = new HadleyKanamoriTauPModel();
+            var sites = SimulationSiteCatalog.loadDefault().sites();
+            var inputs1 = ScenarioInputs.forCustomScenario(original, sites, model);
+            var inputs2 = ScenarioInputs.forCustomScenario(fromFile, sites, model);
+            assertEquals(io.github.paracosms.calquake.core.InputSignature.compute(inputs1, io.github.paracosms.calquake.core.MmiMode.SIMULATED),
+                    io.github.paracosms.calquake.core.InputSignature.compute(inputs2, io.github.paracosms.calquake.core.MmiMode.SIMULATED));
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempFile);
+        }
+    }
+
+    @Test
+    void testSimulationScenarioSerializerValidationErrors() {
+        // Unknown type
+        String badType = """
+                {
+                  "schema_version": 1,
+                  "type": "unknown-type",
+                  "scenario_id": "test",
+                  "name": "Test",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v1"
+                }
+                """;
+        IllegalArgumentException e1 = assertThrows(IllegalArgumentException.class,
+                () -> SimulationScenarioSerializer.fromJson(badType));
+        assertTrue(e1.getMessage().contains("Unknown scenario type"));
+
+        // Unsupported schema version
+        String badVersion = """
+                {
+                  "schema_version": 2,
+                  "type": "calquake-simulation-scenario",
+                  "scenario_id": "test",
+                  "name": "Test",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v1"
+                }
+                """;
+        IllegalArgumentException e2 = assertThrows(IllegalArgumentException.class,
+                () -> SimulationScenarioSerializer.fromJson(badVersion));
+        assertTrue(e2.getMessage().contains("Unsupported schema version"));
+
+        // Invalid latitude
+        String badLat = """
+                {
+                  "schema_version": 1,
+                  "type": "calquake-simulation-scenario",
+                  "scenario_id": "test",
+                  "name": "Test",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 95.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v1"
+                }
+                """;
+        assertThrows(IllegalArgumentException.class,
+                () -> SimulationScenarioSerializer.fromJson(badLat));
+
+        // Unknown assumption set
+        String badAssumption = """
+                {
+                  "schema_version": 1,
+                  "type": "calquake-simulation-scenario",
+                  "scenario_id": "test",
+                  "name": "Test",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "unknown-assumption-v99"
+                }
+                """;
+        assertThrows(IllegalArgumentException.class,
+                () -> SimulationScenarioSerializer.fromJson(badAssumption));
     }
 }
 
