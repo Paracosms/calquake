@@ -23,6 +23,12 @@ The application features:
 - **Geodetic Accuracy:** Standard conformal Mercator projection on a reference 6,371 km sphere ensuring static state boundaries, true vertical orientation, and exact physical geodesic wavefront modeling.
 - **Self-Contained & Offline:** Live preparation and playback are Java-only, use bundled resources, and perform no network or Python work.
 
+## Simulation Details
+
+Simulated mode calculates deterministic median PGV for each site with the base/no-basin BSSA14 model using event magnitude, fault mechanism, finite-rupture Rjb, and Vs30. TauP supplies the P- and S-wave arrival times. CalQuake then applies its documented magnitude-, distance-, and Vs30-dependent P/S envelope, normalizes the combined shape once to the BSSA14 peak, and converts the running peak PGV to MMI with Worden et al. (2012). Historical MMI, PGA, and PGV values are kept as evaluation references and are not predictor inputs.
+
+The envelope is an intentionally scoped, deterministic approximation inspired by the phase-separated structure of Cua and Heaton (2009); its timing equations are CalQuake-specific rather than a verbatim port or a waveform-derived result. Consequently, the final peak prediction follows the pinned BSSA14/Worden pipeline, while the displayed time development should be interpreted as an illustrative model estimate—not a fully validated reconstruction of real shaking. CalQuake deliberately does not attempt computationally heavy 3D Earth, regional wave-propagation, or waveform simulation.
+
 ---
 
 ## Prerequisites & Environment
