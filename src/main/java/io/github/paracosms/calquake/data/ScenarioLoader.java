@@ -118,13 +118,18 @@ public class ScenarioLoader {
     }
 
     /**
-     * Loads the starter simulation bundle with reference-free ScenarioInputs.
+     * Loads the starter simulation bundle with reference-free ScenarioInputs from the modular city catalog.
      */
     public ScenarioBundle loadStarterSimulationBundle(TravelTimeModel travelTimeModel) {
+        return loadStarterSimulationBundle(travelTimeModel, SimulationSiteCatalog.loadDefault());
+    }
+
+    /**
+     * Loads the starter simulation bundle with reference-free ScenarioInputs from a provided SimulationSiteCatalog.
+     */
+    public ScenarioBundle loadStarterSimulationBundle(TravelTimeModel travelTimeModel, SimulationSiteCatalog catalog) {
         Scenario scenario = loadStarterSimulationScenario();
-        List<SimulationSite> sites = scenario.locations().stream()
-                .map(SimulationSite::fromReferenceLocation)
-                .toList();
+        List<SimulationSite> sites = catalog != null ? catalog.sites() : SimulationSiteCatalog.loadDefault().sites();
         ScenarioInputs inputs = ScenarioInputs.forCustomScenario(
                 EventSource.from(scenario.event()), sites, travelTimeModel);
         return new ScenarioBundle(scenario, inputs, new ScenarioReferences(Map.of()));

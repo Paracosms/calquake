@@ -48,7 +48,7 @@ public final class ReplayController {
             MonotonicClock clock,
             double durationSeconds
     ) {
-        this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
+        this.scenario = scenario;
         this.engine = Objects.requireNonNull(engine, "engine cannot be null");
         this.clock = Objects.requireNonNull(clock, "clock cannot be null");
         if (!Double.isFinite(durationSeconds) || durationSeconds <= 0.0) {
@@ -56,6 +56,10 @@ public final class ReplayController {
                     "durationSeconds must be a positive finite number: " + durationSeconds);
         }
         this.durationSeconds = durationSeconds;
+    }
+
+    public ReplayController(ReplayEngine engine, MonotonicClock clock, double durationSeconds) {
+        this(null, engine, clock, durationSeconds);
     }
 
     public ReplayController(Scenario scenario, ReplayEngine engine) {
@@ -177,7 +181,7 @@ public final class ReplayController {
      * Queries the current frame state without advancing time.
      */
     public FrameState currentFrame() {
-        return engine.frameAt(scenario, elapsedSeconds);
+        return scenario != null ? engine.frameAt(scenario, elapsedSeconds) : engine.frameAt(elapsedSeconds);
     }
 
     /**
@@ -187,7 +191,9 @@ public final class ReplayController {
      */
     public Instant simulatedUtc() {
         long nanos = (long) Math.round(elapsedSeconds * 1_000_000_000.0);
-        return scenario.event().originUtc().plus(Duration.ofNanos(nanos));
+        Instant origin = scenario != null ? scenario.event().originUtc()
+                : engine.preparedReplay().inputs().event().originUtc();
+        return origin.plus(Duration.ofNanos(nanos));
     }
 
     public PlaybackState state() {

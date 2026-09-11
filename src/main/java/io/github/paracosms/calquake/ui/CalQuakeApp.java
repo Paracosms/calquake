@@ -6,6 +6,8 @@ import io.github.paracosms.calquake.core.EventSource;
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
+import io.github.paracosms.calquake.core.LocationIntensityState;
+import io.github.paracosms.calquake.core.MapScenario;
 import io.github.paracosms.calquake.core.MmiLegend;
 import io.github.paracosms.calquake.core.MmiMode;
 import io.github.paracosms.calquake.core.MonotonicClock;
@@ -21,6 +23,7 @@ import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.TravelTimeModel;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
 import io.github.paracosms.calquake.data.ScenarioLoader;
+import io.github.paracosms.calquake.data.SimulationSiteCatalog;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -122,6 +125,7 @@ public class CalQuakeApp extends Application {
     private Button saveButton;
     private Button importButton;
     private VBox simulationSidebar;
+    private SimulationSiteCatalog simulationSiteCatalog;
 
     // Asynchronous preparation state
     private CompletableFuture<?> preparationFuture;
@@ -205,9 +209,13 @@ public class CalQuakeApp extends Application {
                         replayScenario, engine, MonotonicClock.system(), replayPreparedReplay.durationSeconds());
             }
 
+            if (this.simulationSiteCatalog == null) {
+                this.simulationSiteCatalog = SimulationSiteCatalog.loadDefault();
+            }
+
             // Initialize Simulation mode if not injected
             if (this.simulationScenario == null) {
-                ScenarioLoader.ScenarioBundle simBundle = scenarioLoader.loadStarterSimulationBundle(travelTimeModel);
+                ScenarioLoader.ScenarioBundle simBundle = scenarioLoader.loadStarterSimulationBundle(travelTimeModel, simulationSiteCatalog);
                 this.simulationScenario = simBundle.scenario();
                 this.simulationPreparedReplay = replayPreparer.prepare(
                         simBundle.inputs(), simBundle.references(), MmiMode.SIMULATED);
@@ -239,7 +247,7 @@ public class CalQuakeApp extends Application {
         root.setTop(headerBar);
 
         // 2. Center: Map Canvas Viewport with Overlaid Top-Left Timer Box
-        this.mapCanvasPane = new MapCanvasPane(getInstalledScenario(), outline);
+        this.mapCanvasPane = new MapCanvasPane(getActiveMapScenario(), outline);
         mapCanvasPane.getStyleClass().add("map-viewport-frame");
 
         StackPane centerStack = new StackPane();
@@ -894,7 +902,7 @@ public class CalQuakeApp extends Application {
 
         // 6. Redraw map canvas pane with the incoming scenario and reset frame
         if (mapCanvasPane != null) {
-            mapCanvasPane.setScenario(getInstalledScenario());
+            mapCanvasPane.setMapScenario(getActiveMapScenario());
             if (enteringController != null) {
                 mapCanvasPane.renderFrame(enteringController.currentFrame());
             }
@@ -1156,16 +1164,16 @@ public class CalQuakeApp extends Application {
             EarthquakeEvent event = new EarthquakeEvent(
                     "custom-california-scenario-v1", "calquake", "Custom California Scenario",
                     Instant.now(), epicenter, depthKm, magnitude, "mw", "");
+            List<SimulationSite> sites = simulationSiteCatalog != null
+                    ? simulationSiteCatalog.sites()
+                    : SimulationSiteCatalog.loadDefault().sites();
+            ScenarioInputs inputs = ScenarioInputs.forCustomScenario(
+                    EventSource.from(event), sites, travelTimeModel);
+            PreparedReplay replay = replayPreparer.prepare(inputs, new ScenarioReferences(Map.of()), MmiMode.SIMULATED);
             List<ReferenceLocation> locations = simulationScenario != null
                     ? simulationScenario.locations()
                     : scenarioLoader.loadStarterSimulationScenario().locations();
             Scenario scenario = new Scenario(event, locations);
-            List<SimulationSite> sites = locations.stream()
-                    .map(SimulationSite::fromReferenceLocation)
-                    .toList();
-            ScenarioInputs inputs = ScenarioInputs.forCustomScenario(
-                    EventSource.from(event), sites, travelTimeModel);
-            PreparedReplay replay = replayPreparer.prepare(inputs, new ScenarioReferences(Map.of()), MmiMode.SIMULATED);
             ScenarioLoader.ScenarioBundle bundle = new ScenarioLoader.ScenarioBundle(
                     scenario, inputs, new ScenarioReferences(Map.of()));
             return new PreparedInstallation(bundle, replay, targetMode);
@@ -1195,7 +1203,7 @@ public class CalQuakeApp extends Application {
             this.preparationError = null;
             if (currentMode == ApplicationMode.REPLAY) {
                 if (mapCanvasPane != null) {
-                    mapCanvasPane.setScenario(replayScenario);
+                    mapCanvasPane.setMapScenario(getActiveMapScenario());
                     mapCanvasPane.renderFrame(replayController.currentFrame());
                 }
                 if (replayTimelineScrubber != null) {
@@ -1218,7 +1226,7 @@ public class CalQuakeApp extends Application {
             this.preparationError = null;
             if (currentMode == ApplicationMode.SIMULATION) {
                 if (mapCanvasPane != null) {
-                    mapCanvasPane.setScenario(simulationScenario);
+                    mapCanvasPane.setMapScenario(MapScenario.fromInputs(installation.replay().inputs()));
                     mapCanvasPane.renderFrame(simulationController.currentFrame());
                 }
                 if (simTimelineScrubber != null) {
@@ -1463,6 +1471,23 @@ public class CalQuakeApp extends Application {
 
     public MapCanvasPane getMapCanvasPane() {
         return mapCanvasPane;
+    }
+
+    public MapScenario getActiveMapScenario() {
+        if (currentMode == ApplicationMode.SIMULATION) {
+            return MapScenario.fromInputs(simulationPreparedReplay.inputs());
+        }
+        ScenarioLoader.ScenarioBundle bundle = scenarioBundles.get(selectedReplayEvent);
+        ScenarioReferences refs = bundle != null ? bundle.references() : new ScenarioReferences();
+        return MapScenario.fromLegacyScenario(replayScenario, refs);
+    }
+
+    public SimulationSiteCatalog getSimulationSiteCatalog() {
+        return simulationSiteCatalog;
+    }
+
+    public void setSimulationSiteCatalog(SimulationSiteCatalog simulationSiteCatalog) {
+        this.simulationSiteCatalog = simulationSiteCatalog;
     }
 
     public MenuBar getMenuBar() {

@@ -1,12 +1,18 @@
 package io.github.paracosms.calquake.ui;
 
+import io.github.paracosms.calquake.core.EventSource;
 import io.github.paracosms.calquake.core.FrameState;
+import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
+import io.github.paracosms.calquake.core.MapScenario;
 import io.github.paracosms.calquake.core.MmiMode;
 import io.github.paracosms.calquake.core.PreparedReplay;
 import io.github.paracosms.calquake.core.ReplayPreparer;
 import io.github.paracosms.calquake.core.ReplayEngine;
 import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.core.ScenarioInputs;
+import io.github.paracosms.calquake.core.ScenarioReferences;
+import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
 import io.github.paracosms.calquake.data.ScenarioLoader;
 import io.github.paracosms.calquake.testsupport.JavaFxTestHelper;
@@ -16,6 +22,11 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.paint.Color;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -170,6 +181,51 @@ class MapCanvasPaneIntegrationTest {
             pane.renderFrame(early);
             pane.renderFrame(completed);
             assertEquals(completed, pane.getLastFrame());
+        });
+    }
+
+    @Test
+    void syntheticScenarioInputsWithoutReferencesRendersAllConfiguredSitesWithoutReferenceLocations() throws Exception {
+        // Stage B exit gate: a synthetic ScenarioInputs with no ScenarioReferences renders all configured sites
+        // and frame-supplied statuses without constructing any ReferenceLocation.
+        EventSource event = new EventSource(
+                "synthetic-event-1", "custom", "Synthetic California Test",
+                Instant.parse("2026-09-10T00:00:00Z"), 6.2, "mw",
+                new GeoPoint(36.0, -119.5), 12.0,
+                Optional.empty(), Optional.empty(), Map.of());
+
+        List<SimulationSite> sites = List.of(
+                new SimulationSite("site-alpha", "Alpha City", new GeoPoint(35.5, -119.0)),
+                new SimulationSite("site-beta", "Beta Town", new GeoPoint(36.5, -120.0)),
+                new SimulationSite("site-gamma", "Gamma Village", new GeoPoint(37.0, -120.5))
+        );
+
+        HadleyKanamoriTauPModel model = new HadleyKanamoriTauPModel();
+        ScenarioInputs inputs = ScenarioInputs.forCustomScenario(event, sites, model);
+        ScenarioReferences emptyReferences = new ScenarioReferences();
+        PreparedReplay replay = new ReplayPreparer(model).prepare(inputs, emptyReferences, MmiMode.SIMULATED);
+        ReplayEngine engine = ReplayEngine.createPrepared(model, replay);
+
+        JavaFxTestHelper.runOnFxThread(() -> {
+            MapScenario mapScenario = MapScenario.fromInputs(inputs);
+            MapCanvasPane pane = new MapCanvasPane(mapScenario, outline);
+            pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
+            pane.redrawStaticMap();
+
+            assertTrue(countVisiblePixels(pane.getStaticCanvas()) > 0);
+
+            // Screen points for each synthetic site can be found
+            for (SimulationSite site : sites) {
+                var pt = pane.getLocationScreenPoint(site.displayName());
+                assertTrue(pt.xPx() > 0 && pt.xPx() < pane.getWidth());
+                assertTrue(pt.yPx() > 0 && pt.yPx() < pane.getHeight());
+            }
+
+            // Frame rendering with no ReferenceLocations
+            FrameState frame = engine.frameAt(replay.durationSeconds());
+            assertDoesNotThrow(() -> pane.renderFrame(frame));
+            assertEquals(frame, pane.getLastFrame());
+            assertTrue(countVisiblePixels(pane.getDynamicCanvas()) > 0);
         });
     }
 

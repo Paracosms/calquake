@@ -1,8 +1,11 @@
 package io.github.paracosms.calquake.data;
 
 import io.github.paracosms.calquake.core.EarthquakeEvent;
+import io.github.paracosms.calquake.core.GeoPoint;
+import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.core.SimulationSite;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -341,4 +344,86 @@ class ScenarioLoaderTest {
         Scenario unknownScenario = loader.loadScenario("unknown");
         assertEquals("ci38457511", unknownScenario.event().id());
     }
+
+    @Test
+    void testSimulationSiteCatalogLoadDefault() {
+        SimulationSiteCatalog catalog = SimulationSiteCatalog.loadDefault();
+        assertNotNull(catalog);
+        List<SimulationSite> sites = catalog.sites();
+        assertEquals(5, sites.size(), "Default catalog must initially contain the 5 California cities");
+
+        SimulationSite ridgecrest = catalog.requireById("ridgecrest");
+        assertEquals("Ridgecrest", ridgecrest.displayName());
+        assertEquals(35.628542, ridgecrest.coordinates().latitude(), 1e-6);
+        assertEquals(-117.663992, ridgecrest.coordinates().longitude(), 1e-6);
+
+        assertTrue(catalog.findById("trona").isPresent());
+        assertTrue(catalog.findById("bakersfield").isPresent());
+        assertTrue(catalog.findById("los-angeles").isPresent());
+        assertTrue(catalog.findById("fresno").isPresent());
+
+        // Display name lookup
+        assertEquals("los-angeles", catalog.requireByDisplayName("Los Angeles").id());
+        assertTrue(catalog.findByDisplayName("NonExistent").isEmpty());
+    }
+
+    @Test
+    void testSimulationSiteCatalogCustomAndValidation() {
+        // Valid custom catalog
+        String validJson = """
+                {
+                  "schema_version": 1,
+                  "sites": [
+                    { "id": "city-1", "display_name": "City One", "latitude": 37.5, "longitude": -122.0 },
+                    { "id": "city-2", "display_name": "City Two", "latitude": 38.0, "longitude": -121.5 }
+                  ]
+                }
+                """;
+        SimulationSiteCatalog catalog = SimulationSiteCatalog.loadFromJsonString(validJson);
+        assertEquals(2, catalog.sites().size());
+        assertEquals("City One", catalog.requireById("city-1").displayName());
+
+        // Duplicate ID rejection
+        String duplicateIdJson = """
+                {
+                  "sites": [
+                    { "id": "dup", "display_name": "First", "latitude": 37.0, "longitude": -122.0 },
+                    { "id": "dup", "display_name": "Second", "latitude": 38.0, "longitude": -121.0 }
+                  ]
+                }
+                """;
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteCatalog.loadFromJsonString(duplicateIdJson));
+
+        // Invalid latitude
+        String badLatJson = """
+                {
+                  "sites": [
+                    { "id": "bad", "display_name": "Bad", "latitude": 95.0, "longitude": -120.0 }
+                  ]
+                }
+                """;
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteCatalog.loadFromJsonString(badLatJson));
+    }
+
+    @Test
+    void testLoadStarterSimulationBundleWithCatalog() {
+        HadleyKanamoriTauPModel model = new HadleyKanamoriTauPModel();
+
+        // Default catalog
+        var bundle = loader.loadStarterSimulationBundle(model);
+        assertNotNull(bundle);
+        assertEquals(5, bundle.inputs().sites().size());
+        assertTrue(bundle.references().bySiteId().isEmpty(), "Custom simulation bundle must have no historical references");
+
+        // Custom catalog with 2 sites
+        SimulationSiteCatalog customCatalog = SimulationSiteCatalog.of(List.of(
+                new SimulationSite("c1", "City 1", new GeoPoint(35.0, -118.0)),
+                new SimulationSite("c2", "City 2", new GeoPoint(36.0, -119.0))
+        ));
+        var customBundle = loader.loadStarterSimulationBundle(model, customCatalog);
+        assertEquals(2, customBundle.inputs().sites().size());
+        assertEquals("c1", customBundle.inputs().sites().get(0).id());
+        assertEquals("c2", customBundle.inputs().sites().get(1).id());
+    }
 }
+

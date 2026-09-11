@@ -33,7 +33,7 @@ public final class ReplayEngine {
     }
 
     private ReplayEngine(Scenario scenario, TravelTimeModel model, PreparedReplay replay) {
-        this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
+        this.scenario = scenario;
         this.model = Objects.requireNonNull(model, "model cannot be null");
         this.preparedReplay = Objects.requireNonNull(replay, "replay cannot be null");
         this.intensitySource = null;
@@ -52,10 +52,16 @@ public final class ReplayEngine {
 
     public static ReplayEngine createPrepared(
             Scenario scenario, TravelTimeModel model, PreparedReplay preparedReplay) {
+        Objects.requireNonNull(scenario, "scenario cannot be null");
         if (!scenario.event().id().equals(preparedReplay.inputs().event().id())) {
             throw new IllegalArgumentException("Scenario and prepared replay event IDs differ");
         }
         return new ReplayEngine(scenario, model, preparedReplay);
+    }
+
+    public static ReplayEngine createPrepared(
+            TravelTimeModel model, PreparedReplay preparedReplay) {
+        return new ReplayEngine(null, model, preparedReplay);
     }
 
     public FrameState frameAt(double elapsedSeconds) {

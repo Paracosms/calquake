@@ -3,6 +3,7 @@ package io.github.paracosms.calquake.ui;
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.LocationIntensityState;
+import io.github.paracosms.calquake.core.MapScenario;
 import io.github.paracosms.calquake.core.MercatorProjection;
 import io.github.paracosms.calquake.core.MercatorProjection.BoundingBox;
 import io.github.paracosms.calquake.core.MercatorProjection.ProjectedPoint;
@@ -10,6 +11,7 @@ import io.github.paracosms.calquake.core.MercatorProjection.ScreenPoint;
 import io.github.paracosms.calquake.core.MercatorProjection.ViewportTransform;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.WavefrontRadii;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
 import javafx.scene.canvas.Canvas;
@@ -67,7 +69,7 @@ public class MapCanvasPane extends Pane {
     private final Canvas dynamicCanvas;
     private final Rectangle clipRect;
 
-    private Scenario scenario;
+    private MapScenario mapScenario;
     private CaliforniaOutline outline;
     private MercatorProjection projection;
     private BoundingBox projectedBounds;
@@ -77,8 +79,8 @@ public class MapCanvasPane extends Pane {
     private double lastHeight = -1.0;
     private FrameState lastFrame;
 
-    public MapCanvasPane(Scenario scenario, CaliforniaOutline outline) {
-        this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
+    public MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline) {
+        this.mapScenario = Objects.requireNonNull(mapScenario, "mapScenario cannot be null");
         this.outline = Objects.requireNonNull(outline, "outline cannot be null");
 
         this.projection = MercatorProjection.californiaDefault();
@@ -99,6 +101,10 @@ public class MapCanvasPane extends Pane {
         getChildren().addAll(staticCanvas, dynamicCanvas);
     }
 
+    public MapCanvasPane(Scenario scenario, CaliforniaOutline outline) {
+        this(MapScenario.fromLegacyScenario(scenario), outline);
+    }
+
     @Override
     protected void layoutChildren() {
         super.layoutChildren();
@@ -117,12 +123,22 @@ public class MapCanvasPane extends Pane {
     }
 
     /**
-     * Updates the bound scenario and refreshes the map.
-     * The static California landmass remains fixed on the Mercator projection.
+     * Updates the bound MapScenario and refreshes the map.
+     */
+    public void setMapScenario(MapScenario mapScenario) {
+        this.mapScenario = Objects.requireNonNull(mapScenario, "mapScenario cannot be null");
+        redrawStaticMap();
+    }
+
+    /**
+     * Legacy adapter updating the bound scenario and refreshing the map.
      */
     public void setScenario(Scenario scenario) {
-        this.scenario = Objects.requireNonNull(scenario, "scenario cannot be null");
-        redrawStaticMap();
+        setMapScenario(MapScenario.fromLegacyScenario(scenario));
+    }
+
+    public MapScenario getMapScenario() {
+        return mapScenario;
     }
 
     /**
@@ -132,6 +148,7 @@ public class MapCanvasPane extends Pane {
     public void redrawStaticMap() {
         double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
         double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
+        synchronizeCanvasDimensions(w, h);
 
         this.currentTransform = projection.createViewportTransform(projectedBounds, w, h, DEFAULT_MARGIN_PX);
         GraphicsContext gc = staticCanvas.getGraphicsContext2D();
@@ -173,8 +190,8 @@ public class MapCanvasPane extends Pane {
         // 4. Epicenter marker and label
         drawEpicenter(gc);
 
-        // 5. Reference Location Station Dots (neutral base map markers)
-        drawReferenceLocationDots(gc);
+        // 5. Simulation Site Station Dots (neutral base map markers)
+        drawSiteDots(gc);
     }
 
     /**
@@ -278,7 +295,7 @@ public class MapCanvasPane extends Pane {
     }
 
     private void drawEpicenter(GraphicsContext gc) {
-        ScreenPoint epiScreen = currentTransform.toScreen(projection.project(scenario.event().epicenter()));
+        ScreenPoint epiScreen = currentTransform.toScreen(projection.project(mapScenario.event().epicenter()));
         double ex = epiScreen.xPx();
         double ey = epiScreen.yPx();
 
@@ -291,11 +308,11 @@ public class MapCanvasPane extends Pane {
         double ly = ey + offset.dy();
 
         // Classic badge box
-        String title = "★ Epicenter (M " + scenario.event().magnitude() + ")";
+        String title = "★ Epicenter (M " + mapScenario.event().magnitude() + ")";
         String sub = String.format("%.2f°N, %.2f°W  (%s km)",
-                scenario.event().epicenter().latitude(),
-                Math.abs(scenario.event().epicenter().longitude()),
-                scenario.event().depthKm());
+                mapScenario.event().epicenter().latitude(),
+                Math.abs(mapScenario.event().epicenter().longitude()),
+                mapScenario.event().depthKm());
 
         gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11.0));
         double boxW = 145.0;
@@ -319,9 +336,9 @@ public class MapCanvasPane extends Pane {
         gc.fillText(sub, lx + 6, ly + 27);
     }
 
-    private void drawReferenceLocationDots(GraphicsContext gc) {
-        for (ReferenceLocation loc : scenario.locations()) {
-            ProjectedPoint projPt = projection.project(loc.internalPoint());
+    private void drawSiteDots(GraphicsContext gc) {
+        for (SimulationSite site : mapScenario.sites()) {
+            ProjectedPoint projPt = projection.project(site.coordinates());
             ScreenPoint sp = currentTransform.toScreen(projPt);
             double sx = sp.xPx();
             double sy = sp.yPx();
@@ -535,19 +552,19 @@ public class MapCanvasPane extends Pane {
         if (currentTransform == null) {
             redrawStaticMap();
         }
-        return currentTransform.toScreen(projection.project(scenario.event().epicenter()));
+        return currentTransform.toScreen(projection.project(mapScenario.event().epicenter()));
     }
 
     public ScreenPoint getLocationScreenPoint(String cityName) {
         if (currentTransform == null) {
             redrawStaticMap();
         }
-        for (ReferenceLocation loc : scenario.locations()) {
-            if (loc.city().equalsIgnoreCase(cityName)) {
-                ProjectedPoint p = projection.project(loc.internalPoint());
+        for (SimulationSite site : mapScenario.sites()) {
+            if (site.displayName().equalsIgnoreCase(cityName) || site.id().equalsIgnoreCase(cityName)) {
+                ProjectedPoint p = projection.project(site.coordinates());
                 return currentTransform.toScreen(p);
             }
         }
-        throw new IllegalArgumentException("Unknown reference city: " + cityName);
+        throw new IllegalArgumentException("Unknown simulation site: " + cityName);
     }
 }

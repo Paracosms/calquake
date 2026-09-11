@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "type": "calquake-simulation-sites",
+  "sites": [
+    {
+      "id": "ridgecrest",
+      "display_name": "Ridgecrest",
+      "latitude": 35.628542,
+      "longitude": -117.663992
+    },
+    {
+      "id": "trona",
+      "display_name": "Trona",
+      "latitude": 35.815821,
+      "longitude": -117.347348
+    },
+    {
+      "id": "bakersfield",
+      "display_name": "Bakersfield",
+      "latitude": 35.353593,
+      "longitude": -119.036921
+    },
+    {
+      "id": "los-angeles",
+      "display_name": "Los Angeles",
+      "latitude": 34.019394,
+      "longitude": -118.410825
+    },
+    {
+      "id": "fresno",
+      "display_name": "Fresno",
+      "latitude": 36.782684,
+      "longitude": -119.793359
+    }
+  ]
+}
