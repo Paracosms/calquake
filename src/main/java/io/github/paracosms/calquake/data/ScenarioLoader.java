@@ -13,6 +13,9 @@ import io.github.paracosms.calquake.core.ScenarioReferences;
 import io.github.paracosms.calquake.core.ScientificConfiguration;
 import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.SiteCondition;
+import io.github.paracosms.calquake.core.IntensityDisplayMode;
+import io.github.paracosms.calquake.core.SimulationAssumptionSet;
+import io.github.paracosms.calquake.core.SimulationScenarioSettings;
 import io.github.paracosms.calquake.core.SiteConditionProvenance;
 import io.github.paracosms.calquake.core.TravelTimeConfiguration;
 import io.github.paracosms.calquake.core.TravelTimeModel;
@@ -118,6 +121,34 @@ public class ScenarioLoader {
     }
 
     /**
+     * Loads the default starter custom simulation scenario settings from versioned defaults resource.
+     */
+    public SimulationScenarioSettings loadStarterSimulationSettings() {
+        JsonNode root;
+        try (InputStream stream = getResourceStream(DEFAULT_SIMULATION_SCENARIO_RESOURCE)) {
+            root = jsonMapper.readTree(stream);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to read default simulation scenario resource", e);
+        }
+        String scenarioId = requireText(root, "scenario_id");
+        String name = requireText(root, "name");
+        String createdUtc = requireText(root, "created_utc");
+        JsonNode epicenterNode = requireObject(root, "epicenter");
+        double lat = requireDouble(epicenterNode, "latitude");
+        double lon = requireDouble(epicenterNode, "longitude");
+        GeoPoint epicenter = new GeoPoint(lat, lon);
+        double magnitude = requireDouble(root, "magnitude");
+        double depthKm = requireDouble(root, "depth_km");
+        String intensityModeStr = optionalText(root, "intensity_display_mode", "MAXIMUM_REACHED");
+        IntensityDisplayMode intensityDisplayMode = IntensityDisplayMode.fromLabel(intensityModeStr);
+        String assumptionSet = optionalText(root, "assumption_set", SimulationAssumptionSet.DEFAULT_ID);
+
+        return new SimulationScenarioSettings(
+                scenarioId, name, Instant.parse(createdUtc), epicenter, magnitude, depthKm,
+                intensityDisplayMode, assumptionSet);
+    }
+
+    /**
      * Loads the starter simulation bundle with reference-free ScenarioInputs from the modular city catalog.
      */
     public ScenarioBundle loadStarterSimulationBundle(TravelTimeModel travelTimeModel) {
@@ -128,10 +159,10 @@ public class ScenarioLoader {
      * Loads the starter simulation bundle with reference-free ScenarioInputs from a provided SimulationSiteCatalog.
      */
     public ScenarioBundle loadStarterSimulationBundle(TravelTimeModel travelTimeModel, SimulationSiteCatalog catalog) {
+        SimulationScenarioSettings settings = loadStarterSimulationSettings();
         Scenario scenario = loadStarterSimulationScenario();
         List<SimulationSite> sites = catalog != null ? catalog.sites() : SimulationSiteCatalog.loadDefault().sites();
-        ScenarioInputs inputs = ScenarioInputs.forCustomScenario(
-                EventSource.from(scenario.event()), sites, travelTimeModel);
+        ScenarioInputs inputs = ScenarioInputs.forCustomScenario(settings, sites, travelTimeModel);
         return new ScenarioBundle(scenario, inputs, new ScenarioReferences(Map.of()));
     }
 

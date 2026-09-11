@@ -450,4 +450,93 @@ class CalQuakeAppIntegrationTest {
             }
         }
     }
+
+    @Test
+    void simulationSettingsLifecycleValidationStalenessAndPlaybackLocking() throws Exception {
+        CalQuakeApp[] appRef = new CalQuakeApp[1];
+        Stage[] stageRef = new Stage[1];
+        try {
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = new CalQuakeApp();
+                app.init();
+                Stage stage = new Stage();
+                app.start(stage);
+                appRef[0] = app;
+                stageRef[0] = stage;
+
+                // 1. Initial simulation state
+                assertEquals(ApplicationMode.SIMULATION, app.getCurrentMode());
+                assertNotNull(app.getSimulationInstalledSettings());
+                assertEquals(35.5, app.getSimulationInstalledSettings().epicenter().latitude(), 1e-6);
+                assertFalse(app.isDraftStale());
+                assertFalse(app.getPlayPauseButton().isDisable());
+                assertFalse(app.getEpicenterLatField().isDisable());
+                assertFalse(app.getMagnitudeField().isDisable());
+
+                // 2. Settings lock during playback and unlock on pause
+                app.getPlayPauseButton().fire();
+                assertTrue(app.getController().isPlaying());
+                assertTrue(app.getEpicenterLatField().isDisable());
+                assertTrue(app.getEpicenterLonField().isDisable());
+                assertTrue(app.getMagnitudeField().isDisable());
+                assertTrue(app.getDepthField().isDisable());
+                assertTrue(app.getIntensityDisplaySelector().isDisable());
+                assertTrue(app.getApplyButton().isDisable());
+
+                app.getPlayPauseButton().fire();
+                assertTrue(app.getController().isPaused());
+                assertFalse(app.getEpicenterLatField().isDisable());
+                assertFalse(app.getApplyButton().isDisable());
+
+                // 3. Draft editing marks stale and disables Play button
+                app.getEpicenterLatField().setText("36.2000");
+                assertTrue(app.isDraftStale());
+                assertTrue(app.getPlayPauseButton().isDisable(), "Play must be disabled while draft is stale");
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("draft")
+                        || app.getSimSettingsStatusLabel().getText().contains("modified")
+                        || app.getSimSettingsStatusLabel().getText().contains("Stale"));
+
+                // 4. Invalid input rejected on Apply without corrupting installed scenario
+                app.getEpicenterLatField().setText("120.0000"); // Invalid latitude > 90
+                app.getApplyButton().fire();
+                assertTrue(app.isDraftStale());
+                assertTrue(app.getPlayPauseButton().isDisable());
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("Error"));
+                assertEquals(35.5, app.getSimulationInstalledSettings().epicenter().latitude(), 1e-6,
+                        "Installed settings must not be corrupted by invalid input");
+
+                // 5. Warned input (mag 8.6 out of BSSA14 domain) prepares and runs
+                app.getEpicenterLatField().setText("35.5000");
+                app.getMagnitudeField().setText("8.6");
+                app.getApplyButton().fire();
+                assertTrue(app.isPreparingReplay());
+            });
+
+            // Wait for asynchronous preparation of warned scenario
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                assertFalse(app.isPreparingReplay());
+                assertFalse(app.isDraftStale());
+                assertEquals(8.6, app.getSimulationInstalledSettings().magnitude(), 1e-6);
+                assertFalse(app.getSimulationWarnings().isEmpty(), "Domain warnings must be collected");
+                assertTrue(app.getSimWarningBanner().isVisible(), "Persistent warning banner must be visible");
+                assertTrue(app.getSimWarningBannerLabel().getText().contains("BSSA14"));
+                assertFalse(app.getPlayPauseButton().isDisable(), "Warned scenario must be playable");
+
+                // Play warned scenario
+                app.getPlayPauseButton().fire();
+                assertTrue(app.getController().isPlaying());
+            });
+        } finally {
+            if (appRef[0] != null) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    appRef[0].stop();
+                    if (stageRef[0] != null) stageRef[0].close();
+                });
+            }
+        }
+    }
 }

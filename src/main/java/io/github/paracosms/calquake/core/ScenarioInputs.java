@@ -103,4 +103,47 @@ public record ScenarioInputs(
                         Map.of("timelineStepSeconds", SimulatedMmiModel.DEFAULT_TIMELINE_STEP_SECONDS,
                                 "convergenceStepSeconds", SimulatedMmiModel.CONVERGENCE_STEP_SECONDS)));
     }
+
+    /**
+     * Resolves versioned simulation assumptions and builds reference-free ScenarioInputs
+     * from custom scenario settings.
+     */
+    public static ScenarioInputs forCustomScenario(
+            SimulationScenarioSettings settings, List<SimulationSite> requestedSites, TravelTimeModel model) {
+        Objects.requireNonNull(settings, "settings cannot be null");
+        Objects.requireNonNull(requestedSites, "requestedSites cannot be null");
+        SimulationAssumptionSet assumptions = SimulationAssumptionSet.resolve(settings.assumptionSetId());
+
+        EventSource sourceWithMechanism = new EventSource(
+                settings.scenarioId(), "calquake", settings.displayName(),
+                settings.createdUtc(), settings.magnitude(), "mw",
+                settings.epicenter(), settings.depthKm(), Optional.empty(),
+                Optional.of(assumptions.mechanism()),
+                Map.of("assumptionSet", assumptions.id(),
+                        "intensityDisplayMode", settings.intensityDisplayMode().name()));
+
+        RuptureGeometry rupture = RuptureGeometryProvider.generate(sourceWithMechanism);
+
+        EventSource completedSource = new EventSource(
+                sourceWithMechanism.id(), sourceWithMechanism.network(), sourceWithMechanism.title(),
+                sourceWithMechanism.originUtc(), sourceWithMechanism.magnitude(),
+                sourceWithMechanism.magnitudeType(), sourceWithMechanism.epicenter(),
+                sourceWithMechanism.depthKm(), Optional.of(rupture),
+                Optional.of(assumptions.mechanism()), sourceWithMechanism.metadata());
+
+        List<SimulationSite> completedSites = requestedSites.stream()
+                .map(site -> site.siteCondition().isPresent() ? site : new SimulationSite(
+                        site.id(), site.displayName(), site.coordinates(),
+                        new SiteCondition(assumptions.defaultVs30(), assumptions.siteProvenance(), "calquake-default-vs30-760")))
+                .toList();
+
+        return new ScenarioInputs(completedSource, completedSites,
+                TravelTimeConfiguration.forModel(model),
+                new ScientificConfiguration(
+                        Map.of("assumptionSet", assumptions.id(),
+                                "geometryScaling", assumptions.ruptureScalingModel(),
+                                "defaultVs30", "calquake-default-vs30-760"),
+                        Map.of("timelineStepSeconds", SimulatedMmiModel.DEFAULT_TIMELINE_STEP_SECONDS,
+                                "convergenceStepSeconds", SimulatedMmiModel.CONVERGENCE_STEP_SECONDS)));
+    }
 }

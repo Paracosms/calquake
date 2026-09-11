@@ -1,6 +1,7 @@
 package io.github.paracosms.calquake.core;
 
 import io.github.paracosms.calquake.data.ScenarioLoader;
+import io.github.paracosms.calquake.data.SimulationSiteCatalog;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -80,6 +82,49 @@ class InputSignatureAndImmutabilityTest {
                 () -> engine.frameAt(1.0).locationIntensities().clear());
         assertThrows(UnsupportedOperationException.class,
                 () -> replay.inputs().sites().clear());
+    }
+
+    @Test
+    void customScenarioSettingsChangingEpicenterMagnitudeDepthProduceDistinctSignaturesAndReplays() {
+        TravelTimeModel model = new HadleyKanamoriTauPModel();
+        ReplayPreparer preparer = new ReplayPreparer(model);
+        ScenarioReferences emptyRefs = new ScenarioReferences(Map.of());
+        List<SimulationSite> sites = SimulationSiteCatalog.loadDefault().sites();
+        SimulationScenarioSettings base = SimulationScenarioSettings.createDefault();
+        ScenarioInputs baseInputs = ScenarioInputs.forCustomScenario(base, sites, model);
+        String baseSig = InputSignature.compute(baseInputs, MmiMode.SIMULATED);
+        PreparedReplay baseReplay = preparer.prepare(baseInputs, emptyRefs, MmiMode.SIMULATED);
+        assertEquals(baseSig, baseReplay.inputSignature());
+
+        SimulationScenarioSettings diffLat = new SimulationScenarioSettings(
+                base.scenarioId(), base.displayName(), base.createdUtc(),
+                new GeoPoint(36.0, base.epicenter().longitude()), base.magnitude(), base.depthKm(),
+                base.intensityDisplayMode(), base.assumptionSetId());
+        ScenarioInputs latInputs = ScenarioInputs.forCustomScenario(diffLat, sites, model);
+        String latSig = InputSignature.compute(latInputs, MmiMode.SIMULATED);
+        assertNotEquals(baseSig, latSig);
+        PreparedReplay latReplay = preparer.prepare(latInputs, emptyRefs, MmiMode.SIMULATED);
+        assertNotEquals(baseReplay.inputSignature(), latReplay.inputSignature());
+
+        SimulationScenarioSettings diffMag = new SimulationScenarioSettings(
+                base.scenarioId(), base.displayName(), base.createdUtc(),
+                base.epicenter(), 7.0, base.depthKm(),
+                base.intensityDisplayMode(), base.assumptionSetId());
+        ScenarioInputs magInputs = ScenarioInputs.forCustomScenario(diffMag, sites, model);
+        String magSig = InputSignature.compute(magInputs, MmiMode.SIMULATED);
+        assertNotEquals(baseSig, magSig);
+        PreparedReplay magReplay = preparer.prepare(magInputs, emptyRefs, MmiMode.SIMULATED);
+        assertNotEquals(baseReplay.inputSignature(), magReplay.inputSignature());
+
+        SimulationScenarioSettings diffDepth = new SimulationScenarioSettings(
+                base.scenarioId(), base.displayName(), base.createdUtc(),
+                base.epicenter(), base.magnitude(), 15.0,
+                base.intensityDisplayMode(), base.assumptionSetId());
+        ScenarioInputs depthInputs = ScenarioInputs.forCustomScenario(diffDepth, sites, model);
+        String depthSig = InputSignature.compute(depthInputs, MmiMode.SIMULATED);
+        assertNotEquals(baseSig, depthSig);
+        PreparedReplay depthReplay = preparer.prepare(depthInputs, emptyRefs, MmiMode.SIMULATED);
+        assertNotEquals(baseReplay.inputSignature(), depthReplay.inputSignature());
     }
 
     private static void assertChanged(String baseSignature, ScenarioInputs changed) {

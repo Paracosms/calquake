@@ -6,6 +6,7 @@ import io.github.paracosms.calquake.core.EventSource;
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
+import io.github.paracosms.calquake.core.IntensityDisplayMode;
 import io.github.paracosms.calquake.core.LocationIntensityState;
 import io.github.paracosms.calquake.core.MapScenario;
 import io.github.paracosms.calquake.core.MmiLegend;
@@ -19,7 +20,10 @@ import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
 import io.github.paracosms.calquake.core.ScenarioInputs;
 import io.github.paracosms.calquake.core.ScenarioReferences;
+import io.github.paracosms.calquake.core.SimulationAssumptionSet;
+import io.github.paracosms.calquake.core.SimulationScenarioSettings;
 import io.github.paracosms.calquake.core.SimulationSite;
+import io.github.paracosms.calquake.core.SimulationValidator;
 import io.github.paracosms.calquake.core.TravelTimeModel;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
 import io.github.paracosms.calquake.data.ScenarioLoader;
@@ -126,6 +130,12 @@ public class CalQuakeApp extends Application {
     private Button importButton;
     private VBox simulationSidebar;
     private SimulationSiteCatalog simulationSiteCatalog;
+    private SimulationScenarioSettings simulationInstalledSettings;
+    private SimulationScenarioSettings simulationDraftSettings;
+    private List<String> simulationWarnings = List.of();
+    private boolean draftStale;
+    private VBox simWarningBanner;
+    private Label simWarningBannerLabel;
 
     // Asynchronous preparation state
     private CompletableFuture<?> preparationFuture;
@@ -215,6 +225,8 @@ public class CalQuakeApp extends Application {
 
             // Initialize Simulation mode if not injected
             if (this.simulationScenario == null) {
+                this.simulationInstalledSettings = scenarioLoader.loadStarterSimulationSettings();
+                this.simulationDraftSettings = this.simulationInstalledSettings;
                 ScenarioLoader.ScenarioBundle simBundle = scenarioLoader.loadStarterSimulationBundle(travelTimeModel, simulationSiteCatalog);
                 this.simulationScenario = simBundle.scenario();
                 this.simulationPreparedReplay = replayPreparer.prepare(
@@ -223,6 +235,20 @@ public class CalQuakeApp extends Application {
                         simulationScenario, travelTimeModel, simulationPreparedReplay);
                 this.simulationController = new ReplayController(
                         simulationScenario, simEngine, MonotonicClock.system(), simulationPreparedReplay.durationSeconds());
+
+                SimulationValidator.ValidationResult initialValidation = SimulationValidator.validate(
+                        simulationInstalledSettings.epicenter().latitude(),
+                        simulationInstalledSettings.epicenter().longitude(),
+                        simulationInstalledSettings.magnitude(),
+                        simulationInstalledSettings.depthKm(),
+                        simulationSiteCatalog.sites(), outline);
+                this.simulationWarnings = initialValidation.warnings();
+            } else if (this.simulationInstalledSettings == null) {
+                EarthquakeEvent ev = simulationScenario.event();
+                this.simulationInstalledSettings = new SimulationScenarioSettings(
+                        ev.id(), ev.title(), ev.originUtc(), ev.epicenter(), ev.magnitude(), ev.depthKm(),
+                        IntensityDisplayMode.MAXIMUM_REACHED, SimulationAssumptionSet.DEFAULT_ID);
+                this.simulationDraftSettings = this.simulationInstalledSettings;
             }
         } catch (Throwable t) {
             this.startupError = t;
@@ -475,6 +501,9 @@ public class CalQuakeApp extends Application {
         // Section 1: Simulation Controls
         VBox controlsBox = buildSimulationControlsBox();
 
+        // Persistent Warning Banner (shown when installed simulation has domain warnings)
+        this.simWarningBanner = buildSimulationWarningBanner();
+
         // Section 2: Simulation Settings
         VBox settingsBox = buildSimulationSettingsBox();
 
@@ -490,7 +519,7 @@ public class CalQuakeApp extends Application {
         // Section 6: Toy Disclaimer
         VBox disclaimerBox = buildDisclaimerBox();
 
-        sidebar.getChildren().addAll(controlsBox, settingsBox, assumptionsBox, fileBox, legendBox, disclaimerBox);
+        sidebar.getChildren().addAll(controlsBox, simWarningBanner, settingsBox, assumptionsBox, fileBox, legendBox, disclaimerBox);
         return sidebar;
     }
 
@@ -539,6 +568,33 @@ public class CalQuakeApp extends Application {
         return box;
     }
 
+    private VBox buildSimulationWarningBanner() {
+        VBox banner = new VBox(4.0);
+        banner.setStyle("-fx-background-color: #FFFBEB; -fx-border-color: #FCD34D; -fx-border-width: 1px; -fx-border-radius: 3px; -fx-padding: 8px;");
+        Label title = new Label("⚠ Model Domain Warnings");
+        title.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #92400E;");
+        this.simWarningBannerLabel = new Label();
+        simWarningBannerLabel.setWrapText(true);
+        simWarningBannerLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #B45309;");
+        banner.getChildren().addAll(title, simWarningBannerLabel);
+        updateSimulationWarningBanner();
+        return banner;
+    }
+
+    private void updateSimulationWarningBanner() {
+        if (simWarningBanner != null && simWarningBannerLabel != null) {
+            if (simulationWarnings.isEmpty()) {
+                simWarningBanner.setVisible(false);
+                simWarningBanner.setManaged(false);
+            } else {
+                simWarningBanner.setVisible(true);
+                simWarningBanner.setManaged(true);
+                simWarningBannerLabel.setText("Outside the model's tested/calibrated range. This toy simulation may be wildly inaccurate.\n• "
+                        + String.join("\n• ", simulationWarnings));
+            }
+        }
+    }
+
     private VBox buildSimulationSettingsBox() {
         VBox box = new VBox(6.0);
         box.getStyleClass().add("group-box");
@@ -555,33 +611,47 @@ public class CalQuakeApp extends Application {
 
         Label latLabel = new Label("Epicenter Latitude:");
         latLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
-        this.epicenterLatField = new TextField("35.5000");
+        double initLat = simulationInstalledSettings != null ? simulationInstalledSettings.epicenter().latitude() : 35.5;
+        this.epicenterLatField = new TextField(String.format(java.util.Locale.US, "%.4f", initLat));
         epicenterLatField.setPrefWidth(120.0);
 
         Label lonLabel = new Label("Epicenter Longitude:");
         lonLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
-        this.epicenterLonField = new TextField("-118.5000");
+        double initLon = simulationInstalledSettings != null ? simulationInstalledSettings.epicenter().longitude() : -118.5;
+        this.epicenterLonField = new TextField(String.format(java.util.Locale.US, "%.4f", initLon));
         epicenterLonField.setPrefWidth(120.0);
 
         Label magLabel = new Label("Magnitude (Mw):");
         magLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
-        this.magnitudeField = new TextField("6.5");
+        double initMag = simulationInstalledSettings != null ? simulationInstalledSettings.magnitude() : 6.5;
+        this.magnitudeField = new TextField(String.format(java.util.Locale.US, "%.1f", initMag));
         magnitudeField.setPrefWidth(120.0);
 
         Label depthLabel = new Label("Depth (km):");
         depthLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
-        this.depthField = new TextField("10.0");
+        double initDepth = simulationInstalledSettings != null ? simulationInstalledSettings.depthKm() : 10.0;
+        this.depthField = new TextField(String.format(java.util.Locale.US, "%.1f", initDepth));
         depthField.setPrefWidth(120.0);
 
         Label displayLabel = new Label("Intensity Display:");
         displayLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
         this.intensityDisplaySelector = new ComboBox<>();
         intensityDisplaySelector.getItems().addAll(
-                "Maximum estimated MMI reached",
-                "Current estimated shaking"
+                IntensityDisplayMode.MAXIMUM_REACHED.label(),
+                IntensityDisplayMode.CURRENT_SHAKING.label()
         );
-        intensityDisplaySelector.setValue("Maximum estimated MMI reached");
+        String initDisplay = simulationInstalledSettings != null
+                ? simulationInstalledSettings.intensityDisplayMode().label()
+                : IntensityDisplayMode.MAXIMUM_REACHED.label();
+        intensityDisplaySelector.setValue(initDisplay);
         intensityDisplaySelector.setMaxWidth(Double.MAX_VALUE);
+
+        // Listen for draft changes
+        epicenterLatField.textProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
+        epicenterLonField.textProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
+        magnitudeField.textProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
+        depthField.textProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
+        intensityDisplaySelector.valueProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
 
         grid.add(latLabel, 0, 0);
         grid.add(epicenterLatField, 1, 0);
@@ -595,13 +665,70 @@ public class CalQuakeApp extends Application {
         this.applyButton = new Button("Apply / Prepare");
         applyButton.getStyleClass().addAll("button", "button-primary");
         applyButton.setMaxWidth(Double.MAX_VALUE);
+        applyButton.setOnAction(e -> handleApplySettings());
 
-        this.simSettingsStatusLabel = new Label("Ready");
-        simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+        this.simSettingsStatusLabel = new Label(simulationWarnings.isEmpty() ? "Ready" : "Installed with domain warnings");
+        simSettingsStatusLabel.setStyle(simulationWarnings.isEmpty()
+                ? "-fx-font-size: 10px; -fx-text-fill: #475569;"
+                : "-fx-font-size: 10px; -fx-text-fill: #B45309;");
         simSettingsStatusLabel.setWrapText(true);
 
         box.getChildren().addAll(title, subtitle, grid, displayLabel, intensityDisplaySelector, applyButton, simSettingsStatusLabel);
         return box;
+    }
+
+    private void onSimulationDraftChanged() {
+        if (currentMode != ApplicationMode.SIMULATION || simulationInstalledSettings == null) return;
+
+        String latText = epicenterLatField != null ? epicenterLatField.getText().trim() : "";
+        String lonText = epicenterLonField != null ? epicenterLonField.getText().trim() : "";
+        String magText = magnitudeField != null ? magnitudeField.getText().trim() : "";
+        String depthText = depthField != null ? depthField.getText().trim() : "";
+        String displayVal = intensityDisplaySelector != null ? intensityDisplaySelector.getValue() : null;
+
+        boolean matches = false;
+        try {
+            double lat = Double.parseDouble(latText);
+            double lon = Double.parseDouble(lonText);
+            double mag = Double.parseDouble(magText);
+            double depth = Double.parseDouble(depthText);
+
+            if (Math.abs(lat - simulationInstalledSettings.epicenter().latitude()) < 1e-6
+                    && Math.abs(lon - simulationInstalledSettings.epicenter().longitude()) < 1e-6
+                    && Math.abs(mag - simulationInstalledSettings.magnitude()) < 1e-6
+                    && Math.abs(depth - simulationInstalledSettings.depthKm()) < 1e-6
+                    && (displayVal == null || displayVal.equals(simulationInstalledSettings.intensityDisplayMode().label()))) {
+                matches = true;
+            }
+        } catch (NumberFormatException ignored) {}
+
+        this.draftStale = !matches;
+
+        if (draftStale) {
+            List<SimulationSite> sites = simulationSiteCatalog != null
+                    ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
+            SimulationValidator.ValidationResult result = SimulationValidator.validateRaw(
+                    latText, lonText, magText, depthText, sites, outline);
+            if (!result.isValid()) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                simSettingsStatusLabel.setText("Error: " + String.join(", ", result.errors()));
+            } else if (result.hasWarnings()) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #B45309;");
+                simSettingsStatusLabel.setText("⚠ Stale draft. " + result.warningSummary());
+            } else {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+                simSettingsStatusLabel.setText("Settings modified (stale). Click Apply / Prepare to update simulation.");
+            }
+        } else {
+            if (!simulationWarnings.isEmpty()) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #B45309;");
+                simSettingsStatusLabel.setText("Installed with warnings. Ready to play.");
+            } else {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+                simSettingsStatusLabel.setText("Ready");
+            }
+        }
+        updateControlStates();
     }
 
     private VBox buildFixedAssumptionsBox() {
@@ -613,11 +740,11 @@ public class CalQuakeApp extends Application {
 
         Label l1 = new Label("• Rupture: Wells & Coppersmith (1994) all-slip");
         l1.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
-        Label l2 = new Label("• Mechanism: Generic strike-slip (0° / 0° / 90°)");
+        Label l2 = new Label("• Mechanism: Generic strike-slip (0° rake / 0° strike / 90° dip)");
         l2.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
-        Label l3 = new Label("• Site condition: Reference rock, Vs30 760 m/s");
+        Label l3 = new Label("• Site condition: Reference rock, Vs30 760 m/s (DEFAULT)");
         l3.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
-        Label l4 = new Label("• GMPE / GMICE: BSSA14 / Worden et al. (2012)");
+        Label l4 = new Label("• Ground motion: BSSA14 / Cua-Heaton envelope / Worden (2012)");
         l4.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
         Label l5 = new Label("• Assumption set: calquake-custom-v1 (read-only)");
         l5.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #64748B;");
@@ -1053,34 +1180,42 @@ public class CalQuakeApp extends Application {
         }
     }
 
-    private void handleApplySettings() {
-        try {
-            double lat = Double.parseDouble(epicenterLatField.getText().trim());
-            double lon = Double.parseDouble(epicenterLonField.getText().trim());
-            double mag = Double.parseDouble(magnitudeField.getText().trim());
-            double depth = Double.parseDouble(depthField.getText().trim());
+    void handleApplySettings() {
+        if (epicenterLatField == null) return;
+        String latText = epicenterLatField.getText().trim();
+        String lonText = epicenterLonField.getText().trim();
+        String magText = magnitudeField.getText().trim();
+        String depthText = depthField.getText().trim();
 
-            if (!Double.isFinite(lat) || lat < -90.0 || lat > 90.0) {
-                simSettingsStatusLabel.setText("Error: Latitude must be between -90 and 90");
-                return;
-            }
-            if (!Double.isFinite(lon) || lon < -180.0 || lon > 180.0) {
-                simSettingsStatusLabel.setText("Error: Longitude must be between -180 and 180");
-                return;
-            }
-            if (!Double.isFinite(depth) || depth < 0.0) {
-                simSettingsStatusLabel.setText("Error: Depth must be non-negative");
-                return;
-            }
-            if (!Double.isFinite(mag)) {
-                simSettingsStatusLabel.setText("Error: Magnitude must be finite");
-                return;
-            }
-            simSettingsStatusLabel.setText("Preparing scenario...");
-            requestSimulationPreparation(lat, lon, mag, depth);
-        } catch (NumberFormatException e) {
-            simSettingsStatusLabel.setText("Error: All fields must be valid numeric values");
+        List<SimulationSite> sites = simulationSiteCatalog != null
+                ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
+        SimulationValidator.ValidationResult validation = SimulationValidator.validateRaw(
+                latText, lonText, magText, depthText, sites, outline);
+
+        if (!validation.isValid()) {
+            simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+            simSettingsStatusLabel.setText("Error: " + String.join(", ", validation.errors()));
+            this.draftStale = true;
+            updateControlStates();
+            return;
         }
+
+        double lat = Double.parseDouble(latText);
+        double lon = Double.parseDouble(lonText);
+        double mag = Double.parseDouble(magText);
+        double depth = Double.parseDouble(depthText);
+        IntensityDisplayMode displayMode = IntensityDisplayMode.fromLabel(
+                intensityDisplaySelector != null ? intensityDisplaySelector.getValue() : null);
+
+        SimulationScenarioSettings newSettings = new SimulationScenarioSettings(
+                simulationInstalledSettings != null ? simulationInstalledSettings.scenarioId() : "custom-california-scenario-v1",
+                simulationInstalledSettings != null ? simulationInstalledSettings.displayName() : "Custom California Scenario",
+                simulationInstalledSettings != null ? simulationInstalledSettings.createdUtc() : Instant.now(),
+                new GeoPoint(lat, lon), mag, depth, displayMode, SimulationAssumptionSet.DEFAULT_ID);
+
+        simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+        simSettingsStatusLabel.setText("Preparing scenario...");
+        requestSimulationPreparation(newSettings, validation.warnings());
     }
 
     public void selectEvent(String eventName) {
@@ -1147,6 +1282,21 @@ public class CalQuakeApp extends Application {
     }
 
     public void requestSimulationPreparation(double lat, double lon, double magnitude, double depthKm) {
+        IntensityDisplayMode mode = (intensityDisplaySelector != null && intensityDisplaySelector.getValue() != null)
+                ? IntensityDisplayMode.fromLabel(intensityDisplaySelector.getValue())
+                : IntensityDisplayMode.MAXIMUM_REACHED;
+        SimulationScenarioSettings settings = new SimulationScenarioSettings(
+                simulationInstalledSettings != null ? simulationInstalledSettings.scenarioId() : "custom-california-scenario-v1",
+                simulationInstalledSettings != null ? simulationInstalledSettings.displayName() : "Custom California Scenario",
+                simulationInstalledSettings != null ? simulationInstalledSettings.createdUtc() : Instant.now(),
+                new GeoPoint(lat, lon), magnitude, depthKm, mode, SimulationAssumptionSet.DEFAULT_ID);
+        List<SimulationSite> sites = simulationSiteCatalog != null
+                ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
+        SimulationValidator.ValidationResult result = SimulationValidator.validate(lat, lon, magnitude, depthKm, sites, outline);
+        requestSimulationPreparation(settings, result.warnings());
+    }
+
+    public void requestSimulationPreparation(SimulationScenarioSettings settings, List<String> warnings) {
         if (simulationController != null) {
             simulationController.pause();
             simulationController.restart();
@@ -1160,16 +1310,14 @@ public class CalQuakeApp extends Application {
         updateTimeDisplays();
 
         preparationFuture = CompletableFuture.supplyAsync(() -> {
-            GeoPoint epicenter = new GeoPoint(lat, lon);
-            EarthquakeEvent event = new EarthquakeEvent(
-                    "custom-california-scenario-v1", "calquake", "Custom California Scenario",
-                    Instant.now(), epicenter, depthKm, magnitude, "mw", "");
             List<SimulationSite> sites = simulationSiteCatalog != null
                     ? simulationSiteCatalog.sites()
                     : SimulationSiteCatalog.loadDefault().sites();
-            ScenarioInputs inputs = ScenarioInputs.forCustomScenario(
-                    EventSource.from(event), sites, travelTimeModel);
+            ScenarioInputs inputs = ScenarioInputs.forCustomScenario(settings, sites, travelTimeModel);
             PreparedReplay replay = replayPreparer.prepare(inputs, new ScenarioReferences(Map.of()), MmiMode.SIMULATED);
+            EarthquakeEvent event = new EarthquakeEvent(
+                    settings.scenarioId(), "calquake", settings.displayName(),
+                    settings.createdUtc(), settings.epicenter(), settings.depthKm(), settings.magnitude(), "mw", "");
             List<ReferenceLocation> locations = simulationScenario != null
                     ? simulationScenario.locations()
                     : scenarioLoader.loadStarterSimulationScenario().locations();
@@ -1182,9 +1330,16 @@ public class CalQuakeApp extends Application {
             if (failure != null) {
                 preparingReplay = false;
                 preparationError = unwrapCompletionFailure(failure);
+                if (simSettingsStatusLabel != null) {
+                    simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                    simSettingsStatusLabel.setText("Preparation failed: " + preparationError.getMessage());
+                }
                 updateControlStates();
                 return;
             }
+            this.simulationInstalledSettings = settings;
+            this.simulationDraftSettings = settings;
+            this.simulationWarnings = warnings != null ? List.copyOf(warnings) : List.of();
             installPreparedReplay(installation);
         }));
     }
@@ -1222,6 +1377,7 @@ public class CalQuakeApp extends Application {
             this.simulationPreparedReplay = installation.replay();
             this.simulationScenario = installation.bundle().scenario();
             this.simulationController = replacement;
+            this.draftStale = false;
             this.preparingReplay = false;
             this.preparationError = null;
             if (currentMode == ApplicationMode.SIMULATION) {
@@ -1233,8 +1389,15 @@ public class CalQuakeApp extends Application {
                     simTimelineScrubber.setMax(simulationController.durationSeconds());
                     simTimelineScrubber.setMajorTickUnit(Math.max(5.0, simulationController.durationSeconds() / 4.0));
                 }
+                updateSimulationWarningBanner();
                 if (simSettingsStatusLabel != null) {
-                    simSettingsStatusLabel.setText("Ready");
+                    if (!simulationWarnings.isEmpty()) {
+                        simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #B45309;");
+                        simSettingsStatusLabel.setText("Installed with domain warnings. Ready to play.");
+                    } else {
+                        simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+                        simSettingsStatusLabel.setText("Ready");
+                    }
                 }
                 updateControlStates();
                 updateTimeDisplays();
@@ -1297,6 +1460,18 @@ public class CalQuakeApp extends Application {
                     ? preparationError.getMessage() : preparationError.getClass().getSimpleName();
             if (activeStateLbl != null) activeStateLbl.setText("Preparation failed: " + message);
             if (statusReplayLabel != null) statusReplayLabel.setText("Preparation failed: " + message);
+            return;
+        }
+
+        if (currentMode == ApplicationMode.SIMULATION && draftStale) {
+            if (activePlayBtn != null) activePlayBtn.setDisable(true);
+            if (activeScrubber != null) activeScrubber.setDisable(false);
+            if (activeStateLbl != null) {
+                activeStateLbl.setText("State: DRAFT MODIFIED (Apply required)");
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Simulation: DRAFT MODIFIED (Apply required)");
+            }
             return;
         }
 
@@ -1640,6 +1815,34 @@ public class CalQuakeApp extends Application {
 
     public Button getImportButton() {
         return importButton;
+    }
+
+    public SimulationScenarioSettings getSimulationInstalledSettings() {
+        return simulationInstalledSettings;
+    }
+
+    public SimulationScenarioSettings getSimulationDraftSettings() {
+        return simulationDraftSettings;
+    }
+
+    public List<String> getSimulationWarnings() {
+        return simulationWarnings;
+    }
+
+    public boolean isDraftStale() {
+        return draftStale;
+    }
+
+    public Label getSimSettingsStatusLabel() {
+        return simSettingsStatusLabel;
+    }
+
+    public VBox getSimWarningBanner() {
+        return simWarningBanner;
+    }
+
+    public Label getSimWarningBannerLabel() {
+        return simWarningBannerLabel;
     }
 
     void setStartupErrorForTesting(Throwable t) {

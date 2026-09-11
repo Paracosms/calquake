@@ -5,6 +5,7 @@ import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.core.SimulationScenarioSettings;
 import io.github.paracosms.calquake.core.SimulationSite;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -424,6 +425,19 @@ class ScenarioLoaderTest {
         assertEquals(2, customBundle.inputs().sites().size());
         assertEquals("c1", customBundle.inputs().sites().get(0).id());
         assertEquals("c2", customBundle.inputs().sites().get(1).id());
+    }
+
+    @Test
+    void testLoadStarterSimulationSettings() {
+        SimulationScenarioSettings settings = loader.loadStarterSimulationSettings();
+        assertNotNull(settings);
+        assertEquals("custom-california-scenario-v1", settings.scenarioId());
+        assertEquals("Custom California Scenario", settings.displayName());
+        assertEquals(35.5, settings.epicenter().latitude(), 1e-6);
+        assertEquals(-118.5, settings.epicenter().longitude(), 1e-6);
+        assertEquals(6.5, settings.magnitude(), 1e-6);
+        assertEquals(10.0, settings.depthKm(), 1e-6);
+        assertEquals("calquake-custom-v1", settings.assumptionSetId());
     }
 }
 
