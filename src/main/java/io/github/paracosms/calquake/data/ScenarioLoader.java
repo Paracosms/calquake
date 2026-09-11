@@ -15,6 +15,7 @@ import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.SiteCondition;
 import io.github.paracosms.calquake.core.SiteConditionProvenance;
 import io.github.paracosms.calquake.core.TravelTimeConfiguration;
+import io.github.paracosms.calquake.core.TravelTimeModel;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -41,6 +42,7 @@ public class ScenarioLoader {
     public static final String NORTHRIDGE_EVENT_RESOURCE = "/data/northridge/event.json";
     public static final String NORTHRIDGE_LOCATIONS_RESOURCE = "/data/northridge/five_reference_locations.json";
     public static final String SCIENTIFIC_INPUTS_RESOURCE = "/data/scientific_inputs.json";
+    public static final String DEFAULT_SIMULATION_SCENARIO_RESOURCE = "/data/default_simulation_scenario.json";
 
     private final JsonMapper jsonMapper;
 
@@ -78,6 +80,54 @@ public class ScenarioLoader {
             return loadNorthridgeScenario();
         }
         return loadDefaultScenario();
+    }
+
+    /**
+     * Loads the default starter custom simulation scenario from versioned defaults resource.
+     *
+     * @return validated immutable Scenario for Simulation mode
+     */
+    public Scenario loadStarterSimulationScenario() {
+        JsonNode root;
+        try (InputStream stream = getResourceStream(DEFAULT_SIMULATION_SCENARIO_RESOURCE)) {
+            root = jsonMapper.readTree(stream);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to read default simulation scenario resource", e);
+        }
+        String scenarioId = requireText(root, "scenario_id");
+        String name = requireText(root, "name");
+        String createdUtc = requireText(root, "created_utc");
+        JsonNode epicenterNode = requireObject(root, "epicenter");
+        double lat = requireDouble(epicenterNode, "latitude");
+        double lon = requireDouble(epicenterNode, "longitude");
+        GeoPoint epicenter = new GeoPoint(lat, lon);
+        double magnitude = requireDouble(root, "magnitude");
+        double depthKm = requireDouble(root, "depth_km");
+
+        EarthquakeEvent event = new EarthquakeEvent(
+                scenarioId, "calquake", name, Instant.parse(createdUtc),
+                epicenter, depthKm, magnitude, "mw", "");
+
+        List<ReferenceLocation> locations;
+        try (InputStream stream = getResourceStream(DEFAULT_LOCATIONS_RESOURCE)) {
+            locations = loadReferenceLocations(stream);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to read default locations resource", e);
+        }
+        return new Scenario(event, locations);
+    }
+
+    /**
+     * Loads the starter simulation bundle with reference-free ScenarioInputs.
+     */
+    public ScenarioBundle loadStarterSimulationBundle(TravelTimeModel travelTimeModel) {
+        Scenario scenario = loadStarterSimulationScenario();
+        List<SimulationSite> sites = scenario.locations().stream()
+                .map(SimulationSite::fromReferenceLocation)
+                .toList();
+        ScenarioInputs inputs = ScenarioInputs.forCustomScenario(
+                EventSource.from(scenario.event()), sites, travelTimeModel);
+        return new ScenarioBundle(scenario, inputs, new ScenarioReferences(Map.of()));
     }
 
     /** Loads the legacy display scenario plus structurally separated inputs and references. */

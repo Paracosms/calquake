@@ -1,5 +1,6 @@
 package io.github.paracosms.calquake.ui;
 
+import io.github.paracosms.calquake.core.ApplicationMode;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.MmiMode;
 import io.github.paracosms.calquake.core.ReplayController;
@@ -20,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CalQuakeAppIntegrationTest {
@@ -37,23 +39,26 @@ class CalQuakeAppIntegrationTest {
                 assertNotNull(stage.getScene());
                 assertNotNull(app.getMapCanvasPane());
 
+                // Mode menu contains ordered items: Simulation then Replay
                 assertEquals(List.of("Mode", "Settings"),
                         app.getMenuBar().getMenus().stream().map(menu -> menu.getText()).toList());
-                assertEquals(List.of("Replay"),
+                assertEquals(List.of("Simulation", "Replay"),
                         app.getModeMenu().getItems().stream().map(item -> item.getText()).toList());
+                assertTrue(app.getSimulationMenuItem().isSelected());
+                assertFalse(app.getReplayMenuItem().isSelected());
+                assertEquals(ApplicationMode.SIMULATION, app.getCurrentMode());
                 assertFalse(app.getSettingsMenu().getItems().isEmpty());
 
-                assertEquals(List.of("Ridgecrest", "Northridge"), app.getEventSelector().getItems());
-                assertEquals("Ridgecrest", app.getEventSelector().getValue());
-                assertEquals(List.of(MmiMode.RECORDED, MmiMode.SIMULATED),
-                        app.getMmiModeSelector().getItems());
-                assertEquals(MmiMode.RECORDED, app.getMmiModeSelector().getValue());
-                assertEquals("mmi-mode-selector", app.getMmiModeSelector().getId());
-                assertEquals("MMI replay mode", app.getMmiModeSelector().getAccessibleText());
+                // In Simulation mode, eventSelector is omitted from sidebar
+                assertNull(app.getEventSelector());
+                assertNull(app.getMmiModeSelector());
+                assertNotNull(app.getSimulationSidebar());
+                assertNotNull(app.getEpicenterLatField());
 
                 assertTrue(app.getController().isPaused());
                 assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
                 assertEquals("PAUSED", app.getHudStateLabel().getText());
+                assertEquals("SIMULATION ELAPSED TIME", app.getHudTitleLabel().getText());
                 assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
                 assertFalse(app.getPlayPauseButton().isDisable());
 
@@ -74,6 +79,28 @@ class CalQuakeAppIntegrationTest {
                     assertTrue(point.yPx() >= 0.0 && point.yPx() <= height,
                             location.city() + " must be visible vertically");
                 }
+
+                // Switch to Replay mode
+                app.switchMode(ApplicationMode.REPLAY);
+                assertEquals(ApplicationMode.REPLAY, app.getCurrentMode());
+                assertTrue(app.getReplayMenuItem().isSelected());
+                assertFalse(app.getSimulationMenuItem().isSelected());
+                assertEquals("REPLAY ELAPSED TIME", app.getHudTitleLabel().getText());
+
+                assertNotNull(app.getEventSelector());
+                assertEquals(List.of("Ridgecrest", "Northridge"), app.getEventSelector().getItems());
+                assertEquals("Ridgecrest", app.getEventSelector().getValue());
+                assertEquals(List.of(MmiMode.RECORDED, MmiMode.SIMULATED),
+                        app.getMmiModeSelector().getItems());
+                assertEquals(MmiMode.RECORDED, app.getMmiModeSelector().getValue());
+                assertEquals("mmi-mode-selector", app.getMmiModeSelector().getId());
+                assertEquals("MMI replay mode", app.getMmiModeSelector().getAccessibleText());
+
+                // Switch back to Simulation mode
+                app.switchMode(ApplicationMode.SIMULATION);
+                assertEquals(ApplicationMode.SIMULATION, app.getCurrentMode());
+                assertTrue(app.getSimulationMenuItem().isSelected());
+                assertNull(app.getEventSelector());
             } finally {
                 app.stop();
                 stage.close();
@@ -262,6 +289,8 @@ class CalQuakeAppIntegrationTest {
                 app.init();
                 Stage stage = new Stage();
                 app.start(stage);
+                app.switchMode(ApplicationMode.REPLAY);
+
                 assertEquals("Ridgecrest", app.getEventSelector().getValue());
                 assertEquals("ci38457511", app.getScenario().event().id());
                 assertEquals(7.1, app.getScenario().event().magnitude(), 1e-9);
@@ -322,6 +351,8 @@ class CalQuakeAppIntegrationTest {
                 app.init();
                 Stage stage = new Stage();
                 app.start(stage);
+                app.switchMode(ApplicationMode.REPLAY);
+
                 app.getMmiModeSelector().setValue(MmiMode.SIMULATED);
                 assertTrue(app.isPreparingReplay());
                 assertTrue(app.getPlayPauseButton().isDisable());
@@ -340,6 +371,75 @@ class CalQuakeAppIntegrationTest {
                 assertEquals(0.0, appRef[0].getController().elapsedSeconds(), 0.0);
                 assertEquals(appRef[0].getPreparedReplay().durationSeconds(),
                         appRef[0].getTimelineScrubber().getMax(), 0.0);
+            });
+        } finally {
+            if (appRef[0] != null) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    appRef[0].stop();
+                    if (stageRef[0] != null) stageRef[0].close();
+                });
+            }
+        }
+    }
+
+    @Test
+    void modeSwitchingResetsPlaybackPreservesSelectionsAndIsolatesControllers() throws Exception {
+        CalQuakeApp[] appRef = new CalQuakeApp[1];
+        Stage[] stageRef = new Stage[1];
+        try {
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = new CalQuakeApp();
+                app.init();
+                Stage stage = new Stage();
+                app.start(stage);
+                appRef[0] = app;
+                stageRef[0] = stage;
+
+                // 1. App opens in Simulation mode
+                assertEquals(ApplicationMode.SIMULATION, app.getCurrentMode());
+                assertEquals("custom-california-scenario-v1", app.getInstalledScenario().event().id());
+                assertTrue(app.getController().isPaused());
+
+                // 2. Play simulation
+                app.getPlayPauseButton().fire();
+                assertTrue(app.getController().isPlaying());
+                assertTrue(app.getEpicenterLatField().isDisable(), "Settings inputs lock during playback");
+
+                // 3. Switch to Replay mode
+                app.switchMode(ApplicationMode.REPLAY);
+                assertEquals(ApplicationMode.REPLAY, app.getCurrentMode());
+                assertFalse(app.getSimulationController().isPlaying(),
+                        "Leaving mode must pause/reset active playback");
+                assertEquals(0.0, app.getSimulationController().elapsedSeconds(), 1e-9);
+                assertEquals(0.0, app.getReplayController().elapsedSeconds(), 1e-9);
+                assertTrue(app.getReplayController().isPaused());
+
+                // 4. Change event in Replay mode
+                app.getEventSelector().setValue("Northridge");
+            });
+
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                assertEquals("ci3144585", app.getInstalledScenario().event().id());
+                assertEquals("Northridge", app.getEventSelector().getValue());
+
+                // 5. Edit Simulation draft while in Simulation mode
+                app.switchMode(ApplicationMode.SIMULATION);
+                assertEquals(ApplicationMode.SIMULATION, app.getCurrentMode());
+                assertEquals("custom-california-scenario-v1", app.getInstalledScenario().event().id());
+                app.getEpicenterLatField().setText("36.0000");
+
+                // 6. Switch back to Replay: Replay selection 'Northridge' is preserved
+                app.switchMode(ApplicationMode.REPLAY);
+                assertEquals(ApplicationMode.REPLAY, app.getCurrentMode());
+                assertEquals("Northridge", app.getEventSelector().getValue());
+                assertEquals("ci3144585", app.getInstalledScenario().event().id());
+
+                // 7. Switch back to Simulation: draft edit '36.0000' is preserved
+                app.switchMode(ApplicationMode.SIMULATION);
+                assertEquals("36.0000", app.getEpicenterLatField().getText());
             });
         } finally {
             if (appRef[0] != null) {

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "type": "calquake-simulation-scenario",
+  "scenario_id": "custom-california-scenario-v1",
+  "name": "Custom California Scenario",
+  "created_utc": "2026-09-10T00:00:00Z",
+  "epicenter": {
+    "latitude": 35.5,
+    "longitude": -118.5
+  },
+  "magnitude": 6.5,
+  "depth_km": 10.0,
+  "intensity_display_mode": "MAXIMUM_REACHED",
+  "assumption_set": "calquake-custom-v1"
+}

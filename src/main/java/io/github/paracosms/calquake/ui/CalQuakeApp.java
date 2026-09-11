@@ -1,17 +1,23 @@
 package io.github.paracosms.calquake.ui;
 
+import io.github.paracosms.calquake.core.ApplicationMode;
 import io.github.paracosms.calquake.core.EarthquakeEvent;
+import io.github.paracosms.calquake.core.EventSource;
 import io.github.paracosms.calquake.core.FrameState;
+import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.MmiLegend;
 import io.github.paracosms.calquake.core.MmiMode;
 import io.github.paracosms.calquake.core.MonotonicClock;
 import io.github.paracosms.calquake.core.PreparedReplay;
-import io.github.paracosms.calquake.core.ReplayPreparer;
-import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.ReplayController;
 import io.github.paracosms.calquake.core.ReplayEngine;
+import io.github.paracosms.calquake.core.ReplayPreparer;
+import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.core.ScenarioInputs;
+import io.github.paracosms.calquake.core.ScenarioReferences;
+import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.TravelTimeModel;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
 import io.github.paracosms.calquake.data.ScenarioLoader;
@@ -27,9 +33,11 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Separator;
 import javafx.scene.control.Slider;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -41,8 +49,10 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 
-import java.util.Objects;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -50,10 +60,9 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Main JavaFX application for CalQuake Demo 0.
+ * Main JavaFX application for CalQuake.
  * <p>
- * Implements Stage 5: Draw the complete static demo screen at the 1280x800 validation baseline
- * using classic desktop / Frutiger Aero utility aesthetic.
+ * Supports top-level Simulation and Replay modes using classic desktop / Frutiger Aero utility aesthetic.
  */
 public class CalQuakeApp extends Application {
 
@@ -62,89 +71,151 @@ public class CalQuakeApp extends Application {
     public static final double MIN_WIDTH = 1024.0;
     public static final double MIN_HEIGHT = 640.0;
 
-    private Scenario scenario;
+    private ApplicationMode currentMode = ApplicationMode.SIMULATION;
     private CaliforniaOutline outline;
-    private ReplayController controller;
     private MapCanvasPane mapCanvasPane;
     private Stage lifecycleStage;
     private boolean windowInactive;
     private boolean wasPlayingBeforeDeactivation;
     private Throwable startupError;
+
     private final ScenarioLoader scenarioLoader = new ScenarioLoader();
     private final TravelTimeModel travelTimeModel = new HadleyKanamoriTauPModel();
     private final ReplayPreparer replayPreparer = new ReplayPreparer(travelTimeModel);
     private final AtomicLong preparationGeneration = new AtomicLong();
     private final ExecutorService preparationExecutor = Executors.newSingleThreadExecutor(new PreparationThreadFactory());
     private Map<String, ScenarioLoader.ScenarioBundle> scenarioBundles = Map.of();
-    private Scenario installedScenario;
-    private PreparedReplay preparedReplay;
+
+    // Replay mode state
+    private Scenario replayScenario;
+    private PreparedReplay replayPreparedReplay;
+    private ReplayController replayController;
+    private Button replayPlayPauseButton;
+    private Button replayRestartButton;
+    private Slider replayTimelineScrubber;
+    private boolean updatingReplayScrubber;
+    private Label replayControlStateLabel;
+    private Label replayControlTimeLabel;
+    private ComboBox<String> eventSelector;
+    private ComboBox<MmiMode> mmiModeSelector;
+    private String selectedReplayEvent = "Ridgecrest";
+    private MmiMode selectedMmiMode = MmiMode.RECORDED;
+    private VBox replaySidebar;
+
+    // Simulation mode state
+    private Scenario simulationScenario;
+    private PreparedReplay simulationPreparedReplay;
+    private ReplayController simulationController;
+    private Button simPlayPauseButton;
+    private Button simRestartButton;
+    private Slider simTimelineScrubber;
+    private boolean updatingSimScrubber;
+    private Label simControlStateLabel;
+    private Label simControlTimeLabel;
+    private TextField epicenterLatField;
+    private TextField epicenterLonField;
+    private TextField magnitudeField;
+    private TextField depthField;
+    private ComboBox<String> intensityDisplaySelector;
+    private Button applyButton;
+    private Label simSettingsStatusLabel;
+    private Button saveButton;
+    private Button importButton;
+    private VBox simulationSidebar;
+
+    // Asynchronous preparation state
     private CompletableFuture<?> preparationFuture;
     private boolean preparingReplay;
     private Throwable preparationError;
-    private MmiMode selectedMmiMode = MmiMode.RECORDED;
 
-    // Header & Mode Controls
+    // Top Header & Menus
     private MenuBar menuBar;
     private Menu calQuakeMenu;
     private Menu modeMenu;
-    private MenuItem replayMenuItem;
+    private ToggleGroup modeToggleGroup;
+    private RadioMenuItem simulationMenuItem;
+    private RadioMenuItem replayMenuItem;
     private Menu settingsMenu;
     private Button settingsButton;
 
-    // Event Selector
-    private ComboBox<String> eventSelector;
-    private ComboBox<MmiMode> mmiModeSelector;
+    // Center & Layout Containers
+    private ScrollPane sidebarScroll;
 
-    // Controls & Readouts
-    private Button playPauseButton;
-    private Button restartButton;
-    private Slider timelineScrubber;
-    private boolean updatingScrubberFromEngine;
+    // HUD & Status Readouts
+    private Label hudTitleLabel;
+    private Label hudStateLabel;
     private Label elapsedDigitsLabel;
     private Label elapsedSubLabel;
-    private Label hudStateLabel;
-    private Label controlStateLabel;
-    private Label controlTimeLabel;
     private Label statusReplayLabel;
     private AnimationTimer animationTimer;
 
     public CalQuakeApp() {
+        this.currentMode = ApplicationMode.SIMULATION;
+    }
+
+    public CalQuakeApp(ApplicationMode mode) {
+        this.currentMode = mode != null ? mode : ApplicationMode.SIMULATION;
     }
 
     public CalQuakeApp(Scenario scenario, CaliforniaOutline outline, ReplayController controller) {
-        this.scenario = scenario;
+        this(scenario, outline, controller, ApplicationMode.REPLAY);
+    }
+
+    public CalQuakeApp(Scenario scenario, CaliforniaOutline outline, ReplayController controller, ApplicationMode mode) {
         this.outline = outline;
-        this.controller = controller;
+        this.currentMode = mode != null ? mode : ApplicationMode.REPLAY;
+        if (this.currentMode == ApplicationMode.REPLAY) {
+            this.replayScenario = scenario;
+            this.replayController = controller;
+            if (controller != null && controller.engine() != null) {
+                this.replayPreparedReplay = controller.engine().preparedReplay();
+            }
+        } else {
+            this.simulationScenario = scenario;
+            this.simulationController = controller;
+            if (controller != null && controller.engine() != null) {
+                this.simulationPreparedReplay = controller.engine().preparedReplay();
+            }
+        }
     }
 
     @Override
     public void init() {
-        if (this.scenario != null && this.outline != null && this.controller != null) {
-            return;
-        }
         try {
-            // Load default frozen scenario, outline, and models
-            if (this.scenario == null) {
-                ScenarioLoader.ScenarioBundle ridgecrest = scenarioLoader.loadScenarioBundle("Ridgecrest");
-                ScenarioLoader.ScenarioBundle northridge = scenarioLoader.loadScenarioBundle("Northridge");
-                this.scenarioBundles = Map.of("Ridgecrest", ridgecrest, "Northridge", northridge);
-                this.scenario = ridgecrest.scenario();
-                this.installedScenario = this.scenario;
-            }
             if (this.outline == null) {
                 this.outline = CaliforniaOutline.loadDefault();
             }
-            if (this.controller == null) {
-                ScenarioLoader.ScenarioBundle bundle = scenarioBundles.get("Ridgecrest");
-                this.preparedReplay = replayPreparer.prepare(
-                        bundle.inputs(), bundle.references(), MmiMode.RECORDED);
-                ReplayEngine engine = ReplayEngine.createPrepared(scenario, travelTimeModel, preparedReplay);
-                this.controller = new ReplayController(
-                        scenario, engine, MonotonicClock.system(), preparedReplay.durationSeconds());
+
+            // Load Replay bundles
+            if (this.scenarioBundles.isEmpty()) {
+                ScenarioLoader.ScenarioBundle ridgecrest = scenarioLoader.loadScenarioBundle("Ridgecrest");
+                ScenarioLoader.ScenarioBundle northridge = scenarioLoader.loadScenarioBundle("Northridge");
+                this.scenarioBundles = Map.of("Ridgecrest", ridgecrest, "Northridge", northridge);
             }
-            if (this.installedScenario == null) this.installedScenario = this.controller.scenario();
-            if (this.preparedReplay == null) this.preparedReplay = this.controller.engine().preparedReplay();
-            this.selectedMmiMode = this.preparedReplay.mode();
+
+            // Initialize Replay mode if not injected
+            if (this.replayScenario == null) {
+                ScenarioLoader.ScenarioBundle bundle = scenarioBundles.get("Ridgecrest");
+                this.replayScenario = bundle.scenario();
+                this.replayPreparedReplay = replayPreparer.prepare(
+                        bundle.inputs(), bundle.references(), selectedMmiMode);
+                ReplayEngine engine = ReplayEngine.createPrepared(
+                        replayScenario, travelTimeModel, replayPreparedReplay);
+                this.replayController = new ReplayController(
+                        replayScenario, engine, MonotonicClock.system(), replayPreparedReplay.durationSeconds());
+            }
+
+            // Initialize Simulation mode if not injected
+            if (this.simulationScenario == null) {
+                ScenarioLoader.ScenarioBundle simBundle = scenarioLoader.loadStarterSimulationBundle(travelTimeModel);
+                this.simulationScenario = simBundle.scenario();
+                this.simulationPreparedReplay = replayPreparer.prepare(
+                        simBundle.inputs(), simBundle.references(), MmiMode.SIMULATED);
+                ReplayEngine simEngine = ReplayEngine.createPrepared(
+                        simulationScenario, travelTimeModel, simulationPreparedReplay);
+                this.simulationController = new ReplayController(
+                        simulationScenario, simEngine, MonotonicClock.system(), simulationPreparedReplay.durationSeconds());
+            }
         } catch (Throwable t) {
             this.startupError = t;
         }
@@ -168,13 +239,13 @@ public class CalQuakeApp extends Application {
         root.setTop(headerBar);
 
         // 2. Center: Map Canvas Viewport with Overlaid Top-Left Timer Box
-        this.mapCanvasPane = new MapCanvasPane(scenario, outline);
+        this.mapCanvasPane = new MapCanvasPane(getInstalledScenario(), outline);
         mapCanvasPane.getStyleClass().add("map-viewport-frame");
 
         StackPane centerStack = new StackPane();
         centerStack.getChildren().add(mapCanvasPane);
 
-        // Timer HUD Box Overlay (matching reference photo in top-left)
+        // Timer HUD Box Overlay in top-left
         VBox timerHudBox = buildTimerHudOverlay();
         StackPane.setAlignment(timerHudBox, Pos.TOP_LEFT);
         StackPane.setMargin(timerHudBox, new Insets(16.0, 0, 0, 16.0));
@@ -182,9 +253,11 @@ public class CalQuakeApp extends Application {
 
         root.setCenter(centerStack);
 
-        // 3. Right Sidebar: Replay Controls, Reference Locations, MMI Legend
-        VBox sidebar = buildSidebar();
-        ScrollPane sidebarScroll = new ScrollPane(sidebar);
+        // 3. Right Sidebar: Build both variants and install active mode's sidebar
+        this.simulationSidebar = buildSimulationSidebar();
+        this.replaySidebar = buildReplaySidebar();
+
+        this.sidebarScroll = new ScrollPane(currentMode == ApplicationMode.SIMULATION ? simulationSidebar : replaySidebar);
         sidebarScroll.setFitToWidth(true);
         sidebarScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         sidebarScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
@@ -196,22 +269,24 @@ public class CalQuakeApp extends Application {
         HBox statusBar = buildStatusBar();
         root.setBottom(statusBar);
 
-        // Wire button events
+        // Wire control event handlers
         setupControlHandlers();
         updateTimeDisplays();
+        updateControlStates();
 
         // 5. Animation Timer for Replay Engine Loop
         this.animationTimer = new AnimationTimer() {
             @Override
             public void handle(long now) {
-                if (controller.isPlaying()) {
-                    io.github.paracosms.calquake.core.FrameState frame = controller.tick();
+                ReplayController ctrl = getController();
+                if (ctrl != null && ctrl.isPlaying()) {
+                    FrameState frame = ctrl.tick();
                     updateTimeDisplays();
                     updateControlStates();
                     if (mapCanvasPane != null) {
                         mapCanvasPane.renderFrame(frame);
                     }
-                } else if (controller.isFinished()) {
+                } else if (ctrl != null && ctrl.isFinished()) {
                     updateControlStates();
                 }
             }
@@ -271,10 +346,11 @@ public class CalQuakeApp extends Application {
         }
 
         windowInactive = inactive;
+        ReplayController ctrl = getController();
         if (inactive) {
-            wasPlayingBeforeDeactivation = controller.isPlaying();
-            if (wasPlayingBeforeDeactivation) {
-                controller.pause();
+            wasPlayingBeforeDeactivation = ctrl != null && ctrl.isPlaying();
+            if (wasPlayingBeforeDeactivation && ctrl != null) {
+                ctrl.pause();
                 updateTimeDisplays();
                 updateControlStates();
             }
@@ -283,8 +359,8 @@ public class CalQuakeApp extends Application {
 
         boolean shouldResume = wasPlayingBeforeDeactivation;
         wasPlayingBeforeDeactivation = false;
-        if (shouldResume) {
-            controller.play();
+        if (shouldResume && ctrl != null) {
+            ctrl.play();
         }
         updateTimeDisplays();
         updateControlStates();
@@ -300,8 +376,11 @@ public class CalQuakeApp extends Application {
             if (lifecycleStage == null || !lifecycleStage.isFocused() || lifecycleStage.isIconified()) {
                 return;
             }
-            FrameState currentFrame = controller.currentFrame();
-            mapCanvasPane.refresh(currentFrame);
+            ReplayController ctrl = getController();
+            FrameState currentFrame = ctrl != null ? ctrl.currentFrame() : null;
+            if (currentFrame != null) {
+                mapCanvasPane.refresh(currentFrame);
+            }
             updateTimeDisplays();
             updateControlStates();
         });
@@ -315,14 +394,24 @@ public class CalQuakeApp extends Application {
         header.setPrefHeight(28.0);
         header.setMaxHeight(28.0);
 
-        // Top-level application header: Mode and Settings controls (Frutiger Aero / Windows 7 style)
         this.menuBar = new MenuBar();
         menuBar.getStyleClass().add("app-menu-bar");
 
-        // 1. Mode menu (dropdown with Replay only)
+        // 1. Mode menu (Simulation first and selected by default, then Replay)
         this.modeMenu = new Menu("Mode");
-        this.replayMenuItem = new MenuItem("Replay");
-        modeMenu.getItems().add(replayMenuItem);
+        this.modeToggleGroup = new ToggleGroup();
+
+        this.simulationMenuItem = new RadioMenuItem("Simulation");
+        simulationMenuItem.setToggleGroup(modeToggleGroup);
+        simulationMenuItem.setSelected(currentMode == ApplicationMode.SIMULATION);
+        simulationMenuItem.setOnAction(e -> switchMode(ApplicationMode.SIMULATION));
+
+        this.replayMenuItem = new RadioMenuItem("Replay");
+        replayMenuItem.setToggleGroup(modeToggleGroup);
+        replayMenuItem.setSelected(currentMode == ApplicationMode.REPLAY);
+        replayMenuItem.setOnAction(e -> switchMode(ApplicationMode.REPLAY));
+
+        modeMenu.getItems().addAll(simulationMenuItem, replayMenuItem);
 
         // 2. Settings menu (placeholder for later work)
         this.settingsMenu = new Menu("Settings");
@@ -330,10 +419,8 @@ public class CalQuakeApp extends Application {
         settingsItem.setDisable(true);
         settingsMenu.getItems().add(settingsItem);
 
-        // Retain calQuakeMenu reference for testing compatibility
         this.calQuakeMenu = new Menu("CalQuake");
 
-        // Nonfunctional settings button kept for backward compatibility if queried
         this.settingsButton = new Button("Settings");
         settingsButton.getStyleClass().add("button");
         settingsButton.setOnAction(e -> {});
@@ -353,13 +440,14 @@ public class CalQuakeApp extends Application {
         HBox topRow = new HBox(8.0);
         topRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label title = new Label("REPLAY ELAPSED TIME");
-        title.getStyleClass().add("timer-subtext");
+        this.hudTitleLabel = new Label(currentMode == ApplicationMode.SIMULATION
+                ? "SIMULATION ELAPSED TIME" : "REPLAY ELAPSED TIME");
+        hudTitleLabel.getStyleClass().add("timer-subtext");
 
         this.hudStateLabel = new Label("PAUSED");
         hudStateLabel.getStyleClass().add("status-badge-paused");
 
-        topRow.getChildren().addAll(title, hudStateLabel);
+        topRow.getChildren().addAll(hudTitleLabel, hudStateLabel);
 
         this.elapsedDigitsLabel = new Label("00:00:00.00");
         elapsedDigitsLabel.getStyleClass().add("timer-digits");
@@ -371,15 +459,214 @@ public class CalQuakeApp extends Application {
         return box;
     }
 
-    private VBox buildSidebar() {
+    private VBox buildSimulationSidebar() {
+        VBox sidebar = new VBox(10.0);
+        sidebar.setPadding(new Insets(10.0));
+        sidebar.setStyle("-fx-background-color: #F0F3F7;");
+
+        // Section 1: Simulation Controls
+        VBox controlsBox = buildSimulationControlsBox();
+
+        // Section 2: Simulation Settings
+        VBox settingsBox = buildSimulationSettingsBox();
+
+        // Section 3: Fixed Model Assumptions
+        VBox assumptionsBox = buildFixedAssumptionsBox();
+
+        // Section 4: Scenario File
+        VBox fileBox = buildScenarioFileBox();
+
+        // Section 5: MMI Legend
+        VBox legendBox = buildLegendBox();
+
+        // Section 6: Toy Disclaimer
+        VBox disclaimerBox = buildDisclaimerBox();
+
+        sidebar.getChildren().addAll(controlsBox, settingsBox, assumptionsBox, fileBox, legendBox, disclaimerBox);
+        return sidebar;
+    }
+
+    private VBox buildSimulationControlsBox() {
+        VBox box = new VBox(8.0);
+        box.getStyleClass().add("group-box");
+
+        Label title = new Label("Simulation Controls (Initially Paused)");
+        title.getStyleClass().add("group-box-title");
+
+        HBox buttonsRow = new HBox(8.0);
+        buttonsRow.setAlignment(Pos.CENTER_LEFT);
+
+        this.simPlayPauseButton = new Button("▶  Play");
+        simPlayPauseButton.getStyleClass().addAll("button", "button-primary");
+        simPlayPauseButton.setPrefWidth(95.0);
+
+        this.simRestartButton = new Button("⏮  Restart");
+        simRestartButton.getStyleClass().add("button");
+        simRestartButton.setPrefWidth(95.0);
+
+        buttonsRow.getChildren().addAll(simPlayPauseButton, simRestartButton);
+
+        double duration = simulationController != null ? simulationController.durationSeconds() : 120.0;
+        this.simTimelineScrubber = new Slider(0.0, duration, 0.0);
+        simTimelineScrubber.getStyleClass().add("timeline-scrubber");
+        simTimelineScrubber.setMaxWidth(Double.MAX_VALUE);
+        simTimelineScrubber.setBlockIncrement(1.0);
+        simTimelineScrubber.setMajorTickUnit(Math.max(5.0, duration / 4.0));
+        simTimelineScrubber.setMinorTickCount(5);
+        simTimelineScrubber.setShowTickMarks(true);
+        simTimelineScrubber.setShowTickLabels(false);
+
+        VBox statusInfo = new VBox(2.0);
+        this.simControlStateLabel = new Label("State: PAUSED (Ready)");
+        simControlStateLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #1E293B;");
+
+        this.simControlTimeLabel = new Label("Elapsed: 0.00 s");
+        simControlTimeLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #475569;");
+
+        statusInfo.getChildren().addAll(simControlStateLabel, simControlTimeLabel);
+
+        VBox frontLegendBox = buildWavefrontLegendBox();
+
+        box.getChildren().addAll(title, buttonsRow, simTimelineScrubber, statusInfo, frontLegendBox);
+        return box;
+    }
+
+    private VBox buildSimulationSettingsBox() {
+        VBox box = new VBox(6.0);
+        box.getStyleClass().add("group-box");
+
+        Label title = new Label("Simulation Settings");
+        title.getStyleClass().add("group-box-title");
+
+        Label subtitle = new Label("Enter custom earthquake parameters:");
+        subtitle.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #64748B;");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(8.0);
+        grid.setVgap(6.0);
+
+        Label latLabel = new Label("Epicenter Latitude:");
+        latLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        this.epicenterLatField = new TextField("35.5000");
+        epicenterLatField.setPrefWidth(120.0);
+
+        Label lonLabel = new Label("Epicenter Longitude:");
+        lonLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        this.epicenterLonField = new TextField("-118.5000");
+        epicenterLonField.setPrefWidth(120.0);
+
+        Label magLabel = new Label("Magnitude (Mw):");
+        magLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        this.magnitudeField = new TextField("6.5");
+        magnitudeField.setPrefWidth(120.0);
+
+        Label depthLabel = new Label("Depth (km):");
+        depthLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        this.depthField = new TextField("10.0");
+        depthField.setPrefWidth(120.0);
+
+        Label displayLabel = new Label("Intensity Display:");
+        displayLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        this.intensityDisplaySelector = new ComboBox<>();
+        intensityDisplaySelector.getItems().addAll(
+                "Maximum estimated MMI reached",
+                "Current estimated shaking"
+        );
+        intensityDisplaySelector.setValue("Maximum estimated MMI reached");
+        intensityDisplaySelector.setMaxWidth(Double.MAX_VALUE);
+
+        grid.add(latLabel, 0, 0);
+        grid.add(epicenterLatField, 1, 0);
+        grid.add(lonLabel, 0, 1);
+        grid.add(epicenterLonField, 1, 1);
+        grid.add(magLabel, 0, 2);
+        grid.add(magnitudeField, 1, 2);
+        grid.add(depthLabel, 0, 3);
+        grid.add(depthField, 1, 3);
+
+        this.applyButton = new Button("Apply / Prepare");
+        applyButton.getStyleClass().addAll("button", "button-primary");
+        applyButton.setMaxWidth(Double.MAX_VALUE);
+
+        this.simSettingsStatusLabel = new Label("Ready");
+        simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+        simSettingsStatusLabel.setWrapText(true);
+
+        box.getChildren().addAll(title, subtitle, grid, displayLabel, intensityDisplaySelector, applyButton, simSettingsStatusLabel);
+        return box;
+    }
+
+    private VBox buildFixedAssumptionsBox() {
+        VBox box = new VBox(4.0);
+        box.getStyleClass().add("group-box");
+
+        Label title = new Label("Fixed Model Assumptions");
+        title.getStyleClass().add("group-box-title");
+
+        Label l1 = new Label("• Rupture: Wells & Coppersmith (1994) all-slip");
+        l1.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        Label l2 = new Label("• Mechanism: Generic strike-slip (0° / 0° / 90°)");
+        l2.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        Label l3 = new Label("• Site condition: Reference rock, Vs30 760 m/s");
+        l3.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        Label l4 = new Label("• GMPE / GMICE: BSSA14 / Worden et al. (2012)");
+        l4.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        Label l5 = new Label("• Assumption set: calquake-custom-v1 (read-only)");
+        l5.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #64748B;");
+
+        box.getChildren().addAll(title, l1, l2, l3, l4, l5);
+        return box;
+    }
+
+    private VBox buildScenarioFileBox() {
+        VBox box = new VBox(6.0);
+        box.getStyleClass().add("group-box");
+
+        Label title = new Label("Scenario File");
+        title.getStyleClass().add("group-box-title");
+
+        HBox buttonsRow = new HBox(8.0);
+        buttonsRow.setAlignment(Pos.CENTER_LEFT);
+
+        this.saveButton = new Button("Save to File…");
+        saveButton.getStyleClass().add("button");
+        saveButton.setPrefWidth(120.0);
+        saveButton.setDisable(true);
+
+        this.importButton = new Button("Import…");
+        importButton.getStyleClass().add("button");
+        importButton.setPrefWidth(120.0);
+        importButton.setDisable(true);
+
+        buttonsRow.getChildren().addAll(saveButton, importButton);
+        box.getChildren().addAll(title, buttonsRow);
+        return box;
+    }
+
+    private VBox buildDisclaimerBox() {
+        VBox box = new VBox(4.0);
+        box.setStyle("-fx-background-color: #FEF2F2; -fx-border-color: #FCA5A5; -fx-border-width: 1px; -fx-border-radius: 3px; -fx-padding: 8px;");
+
+        Label title = new Label("⚠ Exploratory Toy Simulation");
+        title.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #991B1B;");
+
+        Label text = new Label("Simulation is an exploratory toy. It is not a forecast, emergency tool, hazard product, or scientifically validated prediction of a future earthquake.");
+        text.setWrapText(true);
+        text.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #7F1D1D;");
+
+        box.getChildren().addAll(title, text);
+        return box;
+    }
+
+    private VBox buildReplaySidebar() {
         VBox sidebar = new VBox(10.0);
         sidebar.setPadding(new Insets(10.0));
         sidebar.setStyle("-fx-background-color: #F0F3F7;");
 
         // Section 1: Replay Controls
-        VBox controlsBox = buildControlsBox();
+        VBox controlsBox = buildReplayControlsBox();
 
-        // Section 2: Compact Event Selector (replaces Five Reference Locations)
+        // Section 2: Event Selector (retains Ridgecrest/Northridge and Recorded/Simulated)
         VBox eventBox = buildEventSelectorBox();
 
         // Section 3: USGS ShakeMap MMI Legend
@@ -389,7 +676,7 @@ public class CalQuakeApp extends Application {
         return sidebar;
     }
 
-    private VBox buildControlsBox() {
+    private VBox buildReplayControlsBox() {
         VBox box = new VBox(8.0);
         box.getStyleClass().add("group-box");
 
@@ -399,35 +686,42 @@ public class CalQuakeApp extends Application {
         HBox buttonsRow = new HBox(8.0);
         buttonsRow.setAlignment(Pos.CENTER_LEFT);
 
-        this.playPauseButton = new Button("▶  Play");
-        playPauseButton.getStyleClass().addAll("button", "button-primary");
-        playPauseButton.setPrefWidth(95.0);
+        this.replayPlayPauseButton = new Button("▶  Play");
+        replayPlayPauseButton.getStyleClass().addAll("button", "button-primary");
+        replayPlayPauseButton.setPrefWidth(95.0);
 
-        this.restartButton = new Button("⏮  Restart");
-        restartButton.getStyleClass().add("button");
-        restartButton.setPrefWidth(95.0);
+        this.replayRestartButton = new Button("⏮  Restart");
+        replayRestartButton.getStyleClass().add("button");
+        replayRestartButton.setPrefWidth(95.0);
 
-        buttonsRow.getChildren().addAll(playPauseButton, restartButton);
+        buttonsRow.getChildren().addAll(replayPlayPauseButton, replayRestartButton);
 
-        this.timelineScrubber = new Slider(0.0, controller.durationSeconds(), 0.0);
-        timelineScrubber.getStyleClass().add("timeline-scrubber");
-        timelineScrubber.setMaxWidth(Double.MAX_VALUE);
-        timelineScrubber.setBlockIncrement(1.0);
-        timelineScrubber.setMajorTickUnit(30.0);
-        timelineScrubber.setMinorTickCount(5);
-        timelineScrubber.setShowTickMarks(true);
-        timelineScrubber.setShowTickLabels(false);
+        double duration = replayController != null ? replayController.durationSeconds() : 120.0;
+        this.replayTimelineScrubber = new Slider(0.0, duration, 0.0);
+        replayTimelineScrubber.getStyleClass().add("timeline-scrubber");
+        replayTimelineScrubber.setMaxWidth(Double.MAX_VALUE);
+        replayTimelineScrubber.setBlockIncrement(1.0);
+        replayTimelineScrubber.setMajorTickUnit(Math.max(5.0, duration / 4.0));
+        replayTimelineScrubber.setMinorTickCount(5);
+        replayTimelineScrubber.setShowTickMarks(true);
+        replayTimelineScrubber.setShowTickLabels(false);
 
         VBox statusInfo = new VBox(2.0);
-        this.controlStateLabel = new Label("State: PAUSED (Ready)");
-        controlStateLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #1E293B;");
+        this.replayControlStateLabel = new Label("State: PAUSED (Ready)");
+        replayControlStateLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #1E293B;");
 
-        this.controlTimeLabel = new Label("Elapsed: 0.00 s");
-        controlTimeLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #475569;");
+        this.replayControlTimeLabel = new Label("Elapsed: 0.00 s");
+        replayControlTimeLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #475569;");
 
-        statusInfo.getChildren().addAll(controlStateLabel, controlTimeLabel);
+        statusInfo.getChildren().addAll(replayControlStateLabel, replayControlTimeLabel);
 
-        // Wavefront legend indicators
+        VBox frontLegendBox = buildWavefrontLegendBox();
+
+        box.getChildren().addAll(title, buttonsRow, replayTimelineScrubber, statusInfo, frontLegendBox);
+        return box;
+    }
+
+    private VBox buildWavefrontLegendBox() {
         VBox frontLegendBox = new VBox(4.0);
         frontLegendBox.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 6px; -fx-border-color: #CBD5E1; -fx-border-width: 1px; -fx-border-radius: 3px;");
 
@@ -454,9 +748,7 @@ public class CalQuakeApp extends Application {
         sRow.getChildren().addAll(sLine, sText);
 
         frontLegendBox.getChildren().addAll(frontTitle, pRow, sRow);
-
-        box.getChildren().addAll(title, buttonsRow, timelineScrubber, statusInfo, frontLegendBox);
-        return box;
+        return frontLegendBox;
     }
 
     private VBox buildEventSelectorBox() {
@@ -471,8 +763,8 @@ public class CalQuakeApp extends Application {
 
         this.eventSelector = new ComboBox<>();
         eventSelector.getItems().addAll("Ridgecrest", "Northridge");
-        boolean isNorthridge = scenario != null && scenario.event() != null && "ci3144585".equals(scenario.event().id());
-        eventSelector.setValue(isNorthridge ? "Northridge" : "Ridgecrest");
+        boolean isNorthridge = replayScenario != null && replayScenario.event() != null && "ci3144585".equals(replayScenario.event().id());
+        eventSelector.setValue(isNorthridge ? "Northridge" : selectedReplayEvent);
         eventSelector.setMaxWidth(Double.MAX_VALUE);
         eventSelector.getStyleClass().add("event-selector");
 
@@ -503,7 +795,6 @@ public class CalQuakeApp extends Application {
 
         int r = 0;
         for (MmiLegend.MmiBin bin : MmiLegend.ALL_BINS) {
-            // Color Swatch
             Rectangle swatch = new Rectangle(20.0, 14.0, Color.web(bin.colorHex()));
             swatch.setStroke(Color.web("#94A3B8"));
             swatch.setStrokeWidth(0.8);
@@ -547,7 +838,8 @@ public class CalQuakeApp extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        this.statusReplayLabel = new Label("Replay: READY");
+        this.statusReplayLabel = new Label(currentMode == ApplicationMode.SIMULATION
+                ? "Simulation: READY" : "Replay: READY");
         statusReplayLabel.getStyleClass().add("status-pane");
         statusReplayLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
 
@@ -555,101 +847,276 @@ public class CalQuakeApp extends Application {
         return bar;
     }
 
+    public void switchMode(ApplicationMode newMode) {
+        if (newMode == null || newMode == this.currentMode) {
+            return;
+        }
+
+        // 1. Pause and reset active playback on the leaving mode
+        ReplayController leavingController = getController();
+        if (leavingController != null) {
+            if (leavingController.isPlaying()) {
+                leavingController.pause();
+            }
+            leavingController.restart();
+        }
+        this.wasPlayingBeforeDeactivation = false;
+
+        // 2. Cancel or supersede pending background preparation
+        preparationGeneration.incrementAndGet();
+        this.preparingReplay = false;
+        this.preparationError = null;
+
+        // 3. Update currentMode and sync menu selections
+        this.currentMode = newMode;
+        if (simulationMenuItem != null && replayMenuItem != null) {
+            if (currentMode == ApplicationMode.SIMULATION && !simulationMenuItem.isSelected()) {
+                simulationMenuItem.setSelected(true);
+            } else if (currentMode == ApplicationMode.REPLAY && !replayMenuItem.isSelected()) {
+                replayMenuItem.setSelected(true);
+            }
+        }
+
+        // 4. Atomically swap sidebar
+        VBox newSidebar = (currentMode == ApplicationMode.SIMULATION) ? simulationSidebar : replaySidebar;
+        if (sidebarScroll != null) {
+            sidebarScroll.setContent(newSidebar);
+        }
+
+        // 5. Reset incoming controller to T + 0
+        ReplayController enteringController = getController();
+        if (enteringController != null) {
+            if (enteringController.isPlaying()) {
+                enteringController.pause();
+            }
+            enteringController.restart();
+        }
+
+        // 6. Redraw map canvas pane with the incoming scenario and reset frame
+        if (mapCanvasPane != null) {
+            mapCanvasPane.setScenario(getInstalledScenario());
+            if (enteringController != null) {
+                mapCanvasPane.renderFrame(enteringController.currentFrame());
+            }
+        }
+
+        // 7. Update HUD title and control states
+        if (hudTitleLabel != null) {
+            hudTitleLabel.setText(currentMode == ApplicationMode.SIMULATION
+                    ? "SIMULATION ELAPSED TIME" : "REPLAY ELAPSED TIME");
+        }
+        updateControlStates();
+        updateTimeDisplays();
+    }
+
     private void setupControlHandlers() {
-        playPauseButton.setOnAction(e -> {
-            controller.togglePlayPause();
-            updateControlStates();
-            updateTimeDisplays();
-            if (mapCanvasPane != null) {
-                mapCanvasPane.renderFrame(controller.currentFrame());
-            }
-        });
+        // Simulation Controls
+        if (simPlayPauseButton != null) {
+            simPlayPauseButton.setOnAction(e -> {
+                if (simulationController != null) {
+                    simulationController.togglePlayPause();
+                    updateControlStates();
+                    updateTimeDisplays();
+                    if (mapCanvasPane != null) {
+                        mapCanvasPane.renderFrame(simulationController.currentFrame());
+                    }
+                }
+            });
+        }
 
-        restartButton.setOnAction(e -> {
-            controller.restart();
-            wasPlayingBeforeDeactivation = false;
-            updateControlStates();
-            updateTimeDisplays();
-            if (mapCanvasPane != null) {
-                mapCanvasPane.renderFrame(controller.currentFrame());
-            }
-        });
+        if (simRestartButton != null) {
+            simRestartButton.setOnAction(e -> {
+                if (simulationController != null) {
+                    simulationController.restart();
+                    wasPlayingBeforeDeactivation = false;
+                    updateControlStates();
+                    updateTimeDisplays();
+                    if (mapCanvasPane != null) {
+                        mapCanvasPane.renderFrame(simulationController.currentFrame());
+                    }
+                }
+            });
+        }
 
-        timelineScrubber.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (updatingScrubberFromEngine) {
-                return;
-            }
-            controller.seek(newVal.doubleValue());
-            updateControlStates();
-            updateTimeDisplays();
-            if (mapCanvasPane != null) {
-                mapCanvasPane.renderFrame(controller.currentFrame());
-            }
-        });
-
-        timelineScrubber.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
-            if (!isChanging) {
-                controller.seek(timelineScrubber.getValue());
+        if (simTimelineScrubber != null) {
+            simTimelineScrubber.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (updatingSimScrubber || simulationController == null) return;
+                simulationController.seek(newVal.doubleValue());
                 updateControlStates();
                 updateTimeDisplays();
                 if (mapCanvasPane != null) {
-                    mapCanvasPane.renderFrame(controller.currentFrame());
+                    mapCanvasPane.renderFrame(simulationController.currentFrame());
                 }
-            }
-        });
+            });
+            simTimelineScrubber.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
+                if (!isChanging && simulationController != null) {
+                    simulationController.seek(simTimelineScrubber.getValue());
+                    updateControlStates();
+                    updateTimeDisplays();
+                    if (mapCanvasPane != null) {
+                        mapCanvasPane.renderFrame(simulationController.currentFrame());
+                    }
+                }
+            });
+        }
 
-        eventSelector.setOnAction(e -> {
-            String selected = eventSelector.getValue();
-            if (selected != null) {
-                selectEvent(selected);
-            }
-        });
+        if (applyButton != null) {
+            applyButton.setOnAction(e -> handleApplySettings());
+        }
 
-        mmiModeSelector.setOnAction(e -> {
-            MmiMode selected = mmiModeSelector.getValue();
-            if (selected != null && selected != selectedMmiMode) {
-                selectedMmiMode = selected;
-                requestPreparation(eventSelector.getValue(), selectedMmiMode);
+        // Replay Controls
+        if (replayPlayPauseButton != null) {
+            replayPlayPauseButton.setOnAction(e -> {
+                if (replayController != null) {
+                    replayController.togglePlayPause();
+                    updateControlStates();
+                    updateTimeDisplays();
+                    if (mapCanvasPane != null) {
+                        mapCanvasPane.renderFrame(replayController.currentFrame());
+                    }
+                }
+            });
+        }
+
+        if (replayRestartButton != null) {
+            replayRestartButton.setOnAction(e -> {
+                if (replayController != null) {
+                    replayController.restart();
+                    wasPlayingBeforeDeactivation = false;
+                    updateControlStates();
+                    updateTimeDisplays();
+                    if (mapCanvasPane != null) {
+                        mapCanvasPane.renderFrame(replayController.currentFrame());
+                    }
+                }
+            });
+        }
+
+        if (replayTimelineScrubber != null) {
+            replayTimelineScrubber.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (updatingReplayScrubber || replayController == null) return;
+                replayController.seek(newVal.doubleValue());
+                updateControlStates();
+                updateTimeDisplays();
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.renderFrame(replayController.currentFrame());
+                }
+            });
+            replayTimelineScrubber.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
+                if (!isChanging && replayController != null) {
+                    replayController.seek(replayTimelineScrubber.getValue());
+                    updateControlStates();
+                    updateTimeDisplays();
+                    if (mapCanvasPane != null) {
+                        mapCanvasPane.renderFrame(replayController.currentFrame());
+                    }
+                }
+            });
+        }
+
+        if (eventSelector != null) {
+            eventSelector.setOnAction(e -> {
+                String selected = eventSelector.getValue();
+                if (selected != null) {
+                    selectEvent(selected);
+                }
+            });
+            eventSelector.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null) {
+                    selectEvent(newVal);
+                }
+            });
+        }
+
+        if (mmiModeSelector != null) {
+            mmiModeSelector.setOnAction(e -> {
+                MmiMode selected = mmiModeSelector.getValue();
+                if (selected != null && selected != selectedMmiMode) {
+                    selectedMmiMode = selected;
+                    requestReplayPreparation(eventSelector != null ? eventSelector.getValue() : selectedReplayEvent, selectedMmiMode);
+                }
+            });
+            mmiModeSelector.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null && newVal != selectedMmiMode) {
+                    selectedMmiMode = newVal;
+                    requestReplayPreparation(eventSelector != null ? eventSelector.getValue() : selectedReplayEvent, selectedMmiMode);
+                }
+            });
+        }
+    }
+
+    private void handleApplySettings() {
+        try {
+            double lat = Double.parseDouble(epicenterLatField.getText().trim());
+            double lon = Double.parseDouble(epicenterLonField.getText().trim());
+            double mag = Double.parseDouble(magnitudeField.getText().trim());
+            double depth = Double.parseDouble(depthField.getText().trim());
+
+            if (!Double.isFinite(lat) || lat < -90.0 || lat > 90.0) {
+                simSettingsStatusLabel.setText("Error: Latitude must be between -90 and 90");
+                return;
             }
-        });
+            if (!Double.isFinite(lon) || lon < -180.0 || lon > 180.0) {
+                simSettingsStatusLabel.setText("Error: Longitude must be between -180 and 180");
+                return;
+            }
+            if (!Double.isFinite(depth) || depth < 0.0) {
+                simSettingsStatusLabel.setText("Error: Depth must be non-negative");
+                return;
+            }
+            if (!Double.isFinite(mag)) {
+                simSettingsStatusLabel.setText("Error: Magnitude must be finite");
+                return;
+            }
+            simSettingsStatusLabel.setText("Preparing scenario...");
+            requestSimulationPreparation(lat, lon, mag, depth);
+        } catch (NumberFormatException e) {
+            simSettingsStatusLabel.setText("Error: All fields must be valid numeric values");
+        }
     }
 
     public void selectEvent(String eventName) {
         if (eventName == null) {
             return;
         }
-        if (installedScenario != null && installedScenario.event() != null && !preparingReplay) {
-            boolean isNorthridge = "ci3144585".equals(installedScenario.event().id());
+        if (replayScenario != null && replayScenario.event() != null && !preparingReplay) {
+            boolean isNorthridge = "ci3144585".equals(replayScenario.event().id());
             boolean wantsNorthridge = eventName.equalsIgnoreCase("Northridge") || eventName.equalsIgnoreCase("ci3144585");
             if (isNorthridge == wantsNorthridge) {
                 return;
             }
         }
 
-        if (controller != null && controller.isPlaying()) {
-            controller.pause();
+        if (replayController != null && replayController.isPlaying()) {
+            replayController.pause();
         }
         this.wasPlayingBeforeDeactivation = false;
 
         boolean wantsNorthridge = eventName.equalsIgnoreCase("Northridge") || eventName.equalsIgnoreCase("ci3144585");
         String targetValue = wantsNorthridge ? "Northridge" : "Ridgecrest";
+        this.selectedReplayEvent = targetValue;
         if (eventSelector != null && !targetValue.equals(eventSelector.getValue())) {
             eventSelector.setValue(targetValue);
             return;
         }
-        requestPreparation(targetValue, selectedMmiMode);
+        requestReplayPreparation(targetValue, selectedMmiMode);
     }
 
-    private void requestPreparation(String eventName, MmiMode mode) {
+    public void requestPreparation(String eventName, MmiMode mode) {
+        requestReplayPreparation(eventName, mode);
+    }
+
+    private void requestReplayPreparation(String eventName, MmiMode mode) {
         if (eventName == null || mode == null) return;
-        if (controller != null) {
-            controller.pause();
-            controller.restart();
+        if (replayController != null) {
+            replayController.pause();
+            replayController.restart();
         }
         wasPlayingBeforeDeactivation = false;
         preparingReplay = true;
         preparationError = null;
         long generation = preparationGeneration.incrementAndGet();
+        ApplicationMode targetMode = ApplicationMode.REPLAY;
         updateControlStates();
         updateTimeDisplays();
 
@@ -658,9 +1125,52 @@ public class CalQuakeApp extends Application {
             ScenarioLoader.ScenarioBundle bundle = knownBundle != null
                     ? knownBundle : scenarioLoader.loadScenarioBundle(eventName);
             PreparedReplay replay = replayPreparer.prepare(bundle.inputs(), bundle.references(), mode);
-            return new PreparedInstallation(bundle, replay);
+            return new PreparedInstallation(bundle, replay, targetMode);
         }, preparationExecutor).whenComplete((installation, failure) -> Platform.runLater(() -> {
-            if (generation != preparationGeneration.get()) return;
+            if (generation != preparationGeneration.get() || currentMode != targetMode) return;
+            if (failure != null) {
+                preparingReplay = false;
+                preparationError = unwrapCompletionFailure(failure);
+                updateControlStates();
+                return;
+            }
+            installPreparedReplay(installation);
+        }));
+    }
+
+    public void requestSimulationPreparation(double lat, double lon, double magnitude, double depthKm) {
+        if (simulationController != null) {
+            simulationController.pause();
+            simulationController.restart();
+        }
+        wasPlayingBeforeDeactivation = false;
+        preparingReplay = true;
+        preparationError = null;
+        long generation = preparationGeneration.incrementAndGet();
+        ApplicationMode targetMode = ApplicationMode.SIMULATION;
+        updateControlStates();
+        updateTimeDisplays();
+
+        preparationFuture = CompletableFuture.supplyAsync(() -> {
+            GeoPoint epicenter = new GeoPoint(lat, lon);
+            EarthquakeEvent event = new EarthquakeEvent(
+                    "custom-california-scenario-v1", "calquake", "Custom California Scenario",
+                    Instant.now(), epicenter, depthKm, magnitude, "mw", "");
+            List<ReferenceLocation> locations = simulationScenario != null
+                    ? simulationScenario.locations()
+                    : scenarioLoader.loadStarterSimulationScenario().locations();
+            Scenario scenario = new Scenario(event, locations);
+            List<SimulationSite> sites = locations.stream()
+                    .map(SimulationSite::fromReferenceLocation)
+                    .toList();
+            ScenarioInputs inputs = ScenarioInputs.forCustomScenario(
+                    EventSource.from(event), sites, travelTimeModel);
+            PreparedReplay replay = replayPreparer.prepare(inputs, new ScenarioReferences(Map.of()), MmiMode.SIMULATED);
+            ScenarioLoader.ScenarioBundle bundle = new ScenarioLoader.ScenarioBundle(
+                    scenario, inputs, new ScenarioReferences(Map.of()));
+            return new PreparedInstallation(bundle, replay, targetMode);
+        }, preparationExecutor).whenComplete((installation, failure) -> Platform.runLater(() -> {
+            if (generation != preparationGeneration.get() || currentMode != targetMode) return;
             if (failure != null) {
                 preparingReplay = false;
                 preparationError = unwrapCompletionFailure(failure);
@@ -672,27 +1182,56 @@ public class CalQuakeApp extends Application {
     }
 
     private void installPreparedReplay(PreparedInstallation installation) {
-        MonotonicClock clock = controller != null ? controller.clock() : MonotonicClock.system();
-        ReplayEngine engine = ReplayEngine.createPrepared(
-                installation.bundle().scenario(), travelTimeModel, installation.replay());
-        ReplayController replacement = new ReplayController(
-                installation.bundle().scenario(), engine, clock, installation.replay().durationSeconds());
-        this.preparedReplay = installation.replay();
-        this.installedScenario = installation.bundle().scenario();
-        this.scenario = installation.bundle().scenario();
-        this.controller = replacement;
-        this.preparingReplay = false;
-        this.preparationError = null;
-        if (mapCanvasPane != null) {
-            mapCanvasPane.setScenario(installedScenario);
-            mapCanvasPane.renderFrame(controller.currentFrame());
+        if (installation.mode() == ApplicationMode.REPLAY) {
+            MonotonicClock clock = replayController != null ? replayController.clock() : MonotonicClock.system();
+            ReplayEngine engine = ReplayEngine.createPrepared(
+                    installation.bundle().scenario(), travelTimeModel, installation.replay());
+            ReplayController replacement = new ReplayController(
+                    installation.bundle().scenario(), engine, clock, installation.replay().durationSeconds());
+            this.replayPreparedReplay = installation.replay();
+            this.replayScenario = installation.bundle().scenario();
+            this.replayController = replacement;
+            this.preparingReplay = false;
+            this.preparationError = null;
+            if (currentMode == ApplicationMode.REPLAY) {
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.setScenario(replayScenario);
+                    mapCanvasPane.renderFrame(replayController.currentFrame());
+                }
+                if (replayTimelineScrubber != null) {
+                    replayTimelineScrubber.setMax(replayController.durationSeconds());
+                    replayTimelineScrubber.setMajorTickUnit(Math.max(5.0, replayController.durationSeconds() / 4.0));
+                }
+                updateControlStates();
+                updateTimeDisplays();
+            }
+        } else {
+            MonotonicClock clock = simulationController != null ? simulationController.clock() : MonotonicClock.system();
+            ReplayEngine engine = ReplayEngine.createPrepared(
+                    installation.bundle().scenario(), travelTimeModel, installation.replay());
+            ReplayController replacement = new ReplayController(
+                    installation.bundle().scenario(), engine, clock, installation.replay().durationSeconds());
+            this.simulationPreparedReplay = installation.replay();
+            this.simulationScenario = installation.bundle().scenario();
+            this.simulationController = replacement;
+            this.preparingReplay = false;
+            this.preparationError = null;
+            if (currentMode == ApplicationMode.SIMULATION) {
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.setScenario(simulationScenario);
+                    mapCanvasPane.renderFrame(simulationController.currentFrame());
+                }
+                if (simTimelineScrubber != null) {
+                    simTimelineScrubber.setMax(simulationController.durationSeconds());
+                    simTimelineScrubber.setMajorTickUnit(Math.max(5.0, simulationController.durationSeconds() / 4.0));
+                }
+                if (simSettingsStatusLabel != null) {
+                    simSettingsStatusLabel.setText("Ready");
+                }
+                updateControlStates();
+                updateTimeDisplays();
+            }
         }
-        if (timelineScrubber != null) {
-            timelineScrubber.setMax(controller.durationSeconds());
-            timelineScrubber.setMajorTickUnit(Math.max(5.0, controller.durationSeconds() / 4.0));
-        }
-        updateControlStates();
-        updateTimeDisplays();
     }
 
     private static Throwable unwrapCompletionFailure(Throwable failure) {
@@ -704,84 +1243,142 @@ public class CalQuakeApp extends Application {
     }
 
     void updateControlStates() {
-        double elapsed = controller.elapsedSeconds();
+        ReplayController ctrl = getController();
+        if (ctrl == null) return;
+        double elapsed = ctrl.elapsedSeconds();
+
+        Button activePlayBtn = getPlayPauseButton();
+        Slider activeScrubber = getTimelineScrubber();
+        Label activeStateLbl = getControlStateLabel();
+
+        // Lock Simulation settings fields during active playback
+        if (currentMode == ApplicationMode.SIMULATION) {
+            boolean isPlaying = ctrl.isPlaying();
+            if (epicenterLatField != null) epicenterLatField.setDisable(isPlaying);
+            if (epicenterLonField != null) epicenterLonField.setDisable(isPlaying);
+            if (magnitudeField != null) magnitudeField.setDisable(isPlaying);
+            if (depthField != null) depthField.setDisable(isPlaying);
+            if (intensityDisplaySelector != null) intensityDisplaySelector.setDisable(isPlaying);
+            if (applyButton != null) applyButton.setDisable(isPlaying || preparingReplay);
+        }
+
         if (preparingReplay) {
-            playPauseButton.setDisable(true);
-            timelineScrubber.setDisable(true);
-            hudStateLabel.setText("PREPARING");
-            hudStateLabel.getStyleClass().setAll("status-badge-paused");
-            controlStateLabel.setText("Preparing replay...");
-            if (statusReplayLabel != null) statusReplayLabel.setText("Preparing replay...");
+            if (activePlayBtn != null) activePlayBtn.setDisable(true);
+            if (activeScrubber != null) activeScrubber.setDisable(true);
+            if (hudStateLabel != null) {
+                hudStateLabel.setText("PREPARING");
+                hudStateLabel.getStyleClass().setAll("status-badge-paused");
+            }
+            if (activeStateLbl != null) {
+                activeStateLbl.setText("Preparing " + (currentMode == ApplicationMode.SIMULATION ? "simulation..." : "replay..."));
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Preparing " + (currentMode == ApplicationMode.SIMULATION ? "simulation..." : "replay..."));
+            }
             return;
         }
+
         if (preparationError != null) {
-            playPauseButton.setDisable(true);
-            timelineScrubber.setDisable(true);
-            hudStateLabel.setText("ERROR");
-            hudStateLabel.getStyleClass().setAll("status-badge-finished");
+            if (activePlayBtn != null) activePlayBtn.setDisable(true);
+            if (activeScrubber != null) activeScrubber.setDisable(true);
+            if (hudStateLabel != null) {
+                hudStateLabel.setText("ERROR");
+                hudStateLabel.getStyleClass().setAll("status-badge-finished");
+            }
             String message = preparationError.getMessage() != null
                     ? preparationError.getMessage() : preparationError.getClass().getSimpleName();
-            controlStateLabel.setText("Preparation failed: " + message);
-            if (statusReplayLabel != null) statusReplayLabel.setText("Replay preparation failed: " + message);
+            if (activeStateLbl != null) activeStateLbl.setText("Preparation failed: " + message);
+            if (statusReplayLabel != null) statusReplayLabel.setText("Preparation failed: " + message);
             return;
         }
-        timelineScrubber.setDisable(false);
-        if (controller.isPlaying()) {
-            playPauseButton.setDisable(false);
-            playPauseButton.setText("⏸  Pause");
-            hudStateLabel.setText("PLAYING");
-            hudStateLabel.getStyleClass().setAll("status-badge-playing");
-            controlStateLabel.setText("State: PLAYING");
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText(String.format("Replay: PLAYING (T + %.1f s)", elapsed));
+
+        if (activeScrubber != null) activeScrubber.setDisable(false);
+
+        if (ctrl.isPlaying()) {
+            if (activePlayBtn != null) {
+                activePlayBtn.setDisable(false);
+                activePlayBtn.setText("⏸  Pause");
             }
-        } else if (controller.isPaused()) {
-            playPauseButton.setDisable(false);
-            playPauseButton.setText("▶  Play");
-            hudStateLabel.setText("PAUSED");
-            hudStateLabel.getStyleClass().setAll("status-badge-paused");
+            if (hudStateLabel != null) {
+                hudStateLabel.setText("PLAYING");
+                hudStateLabel.getStyleClass().setAll("status-badge-playing");
+            }
+            if (activeStateLbl != null) activeStateLbl.setText("State: PLAYING");
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText(String.format("%s: PLAYING (T + %.1f s)", currentMode.displayName(), elapsed));
+            }
+        } else if (ctrl.isPaused()) {
+            if (activePlayBtn != null) {
+                activePlayBtn.setDisable(false);
+                activePlayBtn.setText("▶  Play");
+            }
+            if (hudStateLabel != null) {
+                hudStateLabel.setText("PAUSED");
+                hudStateLabel.getStyleClass().setAll("status-badge-paused");
+            }
             if (elapsed == 0.0) {
-                controlStateLabel.setText("State: PAUSED (Ready)");
+                if (activeStateLbl != null) activeStateLbl.setText("State: PAUSED (Ready)");
                 if (statusReplayLabel != null) {
-                    statusReplayLabel.setText(String.format("Replay: READY (0.00s / %.2fs)", controller.durationSeconds()));
+                    statusReplayLabel.setText(String.format("%s: READY (0.00s / %.2fs)", currentMode.displayName(), ctrl.durationSeconds()));
                 }
             } else {
-                controlStateLabel.setText("State: PAUSED");
+                if (activeStateLbl != null) activeStateLbl.setText("State: PAUSED");
                 if (statusReplayLabel != null) {
-                    statusReplayLabel.setText(String.format("Replay: PAUSED (T + %.1f s)", elapsed));
+                    statusReplayLabel.setText(String.format("%s: PAUSED (T + %.1f s)", currentMode.displayName(), elapsed));
                 }
             }
-        } else if (controller.isFinished()) {
-            playPauseButton.setDisable(true);
-            playPauseButton.setText("▶  Play");
-            hudStateLabel.setText("FINISHED");
-            hudStateLabel.getStyleClass().setAll("status-badge-finished");
-            controlStateLabel.setText("State: FINISHED (Require Restart)");
+        } else if (ctrl.isFinished()) {
+            if (activePlayBtn != null) {
+                activePlayBtn.setDisable(true);
+                activePlayBtn.setText("▶  Play");
+            }
+            if (hudStateLabel != null) {
+                hudStateLabel.setText("FINISHED");
+                hudStateLabel.getStyleClass().setAll("status-badge-finished");
+            }
+            if (activeStateLbl != null) activeStateLbl.setText("State: FINISHED (Require Restart)");
             if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Replay: FINISHED (Require Restart)");
+                statusReplayLabel.setText(String.format("%s: FINISHED (Require Restart)", currentMode.displayName()));
             }
         }
     }
 
     void updateTimeDisplays() {
-        double elapsed = controller.elapsedSeconds();
+        ReplayController ctrl = getController();
+        if (ctrl == null) return;
+        double elapsed = ctrl.elapsedSeconds();
         int minutes = (int) (elapsed / 60.0);
         int seconds = (int) (elapsed % 60.0);
         int centis = (int) Math.round((elapsed - Math.floor(elapsed)) * 100.0);
         if (centis >= 100) centis = 99;
 
         String formatted = String.format("00:%02d:%02d.%02d", minutes, seconds, centis);
-        elapsedDigitsLabel.setText(formatted);
-        double duration = controller.durationSeconds();
-        elapsedSubLabel.setText(String.format("T + %.1f s  (Max: %.1f s)", elapsed, duration));
-        controlTimeLabel.setText(String.format("Elapsed: %.2f s / %.2f s", elapsed, duration));
+        if (elapsedDigitsLabel != null) elapsedDigitsLabel.setText(formatted);
+        double duration = ctrl.durationSeconds();
+        if (elapsedSubLabel != null) {
+            elapsedSubLabel.setText(String.format("T + %.1f s  (Max: %.1f s)", elapsed, duration));
+        }
+        Label activeControlTimeLbl = getControlTimeLabel();
+        if (activeControlTimeLbl != null) {
+            activeControlTimeLbl.setText(String.format("Elapsed: %.2f s / %.2f s", elapsed, duration));
+        }
 
-        if (timelineScrubber != null && !timelineScrubber.isValueChanging()) {
-            updatingScrubberFromEngine = true;
-            try {
-                timelineScrubber.setValue(elapsed);
-            } finally {
-                updatingScrubberFromEngine = false;
+        Slider activeScrubber = getTimelineScrubber();
+        if (activeScrubber != null && !activeScrubber.isValueChanging()) {
+            if (currentMode == ApplicationMode.SIMULATION) {
+                updatingSimScrubber = true;
+                try {
+                    activeScrubber.setValue(elapsed);
+                } finally {
+                    updatingSimScrubber = false;
+                }
+            } else {
+                updatingReplayScrubber = true;
+                try {
+                    activeScrubber.setValue(elapsed);
+                } finally {
+                    updatingReplayScrubber = false;
+                }
             }
         }
     }
@@ -815,9 +1412,37 @@ public class CalQuakeApp extends Application {
         return new Scene(root, 640.0, 400.0);
     }
 
-    // Accessors for testing and verification
+    // Accessors
+    public ApplicationMode getCurrentMode() {
+        return currentMode;
+    }
+
+    public ToggleGroup getModeToggleGroup() {
+        return modeToggleGroup;
+    }
+
+    public RadioMenuItem getSimulationMenuItem() {
+        return simulationMenuItem;
+    }
+
+    public RadioMenuItem getReplayMenuItem() {
+        return replayMenuItem;
+    }
+
     public Scenario getScenario() {
-        return scenario;
+        return getInstalledScenario();
+    }
+
+    public Scenario getInstalledScenario() {
+        return currentMode == ApplicationMode.SIMULATION ? simulationScenario : replayScenario;
+    }
+
+    public Scenario getSimulationScenario() {
+        return simulationScenario;
+    }
+
+    public Scenario getReplayScenario() {
+        return replayScenario;
     }
 
     public CaliforniaOutline getOutline() {
@@ -825,7 +1450,15 @@ public class CalQuakeApp extends Application {
     }
 
     public ReplayController getController() {
-        return controller;
+        return currentMode == ApplicationMode.SIMULATION ? simulationController : replayController;
+    }
+
+    public ReplayController getSimulationController() {
+        return simulationController;
+    }
+
+    public ReplayController getReplayController() {
+        return replayController;
     }
 
     public MapCanvasPane getMapCanvasPane() {
@@ -844,7 +1477,7 @@ public class CalQuakeApp extends Application {
         return modeMenu;
     }
 
-    public MenuItem getReplayMenuItem() {
+    public MenuItem getReplayMenuItemCompat() {
         return replayMenuItem;
     }
 
@@ -857,35 +1490,59 @@ public class CalQuakeApp extends Application {
     }
 
     public ComboBox<String> getEventSelector() {
+        return currentMode == ApplicationMode.REPLAY ? eventSelector : null;
+    }
+
+    public ComboBox<String> getReplayEventSelector() {
         return eventSelector;
     }
 
-    public ComboBox<MmiMode> getMmiModeSelector() { return mmiModeSelector; }
+    public ComboBox<MmiMode> getMmiModeSelector() {
+        return currentMode == ApplicationMode.REPLAY ? mmiModeSelector : null;
+    }
 
-    public MmiMode getSelectedMmiMode() { return selectedMmiMode; }
+    public ComboBox<MmiMode> getReplayMmiModeSelector() {
+        return mmiModeSelector;
+    }
 
-    public PreparedReplay getPreparedReplay() { return preparedReplay; }
+    public MmiMode getSelectedMmiMode() {
+        return selectedMmiMode;
+    }
 
-    public Scenario getInstalledScenario() { return installedScenario; }
+    public PreparedReplay getPreparedReplay() {
+        return currentMode == ApplicationMode.SIMULATION ? simulationPreparedReplay : replayPreparedReplay;
+    }
 
-    public boolean isPreparingReplay() { return preparingReplay; }
+    public boolean isPreparingReplay() {
+        return preparingReplay;
+    }
 
-    public Throwable getPreparationError() { return preparationError; }
+    public Throwable getPreparationError() {
+        return preparationError;
+    }
 
-    public long getPreparationGeneration() { return preparationGeneration.get(); }
+    public long getPreparationGeneration() {
+        return preparationGeneration.get();
+    }
 
-    public CompletableFuture<?> getPreparationFuture() { return preparationFuture; }
+    public CompletableFuture<?> getPreparationFuture() {
+        return preparationFuture;
+    }
 
     public Button getPlayPauseButton() {
-        return playPauseButton;
+        return currentMode == ApplicationMode.SIMULATION ? simPlayPauseButton : replayPlayPauseButton;
     }
 
     public Button getRestartButton() {
-        return restartButton;
+        return currentMode == ApplicationMode.SIMULATION ? simRestartButton : replayRestartButton;
     }
 
     public Slider getTimelineScrubber() {
-        return timelineScrubber;
+        return currentMode == ApplicationMode.SIMULATION ? simTimelineScrubber : replayTimelineScrubber;
+    }
+
+    public Label getHudTitleLabel() {
+        return hudTitleLabel;
     }
 
     public Label getHudStateLabel() {
@@ -893,7 +1550,7 @@ public class CalQuakeApp extends Application {
     }
 
     public Label getControlStateLabel() {
-        return controlStateLabel;
+        return currentMode == ApplicationMode.SIMULATION ? simControlStateLabel : replayControlStateLabel;
     }
 
     public Label getElapsedDigitsLabel() {
@@ -905,7 +1562,7 @@ public class CalQuakeApp extends Application {
     }
 
     public Label getControlTimeLabel() {
-        return controlTimeLabel;
+        return currentMode == ApplicationMode.SIMULATION ? simControlTimeLabel : replayControlTimeLabel;
     }
 
     public Label getStatusReplayLabel() {
@@ -920,6 +1577,46 @@ public class CalQuakeApp extends Application {
         return startupError;
     }
 
+    public VBox getSimulationSidebar() {
+        return simulationSidebar;
+    }
+
+    public VBox getReplaySidebar() {
+        return replaySidebar;
+    }
+
+    public TextField getEpicenterLatField() {
+        return epicenterLatField;
+    }
+
+    public TextField getEpicenterLonField() {
+        return epicenterLonField;
+    }
+
+    public TextField getMagnitudeField() {
+        return magnitudeField;
+    }
+
+    public TextField getDepthField() {
+        return depthField;
+    }
+
+    public ComboBox<String> getIntensityDisplaySelector() {
+        return intensityDisplaySelector;
+    }
+
+    public Button getApplyButton() {
+        return applyButton;
+    }
+
+    public Button getSaveButton() {
+        return saveButton;
+    }
+
+    public Button getImportButton() {
+        return importButton;
+    }
+
     void setStartupErrorForTesting(Throwable t) {
         this.startupError = t;
     }
@@ -928,7 +1625,7 @@ public class CalQuakeApp extends Application {
         launch(args);
     }
 
-    private record PreparedInstallation(ScenarioLoader.ScenarioBundle bundle, PreparedReplay replay) {}
+    private record PreparedInstallation(ScenarioLoader.ScenarioBundle bundle, PreparedReplay replay, ApplicationMode mode) {}
 
     private static final class PreparationThreadFactory implements ThreadFactory {
         @Override
