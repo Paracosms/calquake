@@ -184,6 +184,18 @@ public final class ReplayController {
         return scenario != null ? engine.frameAt(scenario, elapsedSeconds) : engine.frameAt(elapsedSeconds);
     }
 
+    public FrameState frameAt(IntensityDisplayMode mode) {
+        return scenario != null ? engine.frameAt(scenario, elapsedSeconds, mode) : engine.frameAt(elapsedSeconds, mode);
+    }
+
+    public IntensityDisplayMode intensityDisplayMode() {
+        return engine.intensityDisplayMode();
+    }
+
+    public void setIntensityDisplayMode(IntensityDisplayMode mode) {
+        engine.setIntensityDisplayMode(mode);
+    }
+
     /**
      * Computes the simulated event UTC timestamp at the current elapsed replay time.
      * Derived by adding elapsed duration to origin UTC, keeping origin UTC separate

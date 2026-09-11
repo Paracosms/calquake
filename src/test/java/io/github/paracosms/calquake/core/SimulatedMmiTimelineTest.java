@@ -36,6 +36,42 @@ class SimulatedMmiTimelineTest {
             assertEquals(peakPgv, finalState.currentPgvCmPerSecond().orElseThrow(), 1.0e-9);
             assertEquals(gmice.fromPgvCmPerSecond(peakPgv), finalState.currentMmi().orElseThrow(), 1.0e-9);
             assertFalse(timeline.stateAt(0.0).isRevealed());
+
+            // Stage D dual presentation checks on the same timeline:
+            // 1. MAXIMUM_REACHED is monotonically non-decreasing
+            // 2. CURRENT_SHAKING rises and falls (envelope-derived)
+            // 3. Both are deterministic at identical requested timestamps
+            double previousMaxMmi = Double.NEGATIVE_INFINITY;
+            double peakCurrentMmi = Double.NEGATIVE_INFINITY;
+            boolean sawRise = false;
+            boolean sawFall = false;
+            for (IntensityTimeline.Sample sample : timeline.samples()) {
+                double t = sample.elapsedSeconds();
+                LocationIntensityState maxState = timeline.stateAt(t, IntensityDisplayMode.MAXIMUM_REACHED);
+                LocationIntensityState currState = timeline.stateAt(t, IntensityDisplayMode.CURRENT_SHAKING);
+
+                assertEquals(maxState, timeline.stateAt(t), "Default stateAt(t) must equal MAXIMUM_REACHED");
+
+                if (maxState.currentMmi().isPresent()) {
+                    assertTrue(maxState.currentMmi().getAsDouble() + 1.0e-12 >= previousMaxMmi,
+                            "Maximum reached curve must never decrease");
+                    previousMaxMmi = maxState.currentMmi().getAsDouble();
+                }
+
+                if (currState.currentMmi().isPresent()) {
+                    double currVal = currState.currentMmi().getAsDouble();
+                    if (currVal > peakCurrentMmi) {
+                        sawRise = true;
+                        peakCurrentMmi = currVal;
+                    } else if (currVal < peakCurrentMmi - 0.05) {
+                        sawFall = true;
+                    }
+                } else if (sawRise) {
+                    assertEquals(IntensityStatus.SHAKING_ENDED, currState.status());
+                }
+            }
+            assertTrue(sawRise, "Current shaking must rise to peak");
+            assertTrue(sawFall, "Current shaking must fall after peak");
         }
     }
 

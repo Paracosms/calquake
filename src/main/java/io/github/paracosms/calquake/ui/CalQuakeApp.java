@@ -45,6 +45,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -136,6 +137,8 @@ public class CalQuakeApp extends Application {
     private boolean draftStale;
     private VBox simWarningBanner;
     private Label simWarningBannerLabel;
+    private Label simLegendMeaningLabel;
+    private Label replayLegendMeaningLabel;
 
     // Asynchronous preparation state
     private CompletableFuture<?> preparationFuture;
@@ -233,6 +236,7 @@ public class CalQuakeApp extends Application {
                         simBundle.inputs(), simBundle.references(), MmiMode.SIMULATED);
                 ReplayEngine simEngine = ReplayEngine.createPrepared(
                         simulationScenario, travelTimeModel, simulationPreparedReplay);
+                simEngine.setIntensityDisplayMode(simulationInstalledSettings.intensityDisplayMode());
                 this.simulationController = new ReplayController(
                         simulationScenario, simEngine, MonotonicClock.system(), simulationPreparedReplay.durationSeconds());
 
@@ -514,7 +518,7 @@ public class CalQuakeApp extends Application {
         VBox fileBox = buildScenarioFileBox();
 
         // Section 5: MMI Legend
-        VBox legendBox = buildLegendBox();
+        VBox legendBox = buildLegendBox(true);
 
         // Section 6: Toy Disclaimer
         VBox disclaimerBox = buildDisclaimerBox();
@@ -645,13 +649,22 @@ public class CalQuakeApp extends Application {
                 : IntensityDisplayMode.MAXIMUM_REACHED.label();
         intensityDisplaySelector.setValue(initDisplay);
         intensityDisplaySelector.setMaxWidth(Double.MAX_VALUE);
+        intensityDisplaySelector.setTooltip(new Tooltip(
+                "Intensity presentation:\n" +
+                "• Maximum estimated MMI reached: non-decreasing running maximum\n" +
+                "• Current estimated shaking: envelope-derived estimate at selected instant"
+        ));
 
         // Listen for draft changes
         epicenterLatField.textProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
         epicenterLonField.textProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
         magnitudeField.textProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
         depthField.textProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
-        intensityDisplaySelector.valueProperty().addListener((obs, oldVal, newVal) -> onSimulationDraftChanged());
+        intensityDisplaySelector.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                handleIntensityDisplayModeChanged(newVal);
+            }
+        });
 
         grid.add(latLabel, 0, 0);
         grid.add(epicenterLatField, 1, 0);
@@ -677,6 +690,24 @@ public class CalQuakeApp extends Application {
         return box;
     }
 
+    void handleIntensityDisplayModeChanged(String newLabel) {
+        if (currentMode != ApplicationMode.SIMULATION) return;
+        IntensityDisplayMode newMode = IntensityDisplayMode.fromLabel(newLabel);
+        if (simulationInstalledSettings != null) {
+            this.simulationInstalledSettings = simulationInstalledSettings.withIntensityDisplayMode(newMode);
+            this.simulationDraftSettings = simulationInstalledSettings;
+        }
+        if (simulationController != null) {
+            simulationController.setIntensityDisplayMode(newMode);
+            if (mapCanvasPane != null) {
+                mapCanvasPane.renderFrame(simulationController.currentFrame());
+            }
+        }
+        updateLegendMeaning();
+        updateTimeDisplays();
+        onSimulationDraftChanged();
+    }
+
     private void onSimulationDraftChanged() {
         if (currentMode != ApplicationMode.SIMULATION || simulationInstalledSettings == null) return;
 
@@ -684,7 +715,6 @@ public class CalQuakeApp extends Application {
         String lonText = epicenterLonField != null ? epicenterLonField.getText().trim() : "";
         String magText = magnitudeField != null ? magnitudeField.getText().trim() : "";
         String depthText = depthField != null ? depthField.getText().trim() : "";
-        String displayVal = intensityDisplaySelector != null ? intensityDisplaySelector.getValue() : null;
 
         boolean matches = false;
         try {
@@ -696,8 +726,7 @@ public class CalQuakeApp extends Application {
             if (Math.abs(lat - simulationInstalledSettings.epicenter().latitude()) < 1e-6
                     && Math.abs(lon - simulationInstalledSettings.epicenter().longitude()) < 1e-6
                     && Math.abs(mag - simulationInstalledSettings.magnitude()) < 1e-6
-                    && Math.abs(depth - simulationInstalledSettings.depthKm()) < 1e-6
-                    && (displayVal == null || displayVal.equals(simulationInstalledSettings.intensityDisplayMode().label()))) {
+                    && Math.abs(depth - simulationInstalledSettings.depthKm()) < 1e-6) {
                 matches = true;
             }
         } catch (NumberFormatException ignored) {}
@@ -805,7 +834,7 @@ public class CalQuakeApp extends Application {
         VBox eventBox = buildEventSelectorBox();
 
         // Section 3: USGS ShakeMap MMI Legend
-        VBox legendBox = buildLegendBox();
+        VBox legendBox = buildLegendBox(false);
 
         sidebar.getChildren().addAll(controlsBox, eventBox, legendBox);
         return sidebar;
@@ -915,12 +944,21 @@ public class CalQuakeApp extends Application {
         return box;
     }
 
-    private VBox buildLegendBox() {
+    private VBox buildLegendBox(boolean isSimulation) {
         VBox box = new VBox(6.0);
         box.getStyleClass().add("group-box");
 
         Label title = new Label("MMI Scale (Worden et al., 2012)");
         title.getStyleClass().add("group-box-title");
+
+        Label meaningLabel = new Label();
+        meaningLabel.setStyle("-fx-font-size: 9.5px; -fx-font-style: italic; -fx-text-fill: #475569;");
+        if (isSimulation) {
+            this.simLegendMeaningLabel = meaningLabel;
+        } else {
+            this.replayLegendMeaningLabel = meaningLabel;
+        }
+        updateLegendMeaning();
 
         GridPane grid = new GridPane();
         grid.getStyleClass().add("mmi-legend-grid");
@@ -952,8 +990,30 @@ public class CalQuakeApp extends Application {
             r++;
         }
 
-        box.getChildren().addAll(title, grid);
+        box.getChildren().addAll(title, meaningLabel, grid);
         return box;
+    }
+
+    void updateLegendMeaning() {
+        if (simLegendMeaningLabel != null) {
+            IntensityDisplayMode mode = (simulationInstalledSettings != null)
+                    ? simulationInstalledSettings.intensityDisplayMode()
+                    : (intensityDisplaySelector != null && intensityDisplaySelector.getValue() != null
+                    ? IntensityDisplayMode.fromLabel(intensityDisplaySelector.getValue())
+                    : IntensityDisplayMode.MAXIMUM_REACHED);
+            if (mode == IntensityDisplayMode.CURRENT_SHAKING) {
+                simLegendMeaningLabel.setText("Active: Current estimated shaking (envelope-derived)");
+            } else {
+                simLegendMeaningLabel.setText("Active: Maximum estimated MMI reached so far");
+            }
+        }
+        if (replayLegendMeaningLabel != null) {
+            if (selectedMmiMode == MmiMode.RECORDED) {
+                replayLegendMeaningLabel.setText("Active: Recorded ShakeMap Peak MMI");
+            } else {
+                replayLegendMeaningLabel.setText("Active: Maximum estimated MMI reached so far");
+            }
+        }
     }
 
     private HBox buildStatusBar() {
@@ -1040,6 +1100,7 @@ public class CalQuakeApp extends Application {
             hudTitleLabel.setText(currentMode == ApplicationMode.SIMULATION
                     ? "SIMULATION ELAPSED TIME" : "REPLAY ELAPSED TIME");
         }
+        updateLegendMeaning();
         updateControlStates();
         updateTimeDisplays();
     }
@@ -1168,12 +1229,14 @@ public class CalQuakeApp extends Application {
                 MmiMode selected = mmiModeSelector.getValue();
                 if (selected != null && selected != selectedMmiMode) {
                     selectedMmiMode = selected;
+                    updateLegendMeaning();
                     requestReplayPreparation(eventSelector != null ? eventSelector.getValue() : selectedReplayEvent, selectedMmiMode);
                 }
             });
             mmiModeSelector.valueProperty().addListener((obs, oldVal, newVal) -> {
                 if (newVal != null && newVal != selectedMmiMode) {
                     selectedMmiMode = newVal;
+                    updateLegendMeaning();
                     requestReplayPreparation(eventSelector != null ? eventSelector.getValue() : selectedReplayEvent, selectedMmiMode);
                 }
             });
@@ -1349,6 +1412,7 @@ public class CalQuakeApp extends Application {
             MonotonicClock clock = replayController != null ? replayController.clock() : MonotonicClock.system();
             ReplayEngine engine = ReplayEngine.createPrepared(
                     installation.bundle().scenario(), travelTimeModel, installation.replay());
+            engine.setIntensityDisplayMode(IntensityDisplayMode.MAXIMUM_REACHED);
             ReplayController replacement = new ReplayController(
                     installation.bundle().scenario(), engine, clock, installation.replay().durationSeconds());
             this.replayPreparedReplay = installation.replay();
@@ -1367,11 +1431,16 @@ public class CalQuakeApp extends Application {
                 }
                 updateControlStates();
                 updateTimeDisplays();
+                updateLegendMeaning();
             }
         } else {
             MonotonicClock clock = simulationController != null ? simulationController.clock() : MonotonicClock.system();
             ReplayEngine engine = ReplayEngine.createPrepared(
                     installation.bundle().scenario(), travelTimeModel, installation.replay());
+            IntensityDisplayMode displayMode = simulationInstalledSettings != null
+                    ? simulationInstalledSettings.intensityDisplayMode()
+                    : (simulationDraftSettings != null ? simulationDraftSettings.intensityDisplayMode() : IntensityDisplayMode.MAXIMUM_REACHED);
+            engine.setIntensityDisplayMode(displayMode);
             ReplayController replacement = new ReplayController(
                     installation.bundle().scenario(), engine, clock, installation.replay().durationSeconds());
             this.simulationPreparedReplay = installation.replay();
@@ -1401,6 +1470,7 @@ public class CalQuakeApp extends Application {
                 }
                 updateControlStates();
                 updateTimeDisplays();
+                updateLegendMeaning();
             }
         }
     }
@@ -1539,7 +1609,14 @@ public class CalQuakeApp extends Application {
         if (elapsedDigitsLabel != null) elapsedDigitsLabel.setText(formatted);
         double duration = ctrl.durationSeconds();
         if (elapsedSubLabel != null) {
-            elapsedSubLabel.setText(String.format("T + %.1f s  (Max: %.1f s)", elapsed, duration));
+            String modeContext = "";
+            if (currentMode == ApplicationMode.SIMULATION) {
+                IntensityDisplayMode displayMode = ctrl.intensityDisplayMode();
+                modeContext = displayMode == IntensityDisplayMode.CURRENT_SHAKING
+                        ? " • Current shaking"
+                        : " • Max reached";
+            }
+            elapsedSubLabel.setText(String.format("T + %.1f s  (Max: %.1f s)%s", elapsed, duration, modeContext));
         }
         Label activeControlTimeLbl = getControlTimeLabel();
         if (activeControlTimeLbl != null) {
@@ -1843,6 +1920,14 @@ public class CalQuakeApp extends Application {
 
     public Label getSimWarningBannerLabel() {
         return simWarningBannerLabel;
+    }
+
+    public Label getSimLegendMeaningLabel() {
+        return simLegendMeaningLabel;
+    }
+
+    public Label getReplayLegendMeaningLabel() {
+        return replayLegendMeaningLabel;
     }
 
     void setStartupErrorForTesting(Throwable t) {

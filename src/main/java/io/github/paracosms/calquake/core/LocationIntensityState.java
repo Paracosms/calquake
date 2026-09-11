@@ -20,7 +20,8 @@ public record LocationIntensityState(
         double pArrivalTimeSeconds,
         double distanceKm,
         OptionalDouble rjbKm,
-        ModelMetadata modelMetadata
+        ModelMetadata modelMetadata,
+        IntensityDisplayMode displayMode
 ) {
     public LocationIntensityState {
         Objects.requireNonNull(site, "site cannot be null");
@@ -36,6 +37,7 @@ public record LocationIntensityState(
         Objects.requireNonNull(domainStatus, "domainStatus cannot be null");
         rjbKm = rjbKm == null ? OptionalDouble.empty() : rjbKm;
         Objects.requireNonNull(modelMetadata, "modelMetadata cannot be null");
+        displayMode = displayMode == null ? IntensityDisplayMode.MAXIMUM_REACHED : displayMode;
         if (!Double.isFinite(pArrivalTimeSeconds) || !Double.isFinite(sArrivalTimeSeconds)
                 || !Double.isFinite(distanceKm) || distanceKm < 0.0) {
             throw new IllegalArgumentException("Arrival times and distance must be finite");
@@ -43,6 +45,29 @@ public record LocationIntensityState(
         if (status.hasDisplayValue() != currentMmi.isPresent()) {
             throw new IllegalArgumentException("Display status and current MMI presence disagree");
         }
+    }
+
+    public LocationIntensityState(
+            SimulationSite site,
+            OptionalDouble currentMmi,
+            OptionalDouble finalMmi,
+            OptionalDouble currentPgvCmPerSecond,
+            OptionalDouble predictedPeakPgvCmPerSecond,
+            Optional<MmiLegend.MmiBin> displayBin,
+            Optional<MmiLegend.MmiBin> finalDisplayBin,
+            IntensityStatus status,
+            DomainStatus domainStatus,
+            boolean sWaveArrived,
+            double sArrivalTimeSeconds,
+            double pArrivalTimeSeconds,
+            double distanceKm,
+            OptionalDouble rjbKm,
+            ModelMetadata modelMetadata
+    ) {
+        this(site, currentMmi, finalMmi, currentPgvCmPerSecond, predictedPeakPgvCmPerSecond,
+                displayBin, finalDisplayBin, status, domainStatus, sWaveArrived,
+                sArrivalTimeSeconds, pArrivalTimeSeconds, distanceKm, rjbKm, modelMetadata,
+                IntensityDisplayMode.MAXIMUM_REACHED);
     }
 
     public boolean isRevealed() {
@@ -71,6 +96,16 @@ public record LocationIntensityState(
 
     public String damageDescription() {
         return displayBin.or(() -> finalDisplayBin).orElse(MmiLegend.BIN_NA).damageDescriptor();
+    }
+
+    public String statusDescription() {
+        if (status == IntensityStatus.NOT_ARRIVED) {
+            return "Not arrived";
+        }
+        if (status == IntensityStatus.SHAKING_ENDED) {
+            return "Shaking ended";
+        }
+        return shakingDescription();
     }
 
     public String colorHex() {

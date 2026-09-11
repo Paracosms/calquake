@@ -32,6 +32,12 @@ public record SimulationScenarioSettings(
         if (assumptionSetId.isBlank()) throw new IllegalArgumentException("assumptionSetId cannot be blank");
     }
 
+    public SimulationScenarioSettings withIntensityDisplayMode(IntensityDisplayMode newMode) {
+        return new SimulationScenarioSettings(
+                scenarioId, displayName, createdUtc, epicenter, magnitude, depthKm,
+                Objects.requireNonNull(newMode, "newMode cannot be null"), assumptionSetId);
+    }
+
     public static SimulationScenarioSettings createDefault() {
         return new SimulationScenarioSettings(
                 "custom-california-scenario-v1",

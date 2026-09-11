@@ -64,10 +64,25 @@ public final class ReplayEngine {
         return new ReplayEngine(null, model, preparedReplay);
     }
 
+    private IntensityDisplayMode intensityDisplayMode = IntensityDisplayMode.MAXIMUM_REACHED;
+
+    public IntensityDisplayMode intensityDisplayMode() {
+        return intensityDisplayMode;
+    }
+
+    public void setIntensityDisplayMode(IntensityDisplayMode intensityDisplayMode) {
+        this.intensityDisplayMode = Objects.requireNonNull(intensityDisplayMode, "intensityDisplayMode cannot be null");
+    }
+
     public FrameState frameAt(double elapsedSeconds) {
+        return frameAt(elapsedSeconds, this.intensityDisplayMode);
+    }
+
+    public FrameState frameAt(double elapsedSeconds, IntensityDisplayMode mode) {
         validateTime(elapsedSeconds);
+        Objects.requireNonNull(mode, "mode cannot be null");
         List<LocationIntensityState> states = preparedReplay.inputs().sites().stream()
-                .map(site -> preparedReplay.timelinesBySiteId().get(site.id()).stateAt(elapsedSeconds))
+                .map(site -> preparedReplay.timelinesBySiteId().get(site.id()).stateAt(elapsedSeconds, mode))
                 .toList();
         return new FrameState(elapsedSeconds, preparedReplay.inputs().event().epicenter(),
                 preparedReplay.wavefronts().radiiAt(elapsedSeconds), states);
@@ -75,12 +90,18 @@ public final class ReplayEngine {
 
     /** Compatibility overload; alternate scenarios are prepared independently. */
     public FrameState frameAt(Scenario targetScenario, double elapsedSeconds) {
+        return frameAt(targetScenario, elapsedSeconds, this.intensityDisplayMode);
+    }
+
+    public FrameState frameAt(Scenario targetScenario, double elapsedSeconds, IntensityDisplayMode mode) {
         Objects.requireNonNull(targetScenario, "targetScenario cannot be null");
-        if (targetScenario.equals(scenario)) return frameAt(elapsedSeconds);
+        if (targetScenario.equals(scenario)) return frameAt(elapsedSeconds, mode);
         if (intensitySource == null) {
             throw new IllegalArgumentException("A prepared engine cannot evaluate a different scenario");
         }
-        return new ReplayEngine(targetScenario, model, intensitySource).frameAt(elapsedSeconds);
+        ReplayEngine engine = new ReplayEngine(targetScenario, model, intensitySource);
+        engine.setIntensityDisplayMode(mode);
+        return engine.frameAt(elapsedSeconds, mode);
     }
 
     private static void validateTime(double elapsedSeconds) {

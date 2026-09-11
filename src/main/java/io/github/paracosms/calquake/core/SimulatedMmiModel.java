@@ -124,22 +124,76 @@ public final class SimulatedMmiModel implements IntensityModel {
         }
 
         TreeSet<Double> sampleTimes = breakpoints(p, s, parameters);
-        for (double t = 0.0; t <= peakTime + timelineStepSeconds; t += timelineStepSeconds) sampleTimes.add(t);
+        for (double t = 0.0; t <= supportEnd + timelineStepSeconds; t += timelineStepSeconds) {
+            sampleTimes.add(t);
+        }
         sampleTimes.add(peakTime);
+        sampleTimes.add(supportEnd);
+
         List<IntensityTimeline.Sample> samples = new ArrayList<>(sampleTimes.size());
         double runningPgv = 0.0;
         double runningMmi = Double.NEGATIVE_INFINITY;
+
+        IntensityStatus revealedStatus = (domain == DomainStatus.OUT_OF_DOMAIN)
+                ? IntensityStatus.OUT_OF_DOMAIN
+                : IntensityStatus.AVAILABLE;
+
         for (double t : sampleTimes) {
             double raw = envelope.rawEnvelope(t, p, s, parameters);
-            double velocity = prediction.pgvCmPerSecond() * raw / maximumRaw;
-            runningPgv = Math.max(runningPgv, velocity);
-            OptionalDouble mmi = gmice.tryFromPgvCmPerSecond(runningPgv);
-            if (mmi.isPresent()) runningMmi = Math.max(runningMmi, mmi.getAsDouble());
-            if (runningPgv > 0.0 && Double.isFinite(runningMmi)) {
-                samples.add(IntensityTimeline.Sample.available(t, runningMmi, OptionalDouble.of(runningPgv)));
-            } else {
-                samples.add(IntensityTimeline.Sample.notArrived(t));
+            double currentVelocity = prediction.pgvCmPerSecond() * raw / maximumRaw;
+            runningPgv = Math.max(runningPgv, currentVelocity);
+            OptionalDouble runningMmiOpt = gmice.tryFromPgvCmPerSecond(runningPgv);
+            if (runningMmiOpt.isPresent()) {
+                runningMmi = Math.max(runningMmi, runningMmiOpt.getAsDouble());
             }
+
+            // Maximum reached curve
+            IntensityStatus maxStatus;
+            OptionalDouble maxMmi;
+            OptionalDouble maxPgv;
+            if (runningPgv > 0.0 && Double.isFinite(runningMmi)) {
+                maxStatus = revealedStatus;
+                maxMmi = OptionalDouble.of(runningMmi);
+                maxPgv = OptionalDouble.of(runningPgv);
+            } else {
+                maxStatus = IntensityStatus.NOT_ARRIVED;
+                maxMmi = OptionalDouble.empty();
+                maxPgv = OptionalDouble.empty();
+            }
+
+            // Current shaking curve (envelope-derived)
+            IntensityStatus currentStatus;
+            OptionalDouble currentMmi;
+            OptionalDouble currentPgv;
+
+            if (t < p || currentVelocity <= 0.0) {
+                if (t > peakTime) {
+                    currentStatus = IntensityStatus.SHAKING_ENDED;
+                } else {
+                    currentStatus = IntensityStatus.NOT_ARRIVED;
+                }
+                currentMmi = OptionalDouble.empty();
+                currentPgv = OptionalDouble.empty();
+            } else {
+                OptionalDouble currMmiOpt = gmice.tryFromPgvCmPerSecond(currentVelocity);
+                boolean pastPeak = (t > peakTime);
+                boolean belowThreshold = currMmiOpt.isEmpty() || currMmiOpt.getAsDouble() < 1.0;
+                boolean ended = pastPeak && (belowThreshold || t >= supportEnd);
+
+                if (ended) {
+                    currentStatus = IntensityStatus.SHAKING_ENDED;
+                    currentMmi = OptionalDouble.empty();
+                    currentPgv = OptionalDouble.empty();
+                } else {
+                    currentStatus = revealedStatus;
+                    double mmiVal = currMmiOpt.isPresent() ? currMmiOpt.getAsDouble() : 1.0;
+                    currentMmi = OptionalDouble.of(mmiVal);
+                    currentPgv = OptionalDouble.of(currentVelocity);
+                }
+            }
+
+            samples.add(new IntensityTimeline.Sample(t, maxStatus, maxMmi, maxPgv,
+                    currentStatus, currentMmi, currentPgv));
         }
         double finalMmi = gmice.fromPgvCmPerSecond(prediction.pgvCmPerSecond());
         IntensityTimeline timeline = new IntensityTimeline(site, p, s, surfaceDistance,

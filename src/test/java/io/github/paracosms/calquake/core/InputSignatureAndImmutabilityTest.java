@@ -125,6 +125,11 @@ class InputSignatureAndImmutabilityTest {
         assertNotEquals(baseSig, depthSig);
         PreparedReplay depthReplay = preparer.prepare(depthInputs, emptyRefs, MmiMode.SIMULATED);
         assertNotEquals(baseReplay.inputSignature(), depthReplay.inputSignature());
+
+        SimulationScenarioSettings diffMode = base.withIntensityDisplayMode(IntensityDisplayMode.CURRENT_SHAKING);
+        ScenarioInputs modeInputs = ScenarioInputs.forCustomScenario(diffMode, sites, model);
+        String modeSig = InputSignature.compute(modeInputs, MmiMode.SIMULATED);
+        assertEquals(baseSig, modeSig, "Changing intensity display mode must not alter scientific InputSignature");
     }
 
     private static void assertChanged(String baseSignature, ScenarioInputs changed) {

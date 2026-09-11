@@ -2,6 +2,8 @@ package io.github.paracosms.calquake.ui;
 
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.GeoPoint;
+import io.github.paracosms.calquake.core.IntensityDisplayMode;
+import io.github.paracosms.calquake.core.IntensityStatus;
 import io.github.paracosms.calquake.core.LocationIntensityState;
 import io.github.paracosms.calquake.core.MapScenario;
 import io.github.paracosms.calquake.core.MercatorProjection;
@@ -16,6 +18,7 @@ import io.github.paracosms.calquake.core.WavefrontRadii;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
@@ -23,6 +26,9 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.util.Duration;
+
+import java.util.Locale;
 
 import java.util.HashMap;
 import java.util.List;
@@ -78,6 +84,7 @@ public class MapCanvasPane extends Pane {
     private double lastWidth = -1.0;
     private double lastHeight = -1.0;
     private FrameState lastFrame;
+    private final Tooltip mapTooltip;
 
     public MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline) {
         this.mapScenario = Objects.requireNonNull(mapScenario, "mapScenario cannot be null");
@@ -99,6 +106,11 @@ public class MapCanvasPane extends Pane {
         setClip(clipRect);
 
         getChildren().addAll(staticCanvas, dynamicCanvas);
+
+        this.mapTooltip = new Tooltip();
+        mapTooltip.setShowDelay(Duration.millis(80));
+        mapTooltip.setHideDelay(Duration.millis(150));
+        setupHoverTooltips();
     }
 
     public MapCanvasPane(Scenario scenario, CaliforniaOutline outline) {
@@ -566,5 +578,94 @@ public class MapCanvasPane extends Pane {
             }
         }
         throw new IllegalArgumentException("Unknown simulation site: " + cityName);
+    }
+
+    public Tooltip getMapTooltip() {
+        return mapTooltip;
+    }
+
+    private void setupHoverTooltips() {
+        setOnMouseMoved(e -> {
+            if (currentTransform == null) return;
+            double mx = e.getX();
+            double my = e.getY();
+
+            // Check simulation sites
+            for (SimulationSite site : mapScenario.sites()) {
+                ScreenPoint sp = currentTransform.toScreen(projection.project(site.coordinates()));
+                double dx = mx - sp.xPx();
+                double dy = my - sp.yPx();
+                if (dx * dx + dy * dy <= 256.0) { // 16px radius
+                    LocationIntensityState locState = findSiteState(site.id());
+                    mapTooltip.setText(buildSiteTooltipText(site, locState));
+                    try {
+                        if (getScene() != null && getScene().getWindow() != null && !mapTooltip.isShowing()) {
+                            mapTooltip.show(this, e.getScreenX() + 12, e.getScreenY() + 12);
+                        }
+                    } catch (Exception ignored) {}
+                    return;
+                }
+            }
+
+            // Check epicenter
+            ScreenPoint epi = currentTransform.toScreen(projection.project(mapScenario.event().epicenter()));
+            double edx = mx - epi.xPx();
+            double edy = my - epi.yPx();
+            if (edx * edx + edy * edy <= 256.0) {
+                mapTooltip.setText(String.format(Locale.US,
+                        "★ Epicenter\nMagnitude: M %.1f\nDepth: %.1f km\nLocation: %.4f°N, %.4f°W",
+                        mapScenario.event().magnitude(),
+                        mapScenario.event().depthKm(),
+                        mapScenario.event().epicenter().latitude(),
+                        Math.abs(mapScenario.event().epicenter().longitude())));
+                try {
+                    if (getScene() != null && getScene().getWindow() != null && !mapTooltip.isShowing()) {
+                        mapTooltip.show(this, e.getScreenX() + 12, e.getScreenY() + 12);
+                    }
+                } catch (Exception ignored) {}
+                return;
+            }
+
+            mapTooltip.hide();
+        });
+
+        setOnMouseExited(e -> mapTooltip.hide());
+    }
+
+    private LocationIntensityState findSiteState(String siteId) {
+        if (lastFrame == null || lastFrame.locationIntensities() == null) return null;
+        for (LocationIntensityState state : lastFrame.locationIntensities()) {
+            if (state.site().id().equals(siteId)) return state;
+        }
+        return null;
+    }
+
+    private String buildSiteTooltipText(SimulationSite site, LocationIntensityState locState) {
+        StringBuilder sb = new StringBuilder(site.displayName());
+        if (locState != null) {
+            String modePhrase = locState.displayMode() == IntensityDisplayMode.CURRENT_SHAKING
+                    ? IntensityDisplayMode.CURRENT_SHAKING.label()
+                    : IntensityDisplayMode.MAXIMUM_REACHED.label();
+            sb.append("\n").append(modePhrase).append(": ");
+            if (locState.status() == IntensityStatus.NOT_ARRIVED) {
+                sb.append("Not arrived");
+            } else if (locState.status() == IntensityStatus.SHAKING_ENDED) {
+                sb.append("Shaking ended");
+            } else if (locState.isRevealed()) {
+                sb.append(locState.mmiRoman()).append(" (").append(locState.shakingDescription()).append(")");
+                if (locState.currentMmi().isPresent()) {
+                    sb.append(String.format(Locale.US, " [MMI %.1f]", locState.currentMmi().getAsDouble()));
+                }
+            } else {
+                sb.append(locState.status());
+            }
+
+            if (locState.currentPgvCmPerSecond().isPresent()) {
+                sb.append(String.format(Locale.US, "\nPGV: %.2f cm/s", locState.currentPgvCmPerSecond().getAsDouble()));
+            }
+            sb.append(String.format(Locale.US, "\nDistance: %.1f km | S-arrival: %.1f s",
+                    locState.distanceKm(), locState.sArrivalTimeSeconds()));
+        }
+        return sb.toString();
     }
 }

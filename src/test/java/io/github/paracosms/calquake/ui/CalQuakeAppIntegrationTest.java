@@ -2,6 +2,7 @@ package io.github.paracosms.calquake.ui;
 
 import io.github.paracosms.calquake.core.ApplicationMode;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
+import io.github.paracosms.calquake.core.IntensityDisplayMode;
 import io.github.paracosms.calquake.core.MmiMode;
 import io.github.paracosms.calquake.core.ReplayController;
 import io.github.paracosms.calquake.core.ReplayEngine;
@@ -529,6 +530,27 @@ class CalQuakeAppIntegrationTest {
                 // Play warned scenario
                 app.getPlayPauseButton().fire();
                 assertTrue(app.getController().isPlaying());
+
+                // 6. Switching intensity display mode while paused updates immediately without re-preparation
+                app.getPlayPauseButton().fire();
+                assertTrue(app.getController().isPaused());
+                app.getIntensityDisplaySelector().getSelectionModel().select(
+                        IntensityDisplayMode.CURRENT_SHAKING.label());
+                assertFalse(app.isPreparingReplay(), "Switching display mode must not rerun preparation");
+                assertFalse(app.isDraftStale(), "Presentation mode must not mark draft stale");
+                assertEquals(IntensityDisplayMode.CURRENT_SHAKING, app.getController().intensityDisplayMode());
+                assertEquals(IntensityDisplayMode.CURRENT_SHAKING, app.getSimulationInstalledSettings().intensityDisplayMode());
+                assertNotNull(app.getSimLegendMeaningLabel());
+                assertTrue(app.getSimLegendMeaningLabel().getText().contains("Current estimated shaking"));
+
+                // Switch back to MAXIMUM_REACHED
+                app.getIntensityDisplaySelector().getSelectionModel().select(
+                        IntensityDisplayMode.MAXIMUM_REACHED.label());
+                assertFalse(app.isPreparingReplay());
+                assertFalse(app.isDraftStale());
+                assertEquals(IntensityDisplayMode.MAXIMUM_REACHED, app.getController().intensityDisplayMode());
+                assertEquals(IntensityDisplayMode.MAXIMUM_REACHED, app.getSimulationInstalledSettings().intensityDisplayMode());
+                assertTrue(app.getSimLegendMeaningLabel().getText().contains("Maximum estimated MMI reached"));
             });
         } finally {
             if (appRef[0] != null) {

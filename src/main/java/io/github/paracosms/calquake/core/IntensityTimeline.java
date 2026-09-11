@@ -70,9 +70,14 @@ public final class IntensityTimeline {
     }
 
     public LocationIntensityState stateAt(double elapsedSeconds) {
+        return stateAt(elapsedSeconds, IntensityDisplayMode.MAXIMUM_REACHED);
+    }
+
+    public LocationIntensityState stateAt(double elapsedSeconds, IntensityDisplayMode displayMode) {
         if (!Double.isFinite(elapsedSeconds) || elapsedSeconds < 0.0) {
             throw new IllegalArgumentException("Elapsed seconds must be finite and non-negative");
         }
+        Objects.requireNonNull(displayMode, "displayMode cannot be null");
         int low = 0;
         int high = samples.size() - 1;
         while (low < high) {
@@ -81,13 +86,20 @@ public final class IntensityTimeline {
             else high = mid - 1;
         }
         Sample sample = samples.get(low);
-        Optional<MmiLegend.MmiBin> bin = sample.mmi().isPresent()
-                ? Optional.of(MmiLegend.findBin(Math.max(1.0, sample.mmi().getAsDouble())))
+
+        boolean isCurrent = (displayMode == IntensityDisplayMode.CURRENT_SHAKING);
+        IntensityStatus status = isCurrent ? sample.currentStatus() : sample.status();
+        OptionalDouble mmi = isCurrent ? sample.currentMmi() : sample.mmi();
+        OptionalDouble pgv = isCurrent ? sample.currentPgvCmPerSecond() : sample.pgvCmPerSecond();
+
+        Optional<MmiLegend.MmiBin> bin = (status.hasDisplayValue() && mmi.isPresent())
+                ? Optional.of(MmiLegend.findBin(Math.max(1.0, mmi.getAsDouble())))
                 : Optional.empty();
-        return new LocationIntensityState(site, sample.mmi(), finalMmi, sample.pgvCmPerSecond(),
-                predictedPeakPgv, bin, finalDisplayBin, sample.status(), domainStatus,
+
+        return new LocationIntensityState(site, mmi, finalMmi, pgv,
+                predictedPeakPgv, bin, finalDisplayBin, status, domainStatus,
                 elapsedSeconds >= sArrivalSeconds, sArrivalSeconds, pArrivalSeconds,
-                surfaceDistanceKm, rjbKm, modelMetadata);
+                surfaceDistanceKm, rjbKm, modelMetadata, displayMode);
     }
 
     private static void validateSamples(List<Sample> values) {
@@ -123,8 +135,15 @@ public final class IntensityTimeline {
     public ModelMetadata modelMetadata() { return modelMetadata; }
     public List<Sample> samples() { return samples; }
 
-    public record Sample(double elapsedSeconds, IntensityStatus status,
-                         OptionalDouble mmi, OptionalDouble pgvCmPerSecond) {
+    public record Sample(
+            double elapsedSeconds,
+            IntensityStatus status,
+            OptionalDouble mmi,
+            OptionalDouble pgvCmPerSecond,
+            IntensityStatus currentStatus,
+            OptionalDouble currentMmi,
+            OptionalDouble currentPgvCmPerSecond
+    ) {
         public Sample {
             if (!Double.isFinite(elapsedSeconds) || elapsedSeconds < 0.0) {
                 throw new IllegalArgumentException("Sample time must be finite and non-negative");
@@ -135,15 +154,34 @@ public final class IntensityTimeline {
             if (status.hasDisplayValue() != mmi.isPresent()) {
                 throw new IllegalArgumentException("Sample status and MMI presence disagree");
             }
+            Objects.requireNonNull(currentStatus, "currentStatus cannot be null");
+            currentMmi = currentMmi == null ? OptionalDouble.empty() : currentMmi;
+            currentPgvCmPerSecond = currentPgvCmPerSecond == null ? OptionalDouble.empty() : currentPgvCmPerSecond;
+            if (currentStatus.hasDisplayValue() != currentMmi.isPresent()) {
+                throw new IllegalArgumentException("Sample currentStatus and currentMmi presence disagree");
+            }
+        }
+
+        public Sample(double elapsedSeconds, IntensityStatus status,
+                      OptionalDouble mmi, OptionalDouble pgvCmPerSecond) {
+            this(elapsedSeconds, status, mmi, pgvCmPerSecond, status, mmi, pgvCmPerSecond);
         }
 
         public static Sample notArrived(double time) {
             return new Sample(time, IntensityStatus.NOT_ARRIVED,
-                    OptionalDouble.empty(), OptionalDouble.empty());
+                    OptionalDouble.empty(), OptionalDouble.empty(),
+                    IntensityStatus.NOT_ARRIVED, OptionalDouble.empty(), OptionalDouble.empty());
         }
 
         public static Sample available(double time, double mmi, OptionalDouble pgv) {
-            return new Sample(time, IntensityStatus.AVAILABLE, OptionalDouble.of(mmi), pgv);
+            return new Sample(time, IntensityStatus.AVAILABLE, OptionalDouble.of(mmi), pgv,
+                    IntensityStatus.AVAILABLE, OptionalDouble.of(mmi), pgv);
+        }
+
+        public static Sample dual(double time,
+                                  IntensityStatus maxStatus, OptionalDouble maxMmi, OptionalDouble maxPgv,
+                                  IntensityStatus currentStatus, OptionalDouble currentMmi, OptionalDouble currentPgv) {
+            return new Sample(time, maxStatus, maxMmi, maxPgv, currentStatus, currentMmi, currentPgv);
         }
     }
 }

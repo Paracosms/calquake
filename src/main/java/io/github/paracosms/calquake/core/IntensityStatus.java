@@ -7,7 +7,8 @@ public enum IntensityStatus {
     MISSING_INPUT,
     MODEL_ERROR,
     OUT_OF_DOMAIN,
-    TRUNCATED;
+    TRUNCATED,
+    SHAKING_ENDED;
 
     /** Whether this status may carry a calculated value that should be displayed. */
     public boolean hasDisplayValue() {
