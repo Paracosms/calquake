@@ -27,17 +27,17 @@ public final class MmiLegend {
         }
     }
 
-    public static final MmiBin BIN_I = new MmiBin("I", 1.0, 1.5, "Not felt", "None", "#fbfcff", "#000000");
-    public static final MmiBin BIN_II = new MmiBin("II", 1.5, 2.5, "Weak", "None", "#acdbff", "#000000");
-    public static final MmiBin BIN_III = new MmiBin("III", 2.5, 3.5, "Weak", "None", "#acdbff", "#000000");
-    public static final MmiBin BIN_II_III = new MmiBin("II-III", 1.5, 3.5, "Weak", "None", "#acdbff", "#000000");
-    public static final MmiBin BIN_IV = new MmiBin("IV", 3.5, 4.5, "Light", "None", "#7ffffa", "#000000");
-    public static final MmiBin BIN_V = new MmiBin("V", 4.5, 5.5, "Moderate", "Very light", "#81ff8a", "#000000");
-    public static final MmiBin BIN_VI = new MmiBin("VI", 5.5, 6.5, "Strong", "Light", "#fffa00", "#000000");
-    public static final MmiBin BIN_VII = new MmiBin("VII", 6.5, 7.5, "Very strong", "Moderate", "#ffc400", "#000000");
-    public static final MmiBin BIN_VIII = new MmiBin("VIII", 7.5, 8.5, "Severe", "Moderate/heavy", "#ff8500", "#ffffff");
-    public static final MmiBin BIN_IX = new MmiBin("IX", 8.5, 9.5, "Violent", "Heavy", "#fb0000", "#ffffff");
-    public static final MmiBin BIN_X_PLUS = new MmiBin("X+", 9.5, null, "Extreme", "Very heavy", "#c80000", "#ffffff");
+    public static final MmiBin BIN_I = new MmiBin("I", 1.0, 1.5, "Not felt", "No damage", "#fbfcff", "#000000");
+    public static final MmiBin BIN_II = new MmiBin("II", 1.5, 2.5, "Weak", "No damage", "#acdbff", "#000000");
+    public static final MmiBin BIN_III = new MmiBin("III", 2.5, 3.5, "Weak", "No damage", "#acdbff", "#000000");
+    public static final MmiBin BIN_II_III = new MmiBin("II-III", 1.5, 3.5, "Weak", "No damage", "#acdbff", "#000000");
+    public static final MmiBin BIN_IV = new MmiBin("IV", 3.5, 4.5, "Light", "No damage", "#7ffffa", "#000000");
+    public static final MmiBin BIN_V = new MmiBin("V", 4.5, 5.5, "Moderate", "Very light damage", "#81ff8a", "#000000");
+    public static final MmiBin BIN_VI = new MmiBin("VI", 5.5, 6.5, "Strong", "Light damage", "#fffa00", "#000000");
+    public static final MmiBin BIN_VII = new MmiBin("VII", 6.5, 7.5, "Very strong", "Moderate damage", "#ffc400", "#000000");
+    public static final MmiBin BIN_VIII = new MmiBin("VIII", 7.5, 8.5, "Severe", "Moderate/heavy damage", "#ff8500", "#ffffff");
+    public static final MmiBin BIN_IX = new MmiBin("IX", 8.5, 9.5, "Violent", "Heavy damage", "#fb0000", "#ffffff");
+    public static final MmiBin BIN_X_PLUS = new MmiBin("X+", 9.5, null, "Extreme", "Very heavy damage", "#c80000", "#ffffff");
     public static final MmiBin BIN_NA = new MmiBin("N/A", null, null, "Outside coverage", "N/A", "#808080", "#ffffff");
 
     public static final List<MmiBin> ALL_BINS = List.of(

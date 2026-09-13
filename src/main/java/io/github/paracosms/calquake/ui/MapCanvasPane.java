@@ -82,6 +82,10 @@ public class MapCanvasPane extends Pane {
     public static final double DEFAULT_ZOOM_STEP = 1.25;
     public static final double DEFAULT_PAN_STEP_PX = 60.0;
 
+    public static final Color COLOR_MAPPED_FAULTS = Color.web("#36A6A6");
+    public static final Color COLOR_RUPTURE = Color.web("#FF7A18");
+    public static final Color COLOR_EPICENTER = Color.web("#E84532");
+
     // Fixed label offsets (dx, dy) relative to projected screen point to prevent overlaps
     public record LabelOffset(double dx, double dy, String align) {}
     public static final Map<String, LabelOffset> FIXED_LABEL_OFFSETS = Map.of(
@@ -461,7 +465,7 @@ public class MapCanvasPane extends Pane {
         gc.setLineJoin(StrokeLineJoin.ROUND);
 
         // Inferred/concealed faults (dashed line)
-        gc.setStroke(Color.rgb(150, 50, 35, 0.40));
+        gc.setStroke(Color.web("#36A6A6", 0.40));
         gc.setLineDashes(4.0, 3.0);
         for (List<ProjectedPoint> part : cachedInferredFaults) {
             if (part.size() < 2) continue;
@@ -476,7 +480,7 @@ public class MapCanvasPane extends Pane {
         }
 
         // Well-constrained faults (solid line)
-        gc.setStroke(Color.rgb(140, 35, 20, 0.50));
+        gc.setStroke(Color.web("#36A6A6", 0.65));
         gc.setLineDashes();
         for (List<ProjectedPoint> part : cachedWellConstrainedFaults) {
             if (part.size() < 2) continue;
@@ -525,8 +529,8 @@ public class MapCanvasPane extends Pane {
             gc.stroke();
         }
 
-        // Pass 2: High-contrast bright orange-red rupture trace
-        gc.setStroke(Color.rgb(255, 69, 0, 0.95));
+        // Pass 2: High-contrast bright rupture trace
+        gc.setStroke(COLOR_RUPTURE);
         gc.setLineWidth(2.8);
         for (List<GeoPoint> part : parts) {
             if (part == null || part.size() < 2) continue;
@@ -614,7 +618,7 @@ public class MapCanvasPane extends Pane {
             gc.strokeRoundRect(cardX, curY, cardW, cardH, 6.0, 6.0);
 
             // Line swatch
-            gc.setStroke(Color.rgb(140, 35, 20, 0.80));
+            gc.setStroke(COLOR_MAPPED_FAULTS);
             gc.setLineWidth(1.8);
             gc.setLineDashes();
             gc.strokeLine(cardX + 8.0, curY + cardH / 2.0, cardX + 22.0, curY + cardH / 2.0);
@@ -732,7 +736,7 @@ public class MapCanvasPane extends Pane {
         double ey = epiScreen.yPx();
 
         // Draw 5-point star
-        drawStar(gc, ex, ey, 14.0, 6.0, Color.web("#DC2626"), Color.web("#7F1D1D"));
+        drawStar(gc, ex, ey, 14.0, 6.0, COLOR_EPICENTER, Color.web("#7F1D1D"));
 
         // Omit red info box in simulation mode
         if (applicationMode == ApplicationMode.SIMULATION) {
@@ -756,13 +760,13 @@ public class MapCanvasPane extends Pane {
         double boxH = 34.0;
 
         gc.setFill(Color.web("#FEF2F2", 0.92));
-        gc.setStroke(Color.web("#DC2626"));
+        gc.setStroke(COLOR_EPICENTER);
         gc.setLineWidth(1.2);
         gc.fillRoundRect(lx, ly, boxW, boxH, 4, 4);
         gc.strokeRoundRect(lx, ly, boxW, boxH, 4, 4);
 
         // Connecting tick line from box to epicenter
-        gc.setStroke(Color.web("#DC2626", 0.7));
+        gc.setStroke(Color.web("#E84532", 0.7));
         gc.setLineWidth(1.0);
         gc.strokeLine(lx + boxW, ly + boxH / 2, ex - 14, ey);
 

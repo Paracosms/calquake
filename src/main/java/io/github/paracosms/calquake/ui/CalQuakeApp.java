@@ -548,7 +548,7 @@ public class CalQuakeApp extends Application {
         // Section 2: Simulation Settings
         VBox settingsBox = buildSimulationSettingsBox();
 
-        // Section 3: Fixed Model Assumptions
+        // Section 3: Rupture Details
         VBox assumptionsBox = buildFixedAssumptionsBox();
 
         // Section 4: Scenario File
@@ -789,7 +789,7 @@ public class CalQuakeApp extends Application {
         VBox box = new VBox(4.0);
         box.getStyleClass().add("group-box");
 
-        Label title = new Label("Scenario Inputs & Assumptions");
+        Label title = new Label("Rupture Details");
         title.getStyleClass().add("group-box-title");
 
         this.simAssumptionsSiteLabel = new Label("• Site conditions: USGS mapped Vs30 at each marker");
@@ -805,10 +805,10 @@ public class CalQuakeApp extends Application {
         simAssumptionsRuptureLabel.setWrapText(true);
 
         this.simAssumptionsRuptureDetailsLabel = new Label();
-        simAssumptionsRuptureDetailsLabel.setStyle("-fx-font-size: 8.5px; -fx-text-fill: #475569;");
+        simAssumptionsRuptureDetailsLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
         simAssumptionsRuptureDetailsLabel.setWrapText(true);
 
-        this.simRuptureDetailsPane = new TitledPane("Rupture Details", simAssumptionsRuptureDetailsLabel);
+        this.simRuptureDetailsPane = new TitledPane("Rupture Details", new Label());
         simRuptureDetailsPane.setExpanded(false);
         simRuptureDetailsPane.setAnimated(false);
         simRuptureDetailsPane.setStyle("-fx-font-size: 9px;");
@@ -819,8 +819,7 @@ public class CalQuakeApp extends Application {
         this.simAssumptionsNoteLabel = new Label("• Marker note: Vs30 is sampled at named marker coordinates");
         simAssumptionsNoteLabel.setStyle("-fx-font-size: 9.0px; -fx-font-style: italic; -fx-text-fill: #64748B;");
 
-        box.getChildren().addAll(title, simAssumptionsSiteLabel, simAssumptionsFallbackLabel,
-                simAssumptionsRuptureLabel, simRuptureDetailsPane, simAssumptionsFaultsLabel, simAssumptionsNoteLabel);
+        box.getChildren().addAll(title, simAssumptionsRuptureDetailsLabel);
         updateAssumptionsSummary();
         return box;
     }
@@ -887,13 +886,6 @@ public class CalQuakeApp extends Application {
                         sb.append("Mode: Generic planar fallback\n");
                         sb.append("Reason: ").append(meta.getOrDefault("resolver.reason", "No suitable nearby fault")).append("\n");
                         sb.append("Orientation: strike 0.0°, dip 90.0°, rake 0.0° (generic strike-slip)\n");
-                    }
-                    Map<String, String> versions = simulationPreparedReplay.inputs().scientificConfiguration().versionIds();
-                    if (versions.containsKey("resolverId")) {
-                        sb.append("Resolver: ").append(versions.get("resolverId")).append("\n");
-                    }
-                    if (versions.containsKey("faultCatalogId")) {
-                        sb.append("Catalog: ").append(versions.get("faultCatalogId")).append("\n");
                     }
                     sb.append("Note: ").append(meta.getOrDefault("resolver.note", "Simplified rectangle; may extend beyond the mapped fault section."));
                     simAssumptionsRuptureDetailsLabel.setText(sb.toString());
@@ -1146,7 +1138,7 @@ public class CalQuakeApp extends Application {
         bar.getStyleClass().add("status-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
 
-        this.mappedFaultsCheckBox = new CheckBox("Mapped faults");
+        this.mappedFaultsCheckBox = new CheckBox("Faults");
         mappedFaultsCheckBox.setId("mapped-faults-toggle");
         mappedFaultsCheckBox.getStyleClass().add("status-pane");
         mappedFaultsCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
@@ -1156,7 +1148,7 @@ public class CalQuakeApp extends Application {
         vs30CheckBox.getStyleClass().add("status-pane");
         vs30CheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
 
-        this.scenarioRuptureCheckBox = new CheckBox("Scenario rupture");
+        this.scenarioRuptureCheckBox = new CheckBox("Derived Rupture");
         scenarioRuptureCheckBox.setId("scenario-rupture-toggle");
         scenarioRuptureCheckBox.setSelected(true);
         scenarioRuptureCheckBox.getStyleClass().add("status-pane");
