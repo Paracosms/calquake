@@ -148,6 +148,7 @@ public class CalQuakeApp extends Application {
     private Label simSettingsStatusLabel;
     private Button saveButton;
     private Button importButton;
+    private CheckBox includeCitiesCheckBox;
     private Button saveCitiesButton;
     private Button importCitiesButton;
     private VBox simulationSidebar;
@@ -966,7 +967,12 @@ public class CalQuakeApp extends Application {
         importButton.setPrefWidth(120.0);
 
         buttonsRow.getChildren().addAll(saveButton, importButton);
-        box.getChildren().addAll(title, buttonsRow);
+
+        this.includeCitiesCheckBox = new CheckBox("Include Cities");
+        includeCitiesCheckBox.setId("include-cities-toggle");
+        includeCitiesCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+
+        box.getChildren().addAll(title, buttonsRow, includeCitiesCheckBox);
         return box;
     }
 
@@ -1602,13 +1608,22 @@ public class CalQuakeApp extends Application {
         }
         File selected = fileChooser.showSaveDialog(stage);
         if (selected != null) {
-            saveScenarioToFile(draftToSave, selected.toPath());
+            List<SimulationSite> sitesToBundle = (includeCitiesCheckBox != null && includeCitiesCheckBox.isSelected())
+                    ? sites : null;
+            saveScenarioToFile(draftToSave, sitesToBundle, selected.toPath());
         }
     }
 
     public void saveScenarioToFile(SimulationScenarioSettings settings, Path targetFile) {
+        List<SimulationSite> sitesToBundle = (includeCitiesCheckBox != null && includeCitiesCheckBox.isSelected())
+                ? (simulationSiteCatalog != null ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites())
+                : null;
+        saveScenarioToFile(settings, sitesToBundle, targetFile);
+    }
+
+    public void saveScenarioToFile(SimulationScenarioSettings settings, List<SimulationSite> sites, Path targetFile) {
         try {
-            SimulationScenarioSerializer.writeToFile(settings, targetFile);
+            SimulationScenarioSerializer.writeToFile(settings, sites, targetFile);
             if (simSettingsStatusLabel != null) {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #166534;");
                 simSettingsStatusLabel.setText("Saved: " + targetFile.getFileName().toString());
@@ -1652,9 +1667,9 @@ public class CalQuakeApp extends Application {
 
     public boolean importScenarioFromFile(Path path) {
         if (path == null) return false;
-        SimulationScenarioSettings imported;
+        SimulationScenarioSerializer.LoadedScenario loaded;
         try {
-            imported = SimulationScenarioSerializer.readFromFile(path);
+            loaded = SimulationScenarioSerializer.readPackageFromFile(path);
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             if (simSettingsStatusLabel != null) {
@@ -1666,10 +1681,14 @@ public class CalQuakeApp extends Application {
             }
             return false;
         }
-        return applyImportedScenario(imported);
+        return applyImportedScenario(loaded.settings(), loaded.hasCities() ? loaded.cities() : null);
     }
 
     public boolean applyImportedScenario(SimulationScenarioSettings imported) {
+        return applyImportedScenario(imported, null);
+    }
+
+    public boolean applyImportedScenario(SimulationScenarioSettings imported, List<SimulationSite> importedSites) {
         if (imported == null) return false;
 
         if (currentMode != ApplicationMode.SIMULATION) {
@@ -1695,6 +1714,10 @@ public class CalQuakeApp extends Application {
         this.simulationDraftSettings = imported;
         this.draftStale = false;
 
+        if (importedSites != null && !importedSites.isEmpty()) {
+            this.simulationSiteCatalog = SimulationSiteCatalog.of(importedSites);
+        }
+
         List<SimulationSite> sites = simulationSiteCatalog != null
                 ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
         SimulationValidator.ValidationResult result = SimulationValidator.validate(
@@ -1703,7 +1726,11 @@ public class CalQuakeApp extends Application {
 
         if (simSettingsStatusLabel != null) {
             simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
-            simSettingsStatusLabel.setText("Imported " + imported.displayName() + ". Preparing scenario...");
+            if (importedSites != null && !importedSites.isEmpty()) {
+                simSettingsStatusLabel.setText("Imported " + imported.displayName() + " with " + importedSites.size() + " cities. Preparing scenario...");
+            } else {
+                simSettingsStatusLabel.setText("Imported " + imported.displayName() + ". Preparing scenario...");
+            }
         }
 
         requestSimulationPreparation(imported, result.warnings());
@@ -2073,11 +2100,13 @@ public class CalQuakeApp extends Application {
             if (applyButton != null) applyButton.setDisable(isPlaying || preparingReplay);
             if (saveButton != null) saveButton.setDisable(isPlaying || preparingReplay);
             if (importButton != null) importButton.setDisable(isPlaying || preparingReplay);
+            if (includeCitiesCheckBox != null) includeCitiesCheckBox.setDisable(isPlaying || preparingReplay);
             if (saveCitiesButton != null) saveCitiesButton.setDisable(isPlaying || preparingReplay);
             if (importCitiesButton != null) importCitiesButton.setDisable(isPlaying || preparingReplay);
         } else {
             if (saveButton != null) saveButton.setDisable(true);
             if (importButton != null) importButton.setDisable(true);
+            if (includeCitiesCheckBox != null) includeCitiesCheckBox.setDisable(true);
             if (saveCitiesButton != null) saveCitiesButton.setDisable(true);
             if (importCitiesButton != null) importCitiesButton.setDisable(true);
         }
@@ -2548,6 +2577,14 @@ public class CalQuakeApp extends Application {
 
     public Button getImportButton() {
         return importButton;
+    }
+
+    public CheckBox getIncludeCitiesCheckBox() {
+        return includeCitiesCheckBox;
+    }
+
+    public CheckBox getIncludeCitiesCheckbox() {
+        return includeCitiesCheckBox;
     }
 
     public Button getSaveCitiesButton() {

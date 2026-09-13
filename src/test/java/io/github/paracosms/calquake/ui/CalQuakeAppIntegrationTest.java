@@ -740,6 +740,154 @@ class CalQuakeAppIntegrationTest {
     }
 
     @Test
+    void simulationSaveAndImportWithBundledCitiesWorkflow() throws Exception {
+        CalQuakeApp[] appRef = new CalQuakeApp[1];
+        Stage[] stageRef = new Stage[1];
+        java.nio.file.Path tempFileNoCities = java.nio.file.Files.createTempFile("calquake-nocities-", ".json");
+        java.nio.file.Path tempFileWithCities = java.nio.file.Files.createTempFile("calquake-withcities-", ".json");
+        java.nio.file.Path badCitiesScenarioFile = java.nio.file.Files.createTempFile("calquake-badcities-", ".json");
+        java.nio.file.Path customCitiesFile = java.nio.file.Files.createTempFile("cities-custom-", ".json");
+
+        try {
+            String customCitiesJson = """
+                    [
+                      { "id": "custom-sf", "display_name": "San Francisco Custom", "latitude": 37.7749, "longitude": -122.4194 },
+                      { "id": "custom-la", "display_name": "Los Angeles Custom", "latitude": 34.0522, "longitude": -118.2437 },
+                      { "id": "custom-sd", "display_name": "San Diego Custom", "latitude": 32.7157, "longitude": -117.1611 }
+                    ]
+                    """;
+            java.nio.file.Files.writeString(customCitiesFile, customCitiesJson);
+
+            String badCitiesScenarioJson = """
+                    {
+                      "schema_version": 1,
+                      "type": "calquake-simulation-scenario",
+                      "scenario_id": "test-bad-cities",
+                      "name": "Test Bad Cities",
+                      "created_utc": "2026-09-10T00:00:00Z",
+                      "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                      "magnitude": 6.0,
+                      "depth_km": 10.0,
+                      "intensity_display_mode": "MAXIMUM_REACHED",
+                      "assumption_set": "calquake-custom-v2",
+                      "cities": [
+                        { "id": "broken", "display_name": "Broken", "latitude": 999.0, "longitude": 0.0 }
+                      ]
+                    }
+                    """;
+            java.nio.file.Files.writeString(badCitiesScenarioFile, badCitiesScenarioJson);
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = new CalQuakeApp();
+                app.init();
+                Stage stage = new Stage();
+                app.start(stage);
+                appRef[0] = app;
+                stageRef[0] = stage;
+
+                // 1. Verify checkbox exists, has correct label, and is unchecked by default
+                assertNotNull(app.getIncludeCitiesCheckBox());
+                assertEquals("Include Cities", app.getIncludeCitiesCheckBox().getText());
+                assertFalse(app.getIncludeCitiesCheckBox().isSelected());
+                assertFalse(app.getIncludeCitiesCheckBox().isDisable());
+
+                // 2. Save with checkbox unchecked -> no "cities" property in JSON
+                app.saveScenarioToFile(app.getSimulationDraftSettings(), tempFileNoCities);
+                assertTrue(java.nio.file.Files.exists(tempFileNoCities));
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("Saved"));
+
+                // 3. Save with checkbox checked -> "cities" bundled in JSON
+                app.getIncludeCitiesCheckBox().setSelected(true);
+                assertTrue(app.getIncludeCitiesCheckBox().isSelected());
+                app.saveScenarioToFile(app.getSimulationDraftSettings(), tempFileWithCities);
+                assertTrue(java.nio.file.Files.exists(tempFileWithCities));
+            });
+
+            // Verify file contents outside FX thread
+            String noCitiesJson = java.nio.file.Files.readString(tempFileNoCities);
+            assertFalse(noCitiesJson.contains("\"cities\""));
+
+            String withCitiesJson = java.nio.file.Files.readString(tempFileWithCities);
+            assertTrue(withCitiesJson.contains("\"cities\" : ["));
+            assertTrue(withCitiesJson.contains("\"eureka\""));
+
+            // 4. Change active cities in app to custom 3 cities
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                boolean importedCustom = app.importCitiesFromFile(customCitiesFile);
+                assertTrue(importedCustom);
+                assertTrue(app.isPreparingReplay());
+                assertTrue(app.getIncludeCitiesCheckBox().isDisable());
+            });
+
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                assertFalse(app.isPreparingReplay());
+                assertEquals(3, app.getSimulationSiteCatalog().sites().size());
+                assertFalse(app.getIncludeCitiesCheckBox().isDisable());
+
+                // 5. Import scenario file WITHOUT cities -> updates settings, keeps 3 custom cities
+                app.getEpicenterLatField().setText("33.0000");
+                boolean importedNoCities = app.importScenarioFromFile(tempFileNoCities);
+                assertTrue(importedNoCities);
+                assertTrue(app.isPreparingReplay());
+            });
+
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                assertFalse(app.isPreparingReplay());
+                // Settings updated
+                assertEquals(35.5, app.getSimulationInstalledSettings().epicenter().latitude(), 1e-6);
+                // Cities unchanged (retained 3 custom cities)
+                assertEquals(3, app.getSimulationSiteCatalog().sites().size());
+                assertEquals(3, app.getMapCanvasPane().getMapScenario().sites().size());
+
+                // 6. Import invalid bundled cities scenario -> fails transactionally
+                boolean importedBadCities = app.importScenarioFromFile(badCitiesScenarioFile);
+                assertFalse(importedBadCities);
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("Import failed"));
+                assertEquals(3, app.getSimulationSiteCatalog().sites().size());
+
+                // 7. Import scenario file WITH bundled cities -> updates settings AND restores 22 bundled cities
+                boolean importedWithCities = app.importScenarioFromFile(tempFileWithCities);
+                assertTrue(importedWithCities);
+                assertTrue(app.isPreparingReplay());
+            });
+
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                assertFalse(app.isPreparingReplay());
+                // Cities updated to bundled 22 cities!
+                assertEquals(22, app.getSimulationSiteCatalog().sites().size());
+                assertEquals(22, app.getMapCanvasPane().getMapScenario().sites().size());
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("with 22 cities")
+                        || app.getSimSettingsStatusLabel().getText().contains("Ready")
+                        || app.getSimSettingsStatusLabel().getText().contains("Installed"));
+            });
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempFileNoCities);
+            java.nio.file.Files.deleteIfExists(tempFileWithCities);
+            java.nio.file.Files.deleteIfExists(badCitiesScenarioFile);
+            java.nio.file.Files.deleteIfExists(customCitiesFile);
+            if (appRef[0] != null) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    appRef[0].stop();
+                    if (stageRef[0] != null) stageRef[0].close();
+                });
+            }
+        }
+    }
+
+    @Test
     void simulationAndReplayLayoutSimplifications() throws Exception {
         JavaFxTestHelper.runOnFxThread(() -> {
             CalQuakeApp app = new CalQuakeApp();

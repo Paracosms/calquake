@@ -4,9 +4,11 @@ import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.IntensityDisplayMode;
 import io.github.paracosms.calquake.core.SimulationAssumptionSet;
 import io.github.paracosms.calquake.core.SimulationScenarioSettings;
+import io.github.paracosms.calquake.core.SimulationSite;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
@@ -19,6 +21,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -27,14 +30,38 @@ import java.util.Objects;
  */
 public final class SimulationScenarioSerializer {
 
+    /**
+     * Container for loaded scenario settings and optional bundled cities.
+     */
+    public record LoadedScenario(
+            SimulationScenarioSettings settings,
+            List<SimulationSite> cities
+    ) {
+        public LoadedScenario {
+            Objects.requireNonNull(settings, "settings cannot be null");
+            cities = (cities == null || cities.isEmpty()) ? List.of() : List.copyOf(cities);
+        }
+
+        public boolean hasCities() {
+            return !cities.isEmpty();
+        }
+    }
+
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     private SimulationScenarioSerializer() {}
 
     /**
-     * Serializes scenario settings to a versioned UTF-8 JSON string.
+     * Serializes scenario settings to a versioned UTF-8 JSON string without bundled cities.
      */
     public static String toJson(SimulationScenarioSettings settings) {
+        return toJson(settings, null);
+    }
+
+    /**
+     * Serializes scenario settings and optional bundled cities to a versioned UTF-8 JSON string.
+     */
+    public static String toJson(SimulationScenarioSettings settings, List<SimulationSite> sites) {
         Objects.requireNonNull(settings, "settings cannot be null");
         ObjectNode root = JSON_MAPPER.createObjectNode();
         root.put("schema_version", SimulationScenarioDto.CURRENT_SCHEMA_VERSION);
@@ -52,6 +79,17 @@ public final class SimulationScenarioSerializer {
         root.put("intensity_display_mode", settings.intensityDisplayMode().name());
         root.put("assumption_set", settings.assumptionSetId());
 
+        if (sites != null && !sites.isEmpty()) {
+            ArrayNode citiesArray = root.putArray("cities");
+            for (SimulationSite site : sites) {
+                ObjectNode siteNode = citiesArray.addObject();
+                siteNode.put("id", site.id());
+                siteNode.put("display_name", site.displayName());
+                siteNode.put("latitude", site.coordinates().latitude());
+                siteNode.put("longitude", site.coordinates().longitude());
+            }
+        }
+
         try {
             return JSON_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root);
         } catch (JacksonException e) {
@@ -64,6 +102,14 @@ public final class SimulationScenarioSerializer {
      * Writes to a temporary sibling file first, then atomically moves it to replace destination.
      */
     public static void writeToFile(SimulationScenarioSettings settings, Path targetFile) throws IOException {
+        writeToFile(settings, null, targetFile);
+    }
+
+    /**
+     * Atomically writes the given scenario settings and optional bundled cities to the destination file.
+     * Writes to a temporary sibling file first, then atomically moves it to replace destination.
+     */
+    public static void writeToFile(SimulationScenarioSettings settings, List<SimulationSite> sites, Path targetFile) throws IOException {
         Objects.requireNonNull(settings, "settings cannot be null");
         Objects.requireNonNull(targetFile, "targetFile cannot be null");
 
@@ -75,7 +121,7 @@ public final class SimulationScenarioSerializer {
 
         Path tempFile = Files.createTempFile(parent != null ? parent : Path.of("."), ".calquake-tmp-", ".json");
         try {
-            String json = toJson(settings);
+            String json = toJson(settings, sites);
             Files.writeString(tempFile, json, StandardCharsets.UTF_8,
                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
             try {
@@ -89,48 +135,76 @@ public final class SimulationScenarioSerializer {
     }
 
     /**
-     * Reads and parses scenario settings from a file.
+     * Reads and parses scenario settings and optional bundled cities from a file.
      */
-    public static SimulationScenarioSettings readFromFile(Path path) throws IOException {
+    public static LoadedScenario readPackageFromFile(Path path) throws IOException {
         Objects.requireNonNull(path, "path cannot be null");
         try (InputStream stream = Files.newInputStream(path)) {
-            return fromInputStream(stream);
+            return fromPackageInputStream(stream);
         }
     }
 
     /**
-     * Parses and validates scenario settings from an InputStream.
+     * Parses and validates scenario settings and optional bundled cities from an InputStream.
      */
-    public static SimulationScenarioSettings fromInputStream(InputStream stream) {
+    public static LoadedScenario fromPackageInputStream(InputStream stream) {
         Objects.requireNonNull(stream, "stream cannot be null");
         try {
             JsonNode root = JSON_MAPPER.readTree(stream);
-            return fromJsonNode(root);
+            return fromPackageJsonNode(root);
         } catch (JacksonException e) {
             throw new IllegalArgumentException("Malformed simulation scenario JSON: " + e.getMessage(), e);
         }
     }
 
     /**
-     * Parses and validates scenario settings from a JSON string.
+     * Parses and validates scenario settings and optional bundled cities from a JSON string.
      */
-    public static SimulationScenarioSettings fromJson(String json) {
+    public static LoadedScenario fromPackageJson(String json) {
         Objects.requireNonNull(json, "json cannot be null");
         if (json.isBlank()) {
             throw new IllegalArgumentException("Simulation scenario JSON cannot be blank");
         }
         try {
             JsonNode root = JSON_MAPPER.readTree(json);
-            return fromJsonNode(root);
+            return fromPackageJsonNode(root);
         } catch (JacksonException e) {
             throw new IllegalArgumentException("Malformed simulation scenario JSON: " + e.getMessage(), e);
         }
     }
 
     /**
-     * Parses and validates a JSON node according to version 1 schema rules.
+     * Reads and parses scenario settings from a file.
+     */
+    public static SimulationScenarioSettings readFromFile(Path path) throws IOException {
+        return readPackageFromFile(path).settings();
+    }
+
+    /**
+     * Parses and validates scenario settings from an InputStream.
+     */
+    public static SimulationScenarioSettings fromInputStream(InputStream stream) {
+        return fromPackageInputStream(stream).settings();
+    }
+
+    /**
+     * Parses and validates scenario settings from a JSON string.
+     */
+    public static SimulationScenarioSettings fromJson(String json) {
+        return fromPackageJson(json).settings();
+    }
+
+    /**
+     * Parses and validates a JSON node according to version 1 schema rules, returning settings.
      */
     public static SimulationScenarioSettings fromJsonNode(JsonNode root) {
+        return fromPackageJsonNode(root).settings();
+    }
+
+    /**
+     * Parses and validates a JSON node according to version 1 schema rules, returning scenario package.
+     */
+    public static LoadedScenario fromPackageJsonNode(JsonNode root) {
         Objects.requireNonNull(root, "root cannot be null");
         if (!root.isObject()) {
             throw new IllegalArgumentException("Root JSON node must be an object");
@@ -250,7 +324,24 @@ public final class SimulationScenarioSerializer {
         // Resolves explicitly; unknown versions fail safely
         SimulationAssumptionSet.resolve(assumptionSetId);
 
-        return new SimulationScenarioSettings(
+        // 11. Optional bundled cities
+        List<SimulationSite> sites = null;
+        JsonNode citiesNode = root.get("cities");
+        if (citiesNode == null || citiesNode.isNull() || citiesNode.isMissingNode()) {
+            citiesNode = root.get("sites");
+        }
+        if (citiesNode != null && !citiesNode.isNull() && !citiesNode.isMissingNode()) {
+            try {
+                sites = SimulationSiteSerializer.fromJsonNode(citiesNode);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid bundled cities in simulation scenario: " + e.getMessage(), e);
+            }
+            if (sites.isEmpty()) {
+                throw new IllegalArgumentException("Bundled cities list cannot be empty");
+            }
+        }
+
+        SimulationScenarioSettings settings = new SimulationScenarioSettings(
                 scenarioId,
                 name,
                 createdUtc,
@@ -260,5 +351,6 @@ public final class SimulationScenarioSerializer {
                 displayMode,
                 assumptionSetId
         );
+        return new LoadedScenario(settings, sites);
     }
 }

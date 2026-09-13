@@ -81,8 +81,10 @@ public final class JsonSimulationSiteCatalog implements SimulationSiteCatalog {
             sitesNode = root;
         } else if (root.isObject() && root.has("sites") && root.get("sites").isArray()) {
             sitesNode = root.get("sites");
+        } else if (root.isObject() && root.has("cities") && root.get("cities").isArray()) {
+            sitesNode = root.get("cities");
         } else {
-            throw new IllegalArgumentException("JSON must be an array of sites or an object with a 'sites' array");
+            throw new IllegalArgumentException("JSON must be an array of sites or an object with a 'sites' or 'cities' array");
         }
 
         List<SimulationSite> sites = new ArrayList<>();

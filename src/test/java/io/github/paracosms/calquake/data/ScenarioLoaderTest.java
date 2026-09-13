@@ -588,6 +588,164 @@ class ScenarioLoaderTest {
     }
 
     @Test
+    void testSimulationScenarioWithBundledCitiesRoundTrip() throws Exception {
+        SimulationScenarioSettings original = new SimulationScenarioSettings(
+                "custom-bundled-scenario-1",
+                "Custom Bundled Scenario",
+                Instant.parse("2026-09-13T10:00:00Z"),
+                new GeoPoint(37.7749, -122.4194),
+                6.8,
+                8.0,
+                io.github.paracosms.calquake.core.IntensityDisplayMode.CURRENT_SHAKING,
+                "calquake-custom-v2"
+        );
+        List<SimulationSite> originalSites = List.of(
+                new SimulationSite("sf-custom", "San Francisco Bundled", new GeoPoint(37.7749, -122.4194)),
+                new SimulationSite("oak-custom", "Oakland Bundled", new GeoPoint(37.8044, -122.2712))
+        );
+
+        String json = SimulationScenarioSerializer.toJson(original, originalSites);
+        assertNotNull(json);
+        assertTrue(json.contains("\"cities\" : ["));
+        assertTrue(json.contains("\"sf-custom\""));
+        assertTrue(json.contains("\"Oakland Bundled\""));
+
+        // Test fromPackageJson
+        SimulationScenarioSerializer.LoadedScenario loaded = SimulationScenarioSerializer.fromPackageJson(json);
+        assertEquals(original, loaded.settings());
+        assertTrue(loaded.hasCities());
+        assertEquals(2, loaded.cities().size());
+        assertEquals("sf-custom", loaded.cities().get(0).id());
+        assertEquals("San Francisco Bundled", loaded.cities().get(0).displayName());
+        assertEquals(37.7749, loaded.cities().get(0).coordinates().latitude(), 1e-6);
+        assertEquals(-122.4194, loaded.cities().get(0).coordinates().longitude(), 1e-6);
+
+        // Test atomic file write and read
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("calquake-bundled-", ".json");
+        try {
+            SimulationScenarioSerializer.writeToFile(original, originalSites, tempFile);
+            assertTrue(java.nio.file.Files.size(tempFile) > 0);
+
+            SimulationScenarioSerializer.LoadedScenario fromFile = SimulationScenarioSerializer.readPackageFromFile(tempFile);
+            assertEquals(original, fromFile.settings());
+            assertTrue(fromFile.hasCities());
+            assertEquals(2, fromFile.cities().size());
+
+            // Backward compatibility readFromFile returns settings
+            SimulationScenarioSettings settingsOnly = SimulationScenarioSerializer.readFromFile(tempFile);
+            assertEquals(original, settingsOnly);
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempFile);
+        }
+    }
+
+    @Test
+    void testSimulationScenarioWithoutBundledCitiesOptional() {
+        SimulationScenarioSettings original = SimulationScenarioSettings.createDefault();
+        String jsonWithoutCities = SimulationScenarioSerializer.toJson(original);
+        assertFalse(jsonWithoutCities.contains("\"cities\""));
+
+        SimulationScenarioSerializer.LoadedScenario loaded = SimulationScenarioSerializer.fromPackageJson(jsonWithoutCities);
+        assertEquals(original, loaded.settings());
+        assertFalse(loaded.hasCities());
+        assertTrue(loaded.cities().isEmpty());
+    }
+
+    @Test
+    void testSimulationScenarioWithAlternativeCitiesObjectFormat() {
+        String jsonWithObject = """
+                {
+                  "schema_version": 1,
+                  "type": "calquake-simulation-scenario",
+                  "scenario_id": "test-alt",
+                  "name": "Test Alt",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v2",
+                  "cities": {
+                    "schema_version": 1,
+                    "type": "calquake-simulation-sites",
+                    "sites": [
+                      { "id": "alt-city", "display_name": "Alt City", "latitude": 35.1, "longitude": -118.1 }
+                    ]
+                  }
+                }
+                """;
+        SimulationScenarioSerializer.LoadedScenario loaded = SimulationScenarioSerializer.fromPackageJson(jsonWithObject);
+        assertTrue(loaded.hasCities());
+        assertEquals(1, loaded.cities().size());
+        assertEquals("alt-city", loaded.cities().get(0).id());
+    }
+
+    @Test
+    void testSimulationScenarioWithInvalidBundledCitiesThrows() {
+        // Empty cities array
+        String emptyCities = """
+                {
+                  "schema_version": 1,
+                  "type": "calquake-simulation-scenario",
+                  "scenario_id": "test-bad",
+                  "name": "Test Bad",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v2",
+                  "cities": []
+                }
+                """;
+        assertThrows(IllegalArgumentException.class,
+                () -> SimulationScenarioSerializer.fromPackageJson(emptyCities));
+
+        // Duplicate city IDs
+        String dupCities = """
+                {
+                  "schema_version": 1,
+                  "type": "calquake-simulation-scenario",
+                  "scenario_id": "test-bad",
+                  "name": "Test Bad",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v2",
+                  "cities": [
+                    { "id": "dup", "display_name": "City 1", "latitude": 35.0, "longitude": -118.0 },
+                    { "id": "dup", "display_name": "City 2", "latitude": 36.0, "longitude": -119.0 }
+                  ]
+                }
+                """;
+        assertThrows(IllegalArgumentException.class,
+                () -> SimulationScenarioSerializer.fromPackageJson(dupCities));
+
+        // Invalid latitude
+        String badLatCities = """
+                {
+                  "schema_version": 1,
+                  "type": "calquake-simulation-scenario",
+                  "scenario_id": "test-bad",
+                  "name": "Test Bad",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v2",
+                  "cities": [
+                    { "id": "c1", "display_name": "City 1", "latitude": 135.0, "longitude": -118.0 }
+                  ]
+                }
+                """;
+        assertThrows(IllegalArgumentException.class,
+                () -> SimulationScenarioSerializer.fromPackageJson(badLatCities));
+    }
+
+    @Test
     void testLoadRecordedScenarioBundleIsolation() {
         ScenarioLoader.ScenarioBundle recordedBundle = loader.loadScenarioBundle("Ridgecrest", io.github.paracosms.calquake.core.MmiMode.RECORDED);
         assertNotNull(recordedBundle);
