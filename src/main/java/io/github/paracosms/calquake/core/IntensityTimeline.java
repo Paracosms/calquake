@@ -18,6 +18,7 @@ public final class IntensityTimeline {
     private final DomainStatus domainStatus;
     private final ModelMetadata modelMetadata;
     private final List<Sample> samples;
+    private final MmiMode mmiMode;
 
     public IntensityTimeline(
             SimulationSite site,
@@ -30,7 +31,8 @@ public final class IntensityTimeline {
             Optional<MmiLegend.MmiBin> finalDisplayBin,
             DomainStatus domainStatus,
             ModelMetadata modelMetadata,
-            List<Sample> samples
+            List<Sample> samples,
+            MmiMode mmiMode
     ) {
         this.site = Objects.requireNonNull(site, "site cannot be null");
         if (!Double.isFinite(pArrivalSeconds) || !Double.isFinite(sArrivalSeconds)
@@ -46,12 +48,30 @@ public final class IntensityTimeline {
         this.finalDisplayBin = finalDisplayBin == null ? Optional.empty() : finalDisplayBin;
         this.domainStatus = Objects.requireNonNull(domainStatus, "domainStatus cannot be null");
         this.modelMetadata = Objects.requireNonNull(modelMetadata, "modelMetadata cannot be null");
+        this.mmiMode = mmiMode == null ? MmiMode.RECORDED : mmiMode;
         Objects.requireNonNull(samples, "samples cannot be null");
         if (samples.isEmpty() || samples.getFirst().elapsedSeconds() != 0.0) {
             throw new IllegalArgumentException("Timeline must start at exactly T+0");
         }
         this.samples = List.copyOf(samples);
         validateSamples(this.samples);
+    }
+
+    public IntensityTimeline(
+            SimulationSite site,
+            double pArrivalSeconds,
+            double sArrivalSeconds,
+            double surfaceDistanceKm,
+            OptionalDouble rjbKm,
+            OptionalDouble finalMmi,
+            OptionalDouble predictedPeakPgv,
+            Optional<MmiLegend.MmiBin> finalDisplayBin,
+            DomainStatus domainStatus,
+            ModelMetadata modelMetadata,
+            List<Sample> samples
+    ) {
+        this(site, pArrivalSeconds, sArrivalSeconds, surfaceDistanceKm, rjbKm, finalMmi,
+                predictedPeakPgv, finalDisplayBin, domainStatus, modelMetadata, samples, MmiMode.RECORDED);
     }
 
     public static IntensityTimeline recorded(
@@ -93,7 +113,7 @@ public final class IntensityTimeline {
         OptionalDouble pgv = isCurrent ? sample.currentPgvCmPerSecond() : sample.pgvCmPerSecond();
 
         Optional<MmiLegend.MmiBin> bin = (status.hasDisplayValue() && mmi.isPresent())
-                ? Optional.of(MmiLegend.findBin(Math.max(1.0, mmi.getAsDouble())))
+                ? Optional.of(MmiLegend.findBin(Math.max(1.0, mmi.getAsDouble()), mmiMode))
                 : Optional.empty();
 
         return new LocationIntensityState(site, mmi, finalMmi, pgv,
@@ -134,6 +154,7 @@ public final class IntensityTimeline {
     public DomainStatus domainStatus() { return domainStatus; }
     public ModelMetadata modelMetadata() { return modelMetadata; }
     public List<Sample> samples() { return samples; }
+    public MmiMode mmiMode() { return mmiMode; }
 
     public record Sample(
             double elapsedSeconds,

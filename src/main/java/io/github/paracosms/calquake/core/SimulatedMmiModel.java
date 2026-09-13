@@ -199,7 +199,8 @@ public final class SimulatedMmiModel implements IntensityModel {
         IntensityTimeline timeline = new IntensityTimeline(site, p, s, surfaceDistance,
                 OptionalDouble.of(rjb), OptionalDouble.of(finalMmi),
                 OptionalDouble.of(prediction.pgvCmPerSecond()),
-                Optional.of(MmiLegend.findBin(Math.max(1.0, finalMmi))), domain, metadata, samples);
+                Optional.of(MmiLegend.findBin(Math.max(1.0, finalMmi), MmiMode.SIMULATED)),
+                domain, metadata, samples, MmiMode.SIMULATED);
         return new PreparedSite(timeline, peakTime);
     }
 

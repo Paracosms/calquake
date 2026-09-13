@@ -28,6 +28,8 @@ public final class MmiLegend {
     }
 
     public static final MmiBin BIN_I = new MmiBin("I", 1.0, 1.5, "Not felt", "None", "#fbfcff", "#000000");
+    public static final MmiBin BIN_II = new MmiBin("II", 1.5, 2.5, "Weak", "None", "#acdbff", "#000000");
+    public static final MmiBin BIN_III = new MmiBin("III", 2.5, 3.5, "Weak", "None", "#acdbff", "#000000");
     public static final MmiBin BIN_II_III = new MmiBin("II-III", 1.5, 3.5, "Weak", "None", "#acdbff", "#000000");
     public static final MmiBin BIN_IV = new MmiBin("IV", 3.5, 4.5, "Light", "None", "#7ffffa", "#000000");
     public static final MmiBin BIN_V = new MmiBin("V", 4.5, 5.5, "Moderate", "Very light", "#81ff8a", "#000000");
@@ -61,18 +63,36 @@ public final class MmiLegend {
     }
 
     /**
-     * Resolves the appropriate frozen legend bin for an MMI value.
+     * Resolves the appropriate frozen legend bin for an MMI value in default (Recorded / Replay) mode.
      * Values on bin boundaries follow standard ShakeMap half-open intervals [min, max).
      *
      * @param mmi MMI numeric value, or {@code null}
      * @return corresponding {@link MmiBin}
      */
     public static MmiBin findBin(Double mmi) {
+        return findBin(mmi, MmiMode.RECORDED);
+    }
+
+    /**
+     * Resolves the appropriate frozen legend bin for an MMI value according to the specified {@link MmiMode}.
+     * For {@link MmiMode#SIMULATED}, values in [1.5, 3.5) are split into II ([1.5, 2.5)) and III ([2.5, 3.5)).
+     * For {@link MmiMode#RECORDED}, values in [1.5, 3.5) resolve to the standard USGS combined bin II-III.
+     *
+     * @param mmi  MMI numeric value, or {@code null}
+     * @param mode MMI mode (SIMULATED or RECORDED)
+     * @return corresponding {@link MmiBin}
+     */
+    public static MmiBin findBin(Double mmi, MmiMode mode) {
         if (mmi == null || Double.isNaN(mmi) || Double.isInfinite(mmi) || mmi < 1.0) {
             return BIN_NA;
         }
         if (mmi < 1.5) return BIN_I;
-        if (mmi < 3.5) return BIN_II_III;
+        if (mmi < 3.5) {
+            if (mode == MmiMode.SIMULATED) {
+                return mmi < 2.5 ? BIN_II : BIN_III;
+            }
+            return BIN_II_III;
+        }
         if (mmi < 4.5) return BIN_IV;
         if (mmi < 5.5) return BIN_V;
         if (mmi < 6.5) return BIN_VI;
