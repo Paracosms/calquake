@@ -331,3 +331,27 @@
     -fx-background-color: linear-gradient(to bottom, #C4DCED 0%, #A9CCE5 100%);
     -fx-border-color: #1F5A94;
 }
+
+/* Status Bar CheckBox / Fault Geometry Toggle */
+.status-bar .check-box {
+    -fx-font-size: 11px;
+    -fx-text-fill: #1E293B;
+}
+
+.status-bar .check-box .box {
+    -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #EDF3F9 100%);
+    -fx-border-color: #7B96B2;
+    -fx-border-width: 1px;
+    -fx-border-radius: 2px;
+    -fx-background-radius: 2px;
+}
+
+.status-bar .check-box:hover .box {
+    -fx-border-color: #3388CC;
+    -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #E3EFFB 100%);
+}
+
+.status-bar .check-box:selected .mark {
+    -fx-background-color: #0F6CBD;
+}
+

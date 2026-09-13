@@ -14,6 +14,7 @@ import io.github.paracosms.calquake.core.MercatorProjection.ScreenPoint;
 import io.github.paracosms.calquake.core.MercatorProjection.ViewportTransform;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
+import io.github.paracosms.calquake.core.RuptureGeometry;
 import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.WavefrontRadii;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
@@ -27,6 +28,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeLineCap;
+import javafx.scene.shape.StrokeLineJoin;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.util.Duration;
@@ -37,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Dual-canvas map viewport for Demo 0:
@@ -102,6 +105,7 @@ public class MapCanvasPane extends Pane {
     private FrameState lastFrame;
     private final Tooltip mapTooltip;
     private ApplicationMode applicationMode = ApplicationMode.SIMULATION;
+    private boolean showFaultGeometry = false;
 
     public MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline) {
         this.mapScenario = Objects.requireNonNull(mapScenario, "mapScenario cannot be null");
@@ -183,6 +187,17 @@ public class MapCanvasPane extends Pane {
         return applicationMode;
     }
 
+    public boolean isFaultGeometryVisible() {
+        return showFaultGeometry;
+    }
+
+    public void setFaultGeometryVisible(boolean visible) {
+        if (this.showFaultGeometry != visible) {
+            this.showFaultGeometry = visible;
+            redrawStaticMap();
+        }
+    }
+
     /**
      * Redraws static geometry onto {@code staticCanvas}.
      * Executed when size, scenario, or window lifecycle state changes.
@@ -226,11 +241,51 @@ public class MapCanvasPane extends Pane {
             gc.stroke();
         }
 
-        // 3. Epicenter marker and label
+        // 3. Fault Geometry Overlay (orange-red, semi-transparent fault-trace polyline)
+        drawFaultGeometry(gc);
+
+        // 4. Epicenter marker and label
         drawEpicenter(gc);
 
-        // 4. Simulation Site Station Dots (neutral base map markers)
+        // 5. Simulation Site Station Dots (neutral base map markers)
         drawSiteDots(gc);
+    }
+
+    private void drawFaultGeometry(GraphicsContext gc) {
+        if (!showFaultGeometry || mapScenario == null || currentTransform == null) {
+            return;
+        }
+        Optional<RuptureGeometry> ruptureOpt = mapScenario.event().ruptureGeometry();
+        if (ruptureOpt.isEmpty()) {
+            return;
+        }
+        RuptureGeometry rupture = ruptureOpt.get();
+        List<List<GeoPoint>> parts = rupture.surfaceProjectionParts();
+        if (parts == null || parts.isEmpty()) {
+            return;
+        }
+
+        gc.save();
+        // Orange-red, semi-transparent fault-trace polyline
+        gc.setStroke(Color.rgb(255, 69, 0, 0.75));
+        gc.setLineWidth(2.5);
+        gc.setLineCap(StrokeLineCap.ROUND);
+        gc.setLineJoin(StrokeLineJoin.ROUND);
+
+        for (List<GeoPoint> part : parts) {
+            if (part == null || part.size() < 2) {
+                continue;
+            }
+            gc.beginPath();
+            ScreenPoint first = currentTransform.toScreen(projection.project(part.get(0)));
+            gc.moveTo(first.xPx(), first.yPx());
+            for (int i = 1; i < part.size(); i++) {
+                ScreenPoint pt = currentTransform.toScreen(projection.project(part.get(i)));
+                gc.lineTo(pt.xPx(), pt.yPx());
+            }
+            gc.stroke();
+        }
+        gc.restore();
     }
 
     private void updateTransform(double w, double h) {

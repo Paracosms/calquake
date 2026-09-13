@@ -36,6 +36,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -65,6 +66,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -168,6 +170,7 @@ public class CalQuakeApp extends Application {
     private Label elapsedDigitsLabel;
     private Label elapsedSubLabel;
     private Label statusReplayLabel;
+    private CheckBox faultGeometryCheckBox;
     private AnimationTimer animationTimer;
 
     public CalQuakeApp() {
@@ -584,7 +587,7 @@ public class CalQuakeApp extends Application {
             } else {
                 simWarningBanner.setVisible(true);
                 simWarningBanner.setManaged(true);
-                simWarningBannerLabel.setText("Outside the model's tested/calibrated range. This toy simulation may be wildly inaccurate.\n• "
+                simWarningBannerLabel.setText("Outside the model's tested/calibrated range. This simulation may be wildly inaccurate.\n• "
                         + String.join("\n• ", simulationWarnings));
             }
         }
@@ -797,10 +800,10 @@ public class CalQuakeApp extends Application {
         VBox box = new VBox(4.0);
         box.setStyle("-fx-background-color: #FEF2F2; -fx-border-color: #FCA5A5; -fx-border-width: 1px; -fx-border-radius: 3px; -fx-padding: 8px;");
 
-        Label title = new Label("⚠ Exploratory Toy Simulation");
+        Label title = new Label("⚠ Exploratory Simulation");
         title.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #991B1B;");
 
-        Label text = new Label("Simulation is an exploratory toy. It is not a forecast, emergency tool, hazard product, or scientifically validated prediction of a future earthquake.");
+        Label text = new Label("Simulation is for visualization purposes only.");
         text.setWrapText(true);
         text.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #7F1D1D;");
 
@@ -1004,6 +1007,11 @@ public class CalQuakeApp extends Application {
         bar.getStyleClass().add("status-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
 
+        this.faultGeometryCheckBox = new CheckBox("Fault Geometry");
+        faultGeometryCheckBox.setId("fault-geometry-toggle");
+        faultGeometryCheckBox.getStyleClass().add("status-pane");
+        faultGeometryCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -1011,7 +1019,7 @@ public class CalQuakeApp extends Application {
         statusReplayLabel.getStyleClass().add("status-pane");
         statusReplayLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
 
-        bar.getChildren().addAll(spacer, statusReplayLabel);
+        bar.getChildren().addAll(faultGeometryCheckBox, spacer, statusReplayLabel);
         return bar;
     }
 
@@ -1221,6 +1229,14 @@ public class CalQuakeApp extends Application {
                     selectedMmiMode = newVal;
                     updateLegendMeaning();
                     requestReplayPreparation(eventSelector != null ? eventSelector.getValue() : selectedReplayEvent, selectedMmiMode);
+                }
+            });
+        }
+
+        if (faultGeometryCheckBox != null) {
+            faultGeometryCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.setFaultGeometryVisible(newVal);
                 }
             });
         }
@@ -1898,11 +1914,25 @@ public class CalQuakeApp extends Application {
 
     public MapScenario getActiveMapScenario() {
         if (currentMode == ApplicationMode.SIMULATION) {
-            return MapScenario.fromInputs(simulationPreparedReplay.inputs());
+            if (simulationPreparedReplay != null && simulationPreparedReplay.inputs() != null) {
+                return MapScenario.fromInputs(simulationPreparedReplay.inputs());
+            }
+            if (simulationScenario != null) {
+                return MapScenario.fromLegacyScenario(simulationScenario);
+            }
         }
         ScenarioLoader.ScenarioBundle bundle = scenarioBundles.get(selectedReplayEvent);
         ScenarioReferences refs = bundle != null ? bundle.references() : new ScenarioReferences();
-        return MapScenario.fromLegacyScenario(replayScenario, refs);
+        if (bundle != null && bundle.inputs() != null) {
+            return MapScenario.fromInputs(bundle.inputs(), Optional.ofNullable(refs));
+        }
+        if (replayPreparedReplay != null && replayPreparedReplay.inputs() != null) {
+            return MapScenario.fromInputs(replayPreparedReplay.inputs(), Optional.ofNullable(refs));
+        }
+        if (replayScenario != null) {
+            return MapScenario.fromLegacyScenario(replayScenario, refs);
+        }
+        return MapScenario.fromLegacyScenario(scenarioLoader.loadDefaultScenario(), refs);
     }
 
     public SimulationSiteCatalog getSimulationSiteCatalog() {
@@ -2015,6 +2045,10 @@ public class CalQuakeApp extends Application {
 
     public Label getStatusReplayLabel() {
         return statusReplayLabel;
+    }
+
+    public CheckBox getFaultGeometryCheckBox() {
+        return faultGeometryCheckBox;
     }
 
     public AnimationTimer getAnimationTimer() {

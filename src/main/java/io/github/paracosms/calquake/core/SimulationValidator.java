@@ -37,7 +37,7 @@ public final class SimulationValidator {
 
         public String warningSummary() {
             if (warnings.isEmpty()) return "";
-            return "Outside the model's tested/calibrated range. This toy simulation may be wildly inaccurate: "
+            return "Outside the model's tested/calibrated range. This simulation may be wildly inaccurate: "
                     + String.join("; ", warnings);
         }
     }
