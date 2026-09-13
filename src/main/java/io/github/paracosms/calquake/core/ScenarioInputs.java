@@ -77,34 +77,7 @@ public record ScenarioInputs(
      */
     public static ScenarioInputs forCustomScenario(
             EventSource source, List<SimulationSite> requestedSites, TravelTimeModel model) {
-        Objects.requireNonNull(source, "source cannot be null");
-        Objects.requireNonNull(requestedSites, "requestedSites cannot be null");
-        Mechanism mechanism = source.mechanism().orElse(new Mechanism(
-                0.0, 0.0, 90.0, "STRIKE_SLIP", "CalQuake custom-scenario default"));
-        EventSource sourceWithMechanism = new EventSource(
-                source.id(), source.network(), source.title(), source.originUtc(), source.magnitude(),
-                source.magnitudeType(), source.epicenter(), source.depthKm(), source.ruptureGeometry(),
-                Optional.of(mechanism), source.metadata());
-        RuptureGeometry rupture = sourceWithMechanism.ruptureGeometry()
-                .orElseGet(() -> RuptureGeometryProvider.generate(sourceWithMechanism));
-        EventSource completedSource = new EventSource(
-                source.id(), source.network(), source.title(), source.originUtc(), source.magnitude(),
-                source.magnitudeType(), source.epicenter(), source.depthKm(), Optional.of(rupture),
-                Optional.of(mechanism), source.metadata());
-        SiteConditionResolver resolver = SiteConditionResolver.defaultResolver();
-        List<SimulationSite> completedSites = requestedSites.stream()
-                .map(site -> new SimulationSite(
-                        site.id(), site.displayName(), site.coordinates(), resolver.resolve(site)))
-                .toList();
-        return new ScenarioInputs(completedSource, completedSites,
-                TravelTimeConfiguration.forModel(model),
-                new ScientificConfiguration(
-                        Map.of("geometryScaling", RuptureGeometryProvider.MODEL_ID,
-                                "defaultVs30", "calquake-default-vs30-760",
-                                "vs30DatasetId", resolver.grid().datasetId(),
-                                "vs30Checksum", resolver.grid().sha256()),
-                        Map.of("timelineStepSeconds", SimulatedMmiModel.DEFAULT_TIMELINE_STEP_SECONDS,
-                                "convergenceStepSeconds", SimulatedMmiModel.CONVERGENCE_STEP_SECONDS)));
+        return completeCustomScenario(source, requestedSites, model, Optional.empty());
     }
 
     /**
@@ -114,40 +87,102 @@ public record ScenarioInputs(
     public static ScenarioInputs forCustomScenario(
             SimulationScenarioSettings settings, List<SimulationSite> requestedSites, TravelTimeModel model) {
         Objects.requireNonNull(settings, "settings cannot be null");
-        Objects.requireNonNull(requestedSites, "requestedSites cannot be null");
         SimulationAssumptionSet assumptions = SimulationAssumptionSet.resolve(settings.assumptionSetId());
 
-        EventSource sourceWithMechanism = new EventSource(
+        EventSource source = new EventSource(
                 settings.scenarioId(), "calquake", settings.displayName(),
                 settings.createdUtc(), settings.magnitude(), "mw",
                 settings.epicenter(), settings.depthKm(), Optional.empty(),
-                Optional.of(assumptions.mechanism()),
+                Optional.empty(),
                 Map.of("assumptionSet", assumptions.id(),
                         "intensityDisplayMode", settings.intensityDisplayMode().name()));
 
-        RuptureGeometry rupture = RuptureGeometryProvider.generate(sourceWithMechanism);
+        return completeCustomScenario(source, requestedSites, model, Optional.of(assumptions));
+    }
+
+    private static ScenarioInputs completeCustomScenario(
+            EventSource source,
+            List<SimulationSite> requestedSites,
+            TravelTimeModel model,
+            Optional<SimulationAssumptionSet> assumptions
+    ) {
+        Objects.requireNonNull(source, "source cannot be null");
+        Objects.requireNonNull(requestedSites, "requestedSites cannot be null");
+        Objects.requireNonNull(model, "model cannot be null");
+
+        boolean hasMechanism = source.mechanism().isPresent();
+        boolean hasGeometry = source.ruptureGeometry().isPresent();
+
+        FaultResolution resolution;
+        boolean usedAutomaticCatalog = false;
+        String resolverId = null;
+        String catalogId = null;
+        String catalogChecksum = null;
+
+        if (hasMechanism && hasGeometry) {
+            resolution = FaultResolution.supplied(
+                    source.mechanism().get(), source.ruptureGeometry().get(), "Supplied geometry and mechanism");
+        } else if (hasMechanism) {
+            Mechanism mech = source.mechanism().get();
+            RuptureGeometry rupture = RuptureGeometryProvider.generatePlanar(
+                    source.epicenter(), source.depthKm(), source.magnitude(), mech);
+            resolution = FaultResolution.supplied(
+                    mech, rupture, "Supplied mechanism; generated planar geometry");
+        } else if (hasGeometry) {
+            RuptureGeometry rup = source.ruptureGeometry().get();
+            Mechanism mech = new Mechanism(0.0, rup.strikeDegrees(), rup.dipDegrees(), "STRIKE_SLIP", "Derived from supplied geometry");
+            resolution = FaultResolution.supplied(
+                    mech, rup, "Supplied geometry; derived strike-slip mechanism");
+        } else {
+            AutomaticFaultResolver faultResolver = AutomaticFaultResolver.defaultResolver();
+            resolution = faultResolver.resolve(source.epicenter(), source.depthKm(), source.magnitude());
+            usedAutomaticCatalog = true;
+            resolverId = AutomaticFaultResolver.RESOLVER_ID;
+            catalogId = faultResolver.catalog().datasetId();
+            catalogChecksum = faultResolver.catalog().sha256();
+        }
+
+        Map<String, String> mergedMetadata = new java.util.LinkedHashMap<>(source.metadata());
+        mergedMetadata.keySet().removeIf(k -> k.startsWith("resolver."));
+        mergedMetadata.putAll(resolution.toMetadata());
+        assumptions.ifPresent(a -> mergedMetadata.put("assumptionSet", a.id()));
 
         EventSource completedSource = new EventSource(
-                sourceWithMechanism.id(), sourceWithMechanism.network(), sourceWithMechanism.title(),
-                sourceWithMechanism.originUtc(), sourceWithMechanism.magnitude(),
-                sourceWithMechanism.magnitudeType(), sourceWithMechanism.epicenter(),
-                sourceWithMechanism.depthKm(), Optional.of(rupture),
-                Optional.of(assumptions.mechanism()), sourceWithMechanism.metadata());
+                source.id(), source.network(), source.title(), source.originUtc(),
+                source.magnitude(), source.magnitudeType(), source.epicenter(), source.depthKm(),
+                Optional.of(resolution.rupture()),
+                Optional.of(resolution.mechanism()),
+                mergedMetadata);
 
-        SiteConditionResolver resolver = SiteConditionResolver.defaultResolver();
+        SiteConditionResolver siteResolver = SiteConditionResolver.defaultResolver();
         List<SimulationSite> completedSites = requestedSites.stream()
                 .map(site -> new SimulationSite(
-                        site.id(), site.displayName(), site.coordinates(), resolver.resolve(site)))
+                        site.id(), site.displayName(), site.coordinates(), siteResolver.resolve(site)))
                 .toList();
 
-        return new ScenarioInputs(completedSource, completedSites,
+        Map<String, String> versionIds = new java.util.LinkedHashMap<>();
+        if (assumptions.isPresent()) {
+            versionIds.put("assumptionSet", assumptions.get().id());
+            versionIds.put("geometryScaling", assumptions.get().ruptureScalingModel());
+        } else {
+            versionIds.put("geometryScaling", RuptureGeometryProvider.MODEL_ID);
+        }
+        versionIds.put("defaultVs30", "calquake-default-vs30-760");
+        versionIds.put("vs30DatasetId", siteResolver.grid().datasetId());
+        versionIds.put("vs30Checksum", siteResolver.grid().sha256());
+
+        if (usedAutomaticCatalog) {
+            versionIds.put("resolverId", resolverId);
+            versionIds.put("faultCatalogId", catalogId);
+            versionIds.put("faultCatalogChecksum", catalogChecksum);
+        }
+
+        return new ScenarioInputs(
+                completedSource,
+                completedSites,
                 TravelTimeConfiguration.forModel(model),
                 new ScientificConfiguration(
-                        Map.of("assumptionSet", assumptions.id(),
-                                "geometryScaling", assumptions.ruptureScalingModel(),
-                                "defaultVs30", "calquake-default-vs30-760",
-                                "vs30DatasetId", resolver.grid().datasetId(),
-                                "vs30Checksum", resolver.grid().sha256()),
+                        versionIds,
                         Map.of("timelineStepSeconds", SimulatedMmiModel.DEFAULT_TIMELINE_STEP_SECONDS,
                                 "convergenceStepSeconds", SimulatedMmiModel.CONVERGENCE_STEP_SECONDS)));
     }

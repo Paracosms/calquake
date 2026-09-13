@@ -13,7 +13,19 @@ public final class RuptureGeometryProvider {
         Objects.requireNonNull(source, "source cannot be null");
         Mechanism mechanism = source.mechanism().orElse(new Mechanism(
                 0.0, 0.0, 90.0, "STRIKE_SLIP", "CalQuake documented custom-scenario default"));
-        double magnitude = source.magnitude();
+        return generatePlanar(source.epicenter(), source.depthKm(), source.magnitude(), mechanism);
+    }
+
+    public static RuptureGeometry generatePlanar(
+            GeoPoint epicenter, double depthKm, double magnitude, Mechanism mechanism) {
+        Objects.requireNonNull(epicenter, "epicenter cannot be null");
+        Objects.requireNonNull(mechanism, "mechanism cannot be null");
+        if (!Double.isFinite(depthKm) || depthKm < 0.0) {
+            throw new IllegalArgumentException("Depth must be non-negative and finite");
+        }
+        if (!Double.isFinite(magnitude)) {
+            throw new IllegalArgumentException("Magnitude must be finite");
+        }
         double lengthKm = Math.pow(10.0, -3.22 + 0.69 * magnitude);
         double downDipWidthKm = Math.pow(10.0, -1.01 + 0.32 * magnitude);
         if (!Double.isFinite(lengthKm) || !Double.isFinite(downDipWidthKm)
@@ -21,21 +33,32 @@ public final class RuptureGeometryProvider {
             throw new IllegalArgumentException("Magnitude produced invalid rupture dimensions");
         }
 
+        double dipRad = Math.toRadians(mechanism.dipDegrees());
+        double sinDip = Math.sin(dipRad);
+        double cosDip = Math.cos(dipRad);
+
+        double verticalExtent = downDipWidthKm * sinDip;
+        double top = Math.max(0.0, depthKm - verticalExtent * 0.5);
+        double bottom = top + verticalExtent;
+        double hypocenterDownDip = (depthKm - top) / sinDip;
+
+        double distUpDip = hypocenterDownDip * cosDip;
+        double strike = mechanism.strikeDegrees();
+        GeoPoint topMidpoint = destination(epicenter, strike - 90.0, distUpDip);
+
         double halfLength = lengthKm * 0.5;
-        double horizontalWidth = downDipWidthKm * Math.cos(Math.toRadians(mechanism.dipDegrees()));
-        GeoPoint a = destination(source.epicenter(), mechanism.strikeDegrees() + 180.0, halfLength);
-        GeoPoint b = destination(source.epicenter(), mechanism.strikeDegrees(), halfLength);
+        GeoPoint a = destination(topMidpoint, strike + 180.0, halfLength);
+        GeoPoint b = destination(topMidpoint, strike, halfLength);
+
+        double horizontalWidth = downDipWidthKm * cosDip;
         List<GeoPoint> projection;
         if (horizontalWidth < 1.0e-6) {
             projection = List.of(a, b);
         } else {
-            GeoPoint c = destination(b, mechanism.strikeDegrees() + 90.0, horizontalWidth);
-            GeoPoint d = destination(a, mechanism.strikeDegrees() + 90.0, horizontalWidth);
+            GeoPoint c = destination(b, strike + 90.0, horizontalWidth);
+            GeoPoint d = destination(a, strike + 90.0, horizontalWidth);
             projection = List.of(a, b, c, d, a);
         }
-        double halfVerticalWidth = downDipWidthKm * Math.sin(Math.toRadians(mechanism.dipDegrees())) * 0.5;
-        double top = Math.max(0.0, source.depthKm() - halfVerticalWidth);
-        double bottom = source.depthKm() + halfVerticalWidth;
         return new RuptureGeometry(List.of(projection), top, bottom,
                 mechanism.strikeDegrees(), mechanism.dipDegrees(), MODEL_ID, "", true);
     }

@@ -619,6 +619,14 @@ class CalQuakeAppIntegrationTest {
                 assertEquals("35.5000", app.getEpicenterLatField().getText());
                 assertEquals("6.5", app.getMagnitudeField().getText());
                 assertFalse(app.getPlayPauseButton().isDisable());
+
+                // Verify installed rupture summary and details match resolved result
+                assertNotNull(app.getSimAssumptionsRuptureLabel());
+                assertTrue(app.getSimAssumptionsRuptureLabel().getText().startsWith("• Automatic rupture: based on nearby")
+                        || app.getSimAssumptionsRuptureLabel().getText().startsWith("• Automatic rupture: generic"));
+                assertNotNull(app.getSimRuptureDetailsPane());
+                assertNotNull(app.getSimAssumptionsRuptureDetailsLabel());
+                assertTrue(app.getSimAssumptionsRuptureDetailsLabel().getText().contains("Simplified rectangle"));
             });
         } finally {
             java.nio.file.Files.deleteIfExists(tempFile);

@@ -48,6 +48,7 @@ import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
@@ -67,6 +68,7 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -182,6 +184,8 @@ public class CalQuakeApp extends Application {
     private Label simAssumptionsSiteLabel;
     private Label simAssumptionsFallbackLabel;
     private Label simAssumptionsRuptureLabel;
+    private Label simAssumptionsRuptureDetailsLabel;
+    private TitledPane simRuptureDetailsPane;
     private Label simAssumptionsFaultsLabel;
     private Label simAssumptionsNoteLabel;
     private AnimationTimer animationTimer;
@@ -225,8 +229,8 @@ public class CalQuakeApp extends Application {
 
             // Load Replay bundles
             if (this.scenarioBundles.isEmpty()) {
-                ScenarioLoader.ScenarioBundle ridgecrest = scenarioLoader.loadScenarioBundle("Ridgecrest");
-                ScenarioLoader.ScenarioBundle northridge = scenarioLoader.loadScenarioBundle("Northridge");
+                ScenarioLoader.ScenarioBundle ridgecrest = scenarioLoader.loadScenarioBundle("Ridgecrest", selectedMmiMode);
+                ScenarioLoader.ScenarioBundle northridge = scenarioLoader.loadScenarioBundle("Northridge", selectedMmiMode);
                 this.scenarioBundles = Map.of("Ridgecrest", ridgecrest, "Northridge", northridge);
             }
 
@@ -266,7 +270,13 @@ public class CalQuakeApp extends Application {
                         simulationInstalledSettings.magnitude(),
                         simulationInstalledSettings.depthKm(),
                         simulationSiteCatalog.sites(), outline);
-                this.simulationWarnings = initialValidation.warnings();
+                List<String> initWarnings = new ArrayList<>(initialValidation.warnings());
+                if (simBundle.inputs().eventSource().ruptureGeometry().isPresent()) {
+                    initWarnings.addAll(SimulationValidator.validateResolvedGeometry(
+                            simBundle.inputs().eventSource().ruptureGeometry().get(),
+                            simulationSiteCatalog.sites(), outline));
+                }
+                this.simulationWarnings = List.copyOf(initWarnings);
             } else if (this.simulationInstalledSettings == null) {
                 EarthquakeEvent ev = simulationScenario.event();
                 this.simulationInstalledSettings = new SimulationScenarioSettings(
@@ -792,6 +802,16 @@ public class CalQuakeApp extends Application {
 
         this.simAssumptionsRuptureLabel = new Label("• Scenario rupture: generated model geometry (W&C 1994)");
         simAssumptionsRuptureLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        simAssumptionsRuptureLabel.setWrapText(true);
+
+        this.simAssumptionsRuptureDetailsLabel = new Label();
+        simAssumptionsRuptureDetailsLabel.setStyle("-fx-font-size: 8.5px; -fx-text-fill: #475569;");
+        simAssumptionsRuptureDetailsLabel.setWrapText(true);
+
+        this.simRuptureDetailsPane = new TitledPane("Rupture Details", simAssumptionsRuptureDetailsLabel);
+        simRuptureDetailsPane.setExpanded(false);
+        simRuptureDetailsPane.setAnimated(false);
+        simRuptureDetailsPane.setStyle("-fx-font-size: 9px;");
 
         this.simAssumptionsFaultsLabel = new Label("• Mapped faults: USGS QFaults reference layer (display only)");
         simAssumptionsFaultsLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
@@ -800,7 +820,7 @@ public class CalQuakeApp extends Application {
         simAssumptionsNoteLabel.setStyle("-fx-font-size: 9.0px; -fx-font-style: italic; -fx-text-fill: #64748B;");
 
         box.getChildren().addAll(title, simAssumptionsSiteLabel, simAssumptionsFallbackLabel,
-                simAssumptionsRuptureLabel, simAssumptionsFaultsLabel, simAssumptionsNoteLabel);
+                simAssumptionsRuptureLabel, simRuptureDetailsPane, simAssumptionsFaultsLabel, simAssumptionsNoteLabel);
         updateAssumptionsSummary();
         return box;
     }
@@ -838,10 +858,57 @@ public class CalQuakeApp extends Application {
                 simAssumptionsFallbackLabel.setVisible(false);
                 simAssumptionsFallbackLabel.setManaged(false);
             }
+
+            if (simAssumptionsRuptureLabel != null) {
+                Map<String, String> meta = simulationPreparedReplay.inputs().eventSource().metadata();
+                String summary = meta.get("resolver.summary");
+                if (summary != null && !summary.isBlank()) {
+                    simAssumptionsRuptureLabel.setText("• " + summary);
+                } else {
+                    simAssumptionsRuptureLabel.setText("• Scenario rupture: generated model geometry (W&C 1994)");
+                }
+
+                if (simAssumptionsRuptureDetailsLabel != null) {
+                    StringBuilder sb = new StringBuilder();
+                    String mode = meta.getOrDefault("resolver.mode", "GENERIC");
+                    if ("FAULT_INFORMED".equalsIgnoreCase(mode)) {
+                        String name = meta.getOrDefault("resolver.sectionName", "Unknown fault");
+                        String dist = meta.getOrDefault("resolver.distanceKm", "N/A");
+                        sb.append("Candidate: ").append(name).append(" (").append(dist).append(" km away)\n");
+                        boolean ambiguous = "true".equalsIgnoreCase(meta.get("resolver.isAmbiguous"));
+                        sb.append("Ambiguity: ").append(ambiguous ? "Multiple comparable sections" : "Unique nearest section").append("\n");
+                        sb.append("Orientation: strike ").append(meta.getOrDefault("resolver.strikeDegrees", "0.0"))
+                          .append("°, dip ").append(meta.getOrDefault("resolver.dipDegrees", "90.0"))
+                          .append("°, rake ").append(meta.getOrDefault("resolver.rakeDegrees", "0.0")).append("°\n");
+                    } else if ("SUPPLIED".equalsIgnoreCase(mode)) {
+                        sb.append("Source: User-supplied geometry/mechanism\n");
+                        sb.append("Reason: ").append(meta.getOrDefault("resolver.reason", "Explicit inputs")).append("\n");
+                    } else {
+                        sb.append("Mode: Generic planar fallback\n");
+                        sb.append("Reason: ").append(meta.getOrDefault("resolver.reason", "No suitable nearby fault")).append("\n");
+                        sb.append("Orientation: strike 0.0°, dip 90.0°, rake 0.0° (generic strike-slip)\n");
+                    }
+                    Map<String, String> versions = simulationPreparedReplay.inputs().scientificConfiguration().versionIds();
+                    if (versions.containsKey("resolverId")) {
+                        sb.append("Resolver: ").append(versions.get("resolverId")).append("\n");
+                    }
+                    if (versions.containsKey("faultCatalogId")) {
+                        sb.append("Catalog: ").append(versions.get("faultCatalogId")).append("\n");
+                    }
+                    sb.append("Note: ").append(meta.getOrDefault("resolver.note", "Simplified rectangle; may extend beyond the mapped fault section."));
+                    simAssumptionsRuptureDetailsLabel.setText(sb.toString());
+                }
+            }
         } else {
             simAssumptionsSiteLabel.setText("• Site conditions: USGS mapped Vs30 at each marker");
             simAssumptionsFallbackLabel.setVisible(false);
             simAssumptionsFallbackLabel.setManaged(false);
+            if (simAssumptionsRuptureLabel != null) {
+                simAssumptionsRuptureLabel.setText("• Scenario rupture: generated model geometry (W&C 1994)");
+            }
+            if (simAssumptionsRuptureDetailsLabel != null) {
+                simAssumptionsRuptureDetailsLabel.setText("");
+            }
         }
     }
 
@@ -1624,12 +1691,10 @@ public class CalQuakeApp extends Application {
         updateControlStates();
         updateTimeDisplays();
 
-        ScenarioLoader.ScenarioBundle knownBundle = scenarioBundles.get(eventName);
         preparationFuture = CompletableFuture.supplyAsync(() -> {
-            ScenarioLoader.ScenarioBundle bundle = knownBundle != null
-                    ? knownBundle : scenarioLoader.loadScenarioBundle(eventName);
+            ScenarioLoader.ScenarioBundle bundle = scenarioLoader.loadScenarioBundle(eventName, mode);
             PreparedReplay replay = replayPreparer.prepare(bundle.inputs(), bundle.references(), mode);
-            return new PreparedInstallation(bundle, replay, targetMode);
+            return new PreparedInstallation(bundle, replay, targetMode, List.of());
         }, preparationExecutor).whenComplete((installation, failure) -> Platform.runLater(() -> {
             if (generation != preparationGeneration.get() || currentMode != targetMode) return;
             if (failure != null) {
@@ -1688,7 +1753,14 @@ public class CalQuakeApp extends Application {
             Scenario scenario = new Scenario(event, locations);
             ScenarioLoader.ScenarioBundle bundle = new ScenarioLoader.ScenarioBundle(
                     scenario, inputs, new ScenarioReferences(Map.of()));
-            return new PreparedInstallation(bundle, replay, targetMode);
+
+            List<String> combinedWarnings = new ArrayList<>(warnings != null ? warnings : List.of());
+            if (inputs.eventSource().ruptureGeometry().isPresent()) {
+                combinedWarnings.addAll(SimulationValidator.validateResolvedGeometry(
+                        inputs.eventSource().ruptureGeometry().get(), sites, outline));
+            }
+
+            return new PreparedInstallation(bundle, replay, targetMode, List.copyOf(combinedWarnings));
         }, preparationExecutor).whenComplete((installation, failure) -> Platform.runLater(() -> {
             if (generation != preparationGeneration.get() || currentMode != targetMode) return;
             if (failure != null) {
@@ -1703,7 +1775,7 @@ public class CalQuakeApp extends Application {
             }
             this.simulationInstalledSettings = settings;
             this.simulationDraftSettings = settings;
-            this.simulationWarnings = warnings != null ? List.copyOf(warnings) : List.of();
+            this.simulationWarnings = installation.warnings();
             installPreparedReplay(installation);
         }));
     }
@@ -1748,6 +1820,7 @@ public class CalQuakeApp extends Application {
             this.simulationPreparedReplay = installation.replay();
             this.simulationScenario = installation.bundle().scenario();
             this.simulationController = replacement;
+            this.simulationWarnings = installation.warnings() != null ? installation.warnings() : List.of();
             if (simulationSoundManager != null) {
                 simulationSoundManager.reset();
             }
@@ -2197,6 +2270,14 @@ public class CalQuakeApp extends Application {
         return simAssumptionsRuptureLabel;
     }
 
+    public Label getSimAssumptionsRuptureDetailsLabel() {
+        return simAssumptionsRuptureDetailsLabel;
+    }
+
+    public TitledPane getSimRuptureDetailsPane() {
+        return simRuptureDetailsPane;
+    }
+
     public Label getSimAssumptionsFaultsLabel() {
         return simAssumptionsFaultsLabel;
     }
@@ -2305,7 +2386,7 @@ public class CalQuakeApp extends Application {
         launch(args);
     }
 
-    private record PreparedInstallation(ScenarioLoader.ScenarioBundle bundle, PreparedReplay replay, ApplicationMode mode) {}
+    private record PreparedInstallation(ScenarioLoader.ScenarioBundle bundle, PreparedReplay replay, ApplicationMode mode, List<String> warnings) {}
 
     private static final class PreparationThreadFactory implements ThreadFactory {
         @Override

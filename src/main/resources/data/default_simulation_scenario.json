@@ -11,5 +11,5 @@
   "magnitude": 6.5,
   "depth_km": 10.0,
   "intensity_display_mode": "MAXIMUM_REACHED",
-  "assumption_set": "calquake-custom-v1"
+  "assumption_set": "calquake-custom-v2"
 }

@@ -1,0 +1,39 @@
+{
+  "manifest_version": 1,
+  "generated_utc": "2026-09-13T17:49:47.841578+00:00",
+  "dataset_id": "nshm23-california-fault-sections-v1",
+  "description": "Normalized USGS NSHM 2023 western-US fault sections within California and 100 km buffer",
+  "source": {
+    "title": "NSHM23_FSD_v3 (USGS National Seismic Hazard Model 2023 Fault Sections Database)",
+    "doi": "https://doi.org/10.5066/P9AWINWZ",
+    "sciencebase_item": "https://www.sciencebase.gov/catalog/item/655bebe7d34ee4b6e05cc19f",
+    "url": "https://raw.githubusercontent.com/opensha/opensha/master/src/main/resources/data/erf/nshm23/fault_models/v3/NSHM23_FSD_v3.geojson",
+    "sha256": "400014d06b25ee2e45ed77cb539e083b6899ded183660d1d6effcfc9d0214c15",
+    "crs": "WGS84 (EPSG:4326)"
+  },
+  "selection_bounds": {
+    "buffer_km": 100.0,
+    "min_longitude": -125.61,
+    "max_longitude": -112.94,
+    "min_latitude": 31.53,
+    "max_latitude": 43.01
+  },
+  "statistics": {
+    "total_source_features": 1016,
+    "accepted_features": 664,
+    "duplicate_vertices_removed": 0,
+    "rejected_counts": {
+      "outside_buffer": 344,
+      "proxy_fault": 8,
+      "missing_attributes": 0,
+      "invalid_geometry": 0,
+      "invalid_orientation": 0
+    }
+  },
+  "output_artifact": {
+    "file": "california_fault_sections.geojson",
+    "sha256": "80e695cc85ad4341df208f90c4e7e534a11f17aac28af6c6133b0cdfa9e8453b",
+    "size_bytes": 313618,
+    "feature_count": 664
+  }
+}

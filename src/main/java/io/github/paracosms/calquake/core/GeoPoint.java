@@ -48,4 +48,25 @@ public record GeoPoint(double latitude, double longitude) {
         h = Math.max(0.0, Math.min(1.0, h));
         return 2.0 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
     }
+
+    /**
+     * Calculates initial bearing (forward azimuth) in degrees [0, 360) from this point to another point.
+     * Returns Double.NaN if the two points are identical.
+     *
+     * @param other target point
+     * @return initial bearing in degrees, or Double.NaN if points are identical
+     */
+    public double bearingTo(GeoPoint other) {
+        java.util.Objects.requireNonNull(other, "other cannot be null");
+        if (this.equals(other) || (Math.abs(latitude - other.latitude) < 1e-11 && Math.abs(longitude - other.longitude) < 1e-11)) {
+            return Double.NaN;
+        }
+        double phi1 = Math.toRadians(latitude);
+        double phi2 = Math.toRadians(other.latitude);
+        double dlam = Math.toRadians(other.longitude - longitude);
+        double y = Math.sin(dlam) * Math.cos(phi2);
+        double x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dlam);
+        double bearing = Math.toDegrees(Math.atan2(y, x));
+        return (bearing % 360.0 + 360.0) % 360.0;
+    }
 }

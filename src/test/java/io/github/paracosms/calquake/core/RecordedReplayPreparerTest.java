@@ -37,4 +37,27 @@ class RecordedReplayPreparerTest {
                 () -> new RecordedReplayPreparer(new HadleyKanamoriTauPModel())
                         .prepare(inputs, new ScenarioReferences(Map.of())));
     }
+
+    @org.junit.jupiter.api.Test
+    void recordedReplayWorksWithAbsentFaultMechanismAndVs30() {
+        ScenarioLoader loader = new ScenarioLoader();
+        ScenarioLoader.ScenarioBundle recordedBundle = loader.loadRecordedScenarioBundle("Ridgecrest");
+        PreparedReplay replayFromRecorded = new RecordedReplayPreparer(new HadleyKanamoriTauPModel())
+                .prepare(recordedBundle.inputs(), recordedBundle.references());
+        org.junit.jupiter.api.Assertions.assertNotNull(replayFromRecorded);
+
+        // Compare with bundle loaded with full scientific inputs
+        ScenarioLoader.ScenarioBundle fullBundle = loader.loadScenarioBundle("Ridgecrest");
+        PreparedReplay replayFromFull = new RecordedReplayPreparer(new HadleyKanamoriTauPModel())
+                .prepare(fullBundle.inputs(), fullBundle.references());
+
+        assertEquals(replayFromFull.durationSeconds(), replayFromRecorded.durationSeconds(), 1.0e-9);
+        for (String siteId : replayFromRecorded.timelinesBySiteId().keySet()) {
+            var tRecorded = replayFromRecorded.timelinesBySiteId().get(siteId);
+            var tFull = replayFromFull.timelinesBySiteId().get(siteId);
+            assertEquals(tFull.sArrivalSeconds(), tRecorded.sArrivalSeconds(), 1.0e-9);
+            assertEquals(tFull.pArrivalSeconds(), tRecorded.pArrivalSeconds(), 1.0e-9);
+            assertEquals(tFull.finalMmi().orElseThrow(), tRecorded.finalMmi().orElseThrow(), 1.0e-9);
+        }
+    }
 }

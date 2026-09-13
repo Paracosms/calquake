@@ -74,9 +74,9 @@ class ScenarioTest {
 
     @Test
     void testSimulationAssumptionSetResolutionAndDefaults() {
-        SimulationAssumptionSet set = SimulationAssumptionSet.resolve("calquake-custom-v1");
+        SimulationAssumptionSet set = SimulationAssumptionSet.resolve("calquake-custom-v2");
         assertNotNull(set);
-        assertEquals("calquake-custom-v1", set.id());
+        assertEquals("calquake-custom-v2", set.id());
         assertEquals(0.0, set.mechanism().strikeDegrees(), 1e-9);
         assertEquals(0.0, set.mechanism().rakeDegrees(), 1e-9);
         assertEquals(90.0, set.mechanism().dipDegrees(), 1e-9);
@@ -84,6 +84,7 @@ class ScenarioTest {
         assertEquals(760.0, set.defaultVs30(), 1e-9);
         assertEquals(SiteConditionProvenance.DEFAULT, set.siteProvenance());
 
+        assertThrows(IllegalArgumentException.class, () -> SimulationAssumptionSet.resolve("calquake-custom-v1"));
         assertThrows(IllegalArgumentException.class, () -> SimulationAssumptionSet.resolve("unknown-set"));
     }
 
@@ -152,5 +153,11 @@ class ScenarioTest {
         assertTrue(warnedRes.warnings().stream().anyMatch(w -> w.contains("BSSA14")));
         assertTrue(warnedRes.warnings().stream().anyMatch(w -> w.toLowerCase().contains("depth")));
         assertTrue(warnedRes.warningSummary().contains("simulation may be wildly inaccurate"));
+
+        // 8. validateResolvedGeometry
+        Mechanism mech = new Mechanism(0.0, 0.0, 90.0, "STRIKE_SLIP", "Test");
+        RuptureGeometry rup = RuptureGeometryProvider.generatePlanar(new GeoPoint(35.5, -118.5), 10.0, 6.5, mech);
+        var geoWarnings = SimulationValidator.validateResolvedGeometry(rup, localSites, outline);
+        assertTrue(geoWarnings.isEmpty());
     }
 }

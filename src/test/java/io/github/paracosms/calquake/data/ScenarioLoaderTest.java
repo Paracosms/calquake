@@ -438,7 +438,7 @@ class ScenarioLoaderTest {
         assertEquals(-118.5, settings.epicenter().longitude(), 1e-6);
         assertEquals(6.5, settings.magnitude(), 1e-6);
         assertEquals(10.0, settings.depthKm(), 1e-6);
-        assertEquals("calquake-custom-v1", settings.assumptionSetId());
+        assertEquals("calquake-custom-v2", settings.assumptionSetId());
     }
 
     @Test
@@ -451,7 +451,7 @@ class ScenarioLoaderTest {
                 7.2,
                 12.5,
                 io.github.paracosms.calquake.core.IntensityDisplayMode.CURRENT_SHAKING,
-                "calquake-custom-v1"
+                "calquake-custom-v2"
         );
 
         String json = SimulationScenarioSerializer.toJson(original);
@@ -506,7 +506,7 @@ class ScenarioLoaderTest {
                   "magnitude": 6.0,
                   "depth_km": 10.0,
                   "intensity_display_mode": "MAXIMUM_REACHED",
-                  "assumption_set": "calquake-custom-v1"
+                  "assumption_set": "calquake-custom-v2"
                 }
                 """;
         IllegalArgumentException e1 = assertThrows(IllegalArgumentException.class,
@@ -525,7 +525,7 @@ class ScenarioLoaderTest {
                   "magnitude": 6.0,
                   "depth_km": 10.0,
                   "intensity_display_mode": "MAXIMUM_REACHED",
-                  "assumption_set": "calquake-custom-v1"
+                  "assumption_set": "calquake-custom-v2"
                 }
                 """;
         IllegalArgumentException e2 = assertThrows(IllegalArgumentException.class,
@@ -544,7 +544,7 @@ class ScenarioLoaderTest {
                   "magnitude": 6.0,
                   "depth_km": 10.0,
                   "intensity_display_mode": "MAXIMUM_REACHED",
-                  "assumption_set": "calquake-custom-v1"
+                  "assumption_set": "calquake-custom-v2"
                 }
                 """;
         assertThrows(IllegalArgumentException.class,
@@ -567,6 +567,38 @@ class ScenarioLoaderTest {
                 """;
         assertThrows(IllegalArgumentException.class,
                 () -> SimulationScenarioSerializer.fromJson(badAssumption));
+
+        // Rejection of obsolete calquake-custom-v1
+        String obsoleteV1 = """
+                {
+                  "schema_version": 1,
+                  "type": "calquake-simulation-scenario",
+                  "scenario_id": "test",
+                  "name": "Test",
+                  "created_utc": "2026-09-10T00:00:00Z",
+                  "epicenter": { "latitude": 35.0, "longitude": -118.0 },
+                  "magnitude": 6.0,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v1"
+                }
+                """;
+        assertThrows(IllegalArgumentException.class,
+                () -> SimulationScenarioSerializer.fromJson(obsoleteV1));
+    }
+
+    @Test
+    void testLoadRecordedScenarioBundleIsolation() {
+        ScenarioLoader.ScenarioBundle recordedBundle = loader.loadScenarioBundle("Ridgecrest", io.github.paracosms.calquake.core.MmiMode.RECORDED);
+        assertNotNull(recordedBundle);
+        assertNotNull(recordedBundle.scenario());
+        assertNotNull(recordedBundle.inputs());
+        assertTrue(recordedBundle.inputs().eventSource().ruptureGeometry().isEmpty(), "Recorded event source must not contain rupture geometry");
+        assertTrue(recordedBundle.inputs().eventSource().mechanism().isEmpty(), "Recorded event source must not contain mechanism");
+        assertTrue(recordedBundle.inputs().scientificConfiguration().versionIds().isEmpty(), "Recorded inputs must not have scientific manifest versions");
+        for (var site : recordedBundle.inputs().sites()) {
+            assertTrue(site.siteCondition().isEmpty(), "Recorded sites must not contain Vs30 / site condition");
+        }
     }
 }
 

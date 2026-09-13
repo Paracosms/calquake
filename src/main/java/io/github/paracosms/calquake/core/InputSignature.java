@@ -22,24 +22,30 @@ public final class InputSignature {
                 .append(hex(event.magnitude())).append('|').append(event.magnitudeType()).append('|')
                 .append(hex(event.epicenter().latitude())).append(',').append(hex(event.epicenter().longitude()))
                 .append('|').append(hex(event.depthKm())).append('|');
-        event.mechanism().ifPresent(m -> text.append(hex(m.rakeDegrees())).append('|')
-                .append(hex(m.strikeDegrees())).append('|').append(hex(m.dipDegrees())).append('|')
-                .append(m.style()).append('|').append(m.provenance()).append('|'));
-        event.ruptureGeometry().ifPresent(g -> text.append(g.canonicalForm()).append('|'));
+        if (mode == MmiMode.SIMULATED) {
+            event.mechanism().ifPresent(m -> text.append(hex(m.rakeDegrees())).append('|')
+                    .append(hex(m.strikeDegrees())).append('|').append(hex(m.dipDegrees())).append('|')
+                    .append(m.style()).append('|').append(m.provenance()).append('|'));
+            event.ruptureGeometry().ifPresent(g -> text.append(g.canonicalForm()).append('|'));
+        }
         for (SimulationSite site : inputs.sites()) {
             text.append(site.id()).append('|').append(site.displayName()).append('|')
                     .append(hex(site.coordinates().latitude())).append(',')
                     .append(hex(site.coordinates().longitude())).append('|');
-            site.siteCondition().ifPresent(c -> text.append(hex(c.vs30MetersPerSecond())).append('|')
-                    .append(c.provenance()).append('|').append(c.sourceId()).append('|'));
+            if (mode == MmiMode.SIMULATED) {
+                site.siteCondition().ifPresent(c -> text.append(hex(c.vs30MetersPerSecond())).append('|')
+                        .append(c.provenance()).append('|').append(c.sourceId()).append('|'));
+            }
         }
         appendSorted(text, inputs.travelTimeConfiguration().parameters());
         text.append(inputs.travelTimeConfiguration().modelId()).append('|')
                 .append(inputs.travelTimeConfiguration().version()).append('|');
-        appendSorted(text, inputs.scientificConfiguration().versionIds());
-        inputs.scientificConfiguration().numericParameters().entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(e -> text.append(e.getKey()).append('=').append(hex(e.getValue())).append('|'));
+        if (mode == MmiMode.SIMULATED) {
+            appendSorted(text, inputs.scientificConfiguration().versionIds());
+            inputs.scientificConfiguration().numericParameters().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(e -> text.append(e.getKey()).append('=').append(hex(e.getValue())).append('|'));
+        }
         if (mode == MmiMode.RECORDED) {
             references.ifPresent(refs -> refs.bySiteId().entrySet().stream()
                     .sorted(Map.Entry.comparingByKey()).forEach(e -> {

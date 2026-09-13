@@ -4,8 +4,6 @@ import io.github.paracosms.calquake.data.CaliforniaOutline;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Validation and domain warning policy for CalQuake simulation mode.
@@ -155,47 +153,56 @@ public final class SimulationValidator {
                         + String.join(", ", farEnvelopeSites));
             }
 
-            try {
-                EventSource dummySource = new EventSource(
-                        "temp", "calquake", "temp", java.time.Instant.EPOCH, mag, "mw", epicenter, depth,
-                        Optional.empty(),
-                        Optional.of(SimulationAssumptionSet.CALQUAKE_CUSTOM_V1.mechanism()),
-                        java.util.Map.of());
-                RuptureGeometry rupture = RuptureGeometryProvider.generate(dummySource);
-
-                List<String> farRjbSites = new ArrayList<>();
-                for (SimulationSite site : sites) {
-                    double rjb = rupture.rjbKm(site.coordinates());
-                    if (rjb > BSSA14_MAX_RJB_KM) {
-                        farRjbSites.add(site.displayName());
-                    }
-                }
-                if (!farRjbSites.isEmpty()) {
-                    warnings.add("Site(s) beyond BSSA14 400 km Rjb domain: " + String.join(", ", farRjbSites));
-                }
-
-                if (outline != null) {
-                    CaliforniaOutline.GeographicBoundingBox bounds = outline.geographicBounds();
-                    boolean ruptureOutOfBounds = false;
-                    for (List<GeoPoint> part : rupture.surfaceProjectionParts()) {
-                        for (GeoPoint pt : part) {
-                            if (pt.longitude() < bounds.minLongitude() || pt.longitude() > bounds.maxLongitude()
-                                    || pt.latitude() < bounds.minLatitude() || pt.latitude() > bounds.maxLatitude()) {
-                                ruptureOutOfBounds = true;
-                                break;
-                            }
-                        }
-                        if (ruptureOutOfBounds) break;
-                    }
-                    if (ruptureOutOfBounds) {
-                        warnings.add("Generated rupture extends outside California boundaries");
-                    }
-                }
-            } catch (Exception e) {
-                errors.add("Cannot generate finite rupture geometry: " + e.getMessage());
-            }
         }
 
         return new ValidationResult(List.copyOf(errors), List.copyOf(warnings));
+    }
+
+    /**
+     * Non-blocking domain warnings for resolved rupture geometry.
+     * Evaluated during background preparation against completed inputs.
+     */
+    public static List<String> validateResolvedGeometry(
+            RuptureGeometry rupture,
+            List<SimulationSite> sites,
+            CaliforniaOutline outline
+    ) {
+        if (rupture == null) {
+            return List.of();
+        }
+        List<String> warnings = new ArrayList<>();
+
+        if (sites != null && !sites.isEmpty()) {
+            List<String> farRjbSites = new ArrayList<>();
+            for (SimulationSite site : sites) {
+                double rjb = rupture.rjbKm(site.coordinates());
+                if (rjb > BSSA14_MAX_RJB_KM) {
+                    farRjbSites.add(site.displayName());
+                }
+            }
+            if (!farRjbSites.isEmpty()) {
+                warnings.add("Site(s) beyond BSSA14 400 km Rjb domain: " + String.join(", ", farRjbSites));
+            }
+        }
+
+        if (outline != null) {
+            CaliforniaOutline.GeographicBoundingBox bounds = outline.geographicBounds();
+            boolean ruptureOutOfBounds = false;
+            for (List<GeoPoint> part : rupture.surfaceProjectionParts()) {
+                for (GeoPoint pt : part) {
+                    if (pt.longitude() < bounds.minLongitude() || pt.longitude() > bounds.maxLongitude()
+                            || pt.latitude() < bounds.minLatitude() || pt.latitude() > bounds.maxLatitude()) {
+                        ruptureOutOfBounds = true;
+                        break;
+                    }
+                }
+                if (ruptureOutOfBounds) break;
+            }
+            if (ruptureOutOfBounds) {
+                warnings.add("Generated rupture extends outside California boundaries");
+            }
+        }
+
+        return List.copyOf(warnings);
     }
 }

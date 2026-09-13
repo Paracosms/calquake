@@ -132,6 +132,19 @@ class InputSignatureAndImmutabilityTest {
         assertEquals(baseSig, modeSig, "Changing intensity display mode must not alter scientific InputSignature");
     }
 
+    @Test
+    void testRecordedSignatureIgnoresFaultMechanismVs30AndScientificManifest() {
+        ScenarioLoader loader = new ScenarioLoader();
+        ScenarioInputs recordedInputs = loader.loadScenarioBundle("Ridgecrest", MmiMode.RECORDED).inputs();
+        ScenarioInputs fullInputs = loader.loadScenarioBundle("Ridgecrest", MmiMode.SIMULATED).inputs();
+
+        String recordedSig = InputSignature.compute(recordedInputs, MmiMode.RECORDED);
+        String fullSigInRecordedMode = InputSignature.compute(fullInputs, MmiMode.RECORDED);
+
+        assertEquals(recordedSig, fullSigInRecordedMode,
+                "Recorded mode signature must ignore mechanism, rupture, Vs30, and scientificConfiguration");
+    }
+
     private static void assertChanged(String baseSignature, ScenarioInputs changed) {
         assertNotEquals(baseSignature, InputSignature.compute(changed, MmiMode.SIMULATED));
     }

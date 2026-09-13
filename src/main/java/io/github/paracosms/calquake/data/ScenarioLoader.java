@@ -166,6 +166,48 @@ public class ScenarioLoader {
         return new ScenarioBundle(scenario, inputs, new ScenarioReferences(Map.of()));
     }
 
+    /**
+     * Loads a lightweight historical scenario bundle for Recorded replay mode.
+     * Contains only event, site coordinates, and ShakeMap reference intensities.
+     * Requires no scientific manifest, mechanism, rupture, Vs30, or fault catalog.
+     */
+    public ScenarioBundle loadRecordedScenarioBundle(String eventName) {
+        Scenario scenario = loadScenario(eventName);
+        Map<String, String> eventMetadata = new LinkedHashMap<>();
+        if (!scenario.event().url().isBlank()) eventMetadata.put("catalogUrl", scenario.event().url());
+
+        EventSource source = new EventSource(
+                scenario.event().id(), scenario.event().network(), scenario.event().title(),
+                scenario.event().originUtc(), scenario.event().magnitude(), scenario.event().magnitudeType(),
+                scenario.event().epicenter(), scenario.event().depthKm(),
+                java.util.Optional.empty(), java.util.Optional.empty(), eventMetadata);
+
+        List<SimulationSite> sites = new ArrayList<>();
+        LinkedHashMap<String, ReferenceIntensity> references = new LinkedHashMap<>();
+        for (ReferenceLocation location : scenario.locations()) {
+            sites.add(new SimulationSite(location.geoid(), location.city(),
+                    location.internalPoint(), java.util.Optional.empty()));
+            references.put(location.geoid(), ReferenceIntensity.fromReferenceLocation(location));
+        }
+
+        ScenarioInputs inputs = new ScenarioInputs(source, sites,
+                new TravelTimeConfiguration("Hadley-Kanamori (TauP)", "TauP-3.2.1",
+                        Map.of("resource", "/data/hadley_kanamori.nd")),
+                ScientificConfiguration.empty());
+        return new ScenarioBundle(scenario, inputs, new ScenarioReferences(references));
+    }
+
+    /**
+     * Loads mode-specific scenario bundle, keeping Recorded replay strictly isolated
+     * from Simulated-only scientific manifests and fault-association assets.
+     */
+    public ScenarioBundle loadScenarioBundle(String eventName, io.github.paracosms.calquake.core.MmiMode mode) {
+        if (mode == io.github.paracosms.calquake.core.MmiMode.RECORDED) {
+            return loadRecordedScenarioBundle(eventName);
+        }
+        return loadScenarioBundle(eventName);
+    }
+
     /** Loads the legacy display scenario plus structurally separated inputs and references. */
     public ScenarioBundle loadScenarioBundle(String eventName) {
         Scenario scenario = loadScenario(eventName);
