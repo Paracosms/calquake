@@ -91,15 +91,18 @@ public record ScenarioInputs(
                 source.id(), source.network(), source.title(), source.originUtc(), source.magnitude(),
                 source.magnitudeType(), source.epicenter(), source.depthKm(), Optional.of(rupture),
                 Optional.of(mechanism), source.metadata());
+        SiteConditionResolver resolver = SiteConditionResolver.defaultResolver();
         List<SimulationSite> completedSites = requestedSites.stream()
-                .map(site -> site.siteCondition().isPresent() ? site : new SimulationSite(
-                        site.id(), site.displayName(), site.coordinates(), SiteCondition.defaultRock()))
+                .map(site -> new SimulationSite(
+                        site.id(), site.displayName(), site.coordinates(), resolver.resolve(site)))
                 .toList();
         return new ScenarioInputs(completedSource, completedSites,
                 TravelTimeConfiguration.forModel(model),
                 new ScientificConfiguration(
                         Map.of("geometryScaling", RuptureGeometryProvider.MODEL_ID,
-                                "defaultVs30", "calquake-default-vs30-760"),
+                                "defaultVs30", "calquake-default-vs30-760",
+                                "vs30DatasetId", resolver.grid().datasetId(),
+                                "vs30Checksum", resolver.grid().sha256()),
                         Map.of("timelineStepSeconds", SimulatedMmiModel.DEFAULT_TIMELINE_STEP_SECONDS,
                                 "convergenceStepSeconds", SimulatedMmiModel.CONVERGENCE_STEP_SECONDS)));
     }
@@ -131,10 +134,10 @@ public record ScenarioInputs(
                 sourceWithMechanism.depthKm(), Optional.of(rupture),
                 Optional.of(assumptions.mechanism()), sourceWithMechanism.metadata());
 
+        SiteConditionResolver resolver = SiteConditionResolver.defaultResolver();
         List<SimulationSite> completedSites = requestedSites.stream()
-                .map(site -> site.siteCondition().isPresent() ? site : new SimulationSite(
-                        site.id(), site.displayName(), site.coordinates(),
-                        new SiteCondition(assumptions.defaultVs30(), assumptions.siteProvenance(), "calquake-default-vs30-760")))
+                .map(site -> new SimulationSite(
+                        site.id(), site.displayName(), site.coordinates(), resolver.resolve(site)))
                 .toList();
 
         return new ScenarioInputs(completedSource, completedSites,
@@ -142,7 +145,9 @@ public record ScenarioInputs(
                 new ScientificConfiguration(
                         Map.of("assumptionSet", assumptions.id(),
                                 "geometryScaling", assumptions.ruptureScalingModel(),
-                                "defaultVs30", "calquake-default-vs30-760"),
+                                "defaultVs30", "calquake-default-vs30-760",
+                                "vs30DatasetId", resolver.grid().datasetId(),
+                                "vs30Checksum", resolver.grid().sha256()),
                         Map.of("timelineStepSeconds", SimulatedMmiModel.DEFAULT_TIMELINE_STEP_SECONDS,
                                 "convergenceStepSeconds", SimulatedMmiModel.CONVERGENCE_STEP_SECONDS)));
     }

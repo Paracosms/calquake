@@ -22,10 +22,14 @@ The application features:
 - **Safe background switching:** Event/mode changes pause and reset playback, prepare off the JavaFX thread, reject stale results, and cache immutable replays for the session.
 - **Geodetic Accuracy:** Standard conformal Mercator projection on a reference 6,371 km sphere ensuring static state boundaries, true vertical orientation, and exact physical geodesic wavefront modeling.
 - **Self-Contained & Offline:** Live preparation and playback are Java-only, use bundled resources, and perform no network or Python work.
+- **Authoritative Geodata Reference Layers:**
+  - **Mapped Quaternary Faults:** Statewide fault traces (59,491 features normalized from USGS QFaults Layer 4) rendered as a muted reference layer (solid for well-constrained, dashed for inferred/concealed). Displayed independently from the active scenario rupture to prevent conflating mapped traces with causal faulting.
+  - **Spatial Vs30 Grid & Heatmap:** Authoritative USGS Global Vs30 Mosaic sampled deterministically at 30 arc-second resolution ($1320 \times 1260$ cells) across California. Replaces hard-coded 760 m/s assumptions with coordinate-resolved soil conditions. Toggleable perceptual log-scale heatmap with numeric legend ticks (150, 300, 760, 1500 m/s) masked to the California landmass.
+  - **Resolution Precedence:** Explicit measured/imported site conditions > bundled USGS raster sample > 760 m/s documented fallback.
 
 ## Simulation Details
 
-Simulated mode calculates deterministic median PGV for each site with the base/no-basin BSSA14 model using event magnitude, fault mechanism, finite-rupture Rjb, and Vs30. TauP supplies the P- and S-wave arrival times. CalQuake then applies its documented magnitude-, distance-, and Vs30-dependent P/S envelope, normalizes the combined shape once to the BSSA14 peak, and converts the running peak PGV to MMI with Worden et al. (2012). Historical MMI, PGA, and PGV values are kept as evaluation references and are not predictor inputs.
+Simulated mode calculates deterministic median PGV for each site with the base/no-basin BSSA14 model using event magnitude, fault mechanism, finite-rupture Rjb, and Vs30. TauP supplies the P- and S-wave arrival times. CalQuake then applies its documented magnitude-, distance-, and Vs30-dependent P/S envelope, normalizes the combined shape once to the BSSA14 peak, and converts the running peak PGV to MMI with Worden et al. (2012). Historical MMI, PGA, and PGV values are kept as evaluation references and are not predictor inputs. Sites resolve their Vs30 from the bundled USGS Global Vs30 Mosaic raster at marker coordinates, tracking dataset ID and SHA-256 hash in scientific signatures.
 
 The envelope is an intentionally scoped, deterministic approximation inspired by the phase-separated structure of Cua and Heaton (2009); its timing equations are CalQuake-specific rather than a verbatim port or a waveform-derived result. Consequently, the final peak prediction follows the pinned BSSA14/Worden pipeline, while the displayed time development should be interpreted as an illustrative model estimate—not a fully validated reconstruction of real shaking. CalQuake deliberately does not attempt computationally heavy 3D Earth, regional wave-propagation, or waveform simulation.
 
@@ -83,6 +87,8 @@ The scientific configuration, equations, domains, limitations, data provenance, 
 ## Attribution & Data Sources
 
 - **USGS Earthquake Hazards Program**: Event catalog metadata and ComCat origin parameters for `ci38457511`.
+- **USGS Global Vs30 Mosaic**: Authoritative hybrid Vs30 model (<https://doi.org/10.5066/P1NV6UNM>) providing 30 arc-second median Vs30 and uncertainty grid for California soil amplification modeling.
+- **USGS Quaternary Fault and Fold Database**: Canonical California Quaternary Faults polyline database (QFaults Layer 4) providing 59,491 statewide fault traces, mapping certainty, and kinematic attributes.
 - **Southern California Earthquake Data Center (SCEDC)**: Phase catalog arrival observations (`38457511.phase`) and seismic station metadata (`scedc_stations.xml`).
 - **USGS ShakeMap Atlas**: Archived Ridgecrest and Northridge finite-rupture, station, MMI, and SVEL/Vs30 products; exact product IDs and hashes are frozen in `scientific_inputs.json`.
 - **Boore, Stewart, Seyhan, & Atkinson (2014)**: NGA-West2 BSSA14 ground-motion equations, base/no-basin deterministic median PGV configuration.

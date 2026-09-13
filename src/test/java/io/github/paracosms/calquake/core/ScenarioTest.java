@@ -129,11 +129,21 @@ class ScenarioTest {
         var nanRes = SimulationValidator.validate(Double.NaN, -118.5, 6.5, 10.0, sites, outline);
         assertFalse(nanRes.isValid());
 
-        // 6. Plausible California scenario passes cleanly with no warnings
-        var cleanRes = SimulationValidator.validate(35.5, -118.5, 6.5, 10.0, sites, outline);
+        // 6. Plausible California scenario with local sites passes cleanly with no warnings
+        List<SimulationSite> localSites = sites.stream()
+                .filter(s -> new GeoPoint(35.5, -118.5).distanceKmTo(s.coordinates()) < 200.0)
+                .toList();
+        assertFalse(localSites.isEmpty());
+        var cleanRes = SimulationValidator.validate(35.5, -118.5, 6.5, 10.0, localSites, outline);
         assertTrue(cleanRes.isValid());
         assertFalse(cleanRes.hasWarnings());
         assertTrue(cleanRes.warnings().isEmpty());
+
+        // Statewide sites include distant locations (e.g. Eureka) which trigger envelope distance warning
+        var statewideRes = SimulationValidator.validate(35.5, -118.5, 6.5, 10.0, sites, outline);
+        assertTrue(statewideRes.isValid());
+        assertTrue(statewideRes.hasWarnings());
+        assertTrue(statewideRes.warnings().stream().anyMatch(w -> w.contains("200 km")));
 
         // 7. Warned scenario: mag 8.6 (exceeds BSSA14 8.5) and depth 5.0 km (outside 8.0-18.2 benchmark range)
         var warnedRes = SimulationValidator.validate(35.5, -118.5, 8.6, 5.0, sites, outline);
@@ -141,6 +151,6 @@ class ScenarioTest {
         assertTrue(warnedRes.hasWarnings());
         assertTrue(warnedRes.warnings().stream().anyMatch(w -> w.contains("BSSA14")));
         assertTrue(warnedRes.warnings().stream().anyMatch(w -> w.toLowerCase().contains("depth")));
-        assertTrue(warnedRes.warningSummary().contains("toy simulation may be wildly inaccurate"));
+        assertTrue(warnedRes.warningSummary().contains("simulation may be wildly inaccurate"));
     }
 }

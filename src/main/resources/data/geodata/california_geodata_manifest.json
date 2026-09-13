@@ -1,0 +1,96 @@
+{
+  "manifest_version": 1,
+  "generated_utc": "2026-09-13T08:15:10Z",
+  "description": "Normalized offline California geodata assets for CalQuake simulation & reference layers",
+  "artifacts": {
+    "california_faults.geojson": {
+      "sha256": "bd5befa75b570d592dec95a22838f86b1d4e5c8918bc4666ab2369bba2f9f00a",
+      "size_bytes": 35697059,
+      "feature_count": 59491,
+      "source": {
+        "provider": "USGS Earthquake Hazards Program",
+        "dataset": "Quaternary Fault and Fold Database (California Layer 4)",
+        "url": "https://earthquake.usgs.gov/arcgis/rest/services/haz/Qfaults/MapServer/4",
+        "license": "Public Domain / USGS",
+        "crs": "WGS84 (EPSG:4326)"
+      }
+    },
+    "california_vs30.bin": {
+      "sha256": "d3f99b4a871799b73e4257251f9044c0287bfc49109be13e8d2bfce36608aecd",
+      "size_bytes": 13305652,
+      "dimensions": [
+        1320,
+        1260
+      ],
+      "source": {
+        "provider": "USGS Earthquake Hazards Program / ScienceBase",
+        "dataset": "USGS Global Vs30 Mosaic",
+        "doi": "https://doi.org/10.5066/P1NV6UNM",
+        "sciencebase_id": "67be4ac3d34e8876fcbfbd89",
+        "citation": "Heath et al. (2020, updated 2025)",
+        "license": "Creative Commons Zero v1.0 Universal (CC0-1.0)",
+        "resolution": "30 arc-seconds (~900m)"
+      }
+    },
+    "california_vs30.json": {
+      "sha256": "20dd8a10ed0add949b2b08c68c2b46178552ed725cab29811756dd837a1c17f4",
+      "size_bytes": 1515
+    }
+  },
+  "golden_samples": [
+    {
+      "name": "Ridgecrest (Epicenter area)",
+      "latitude": 35.7695,
+      "longitude": -117.5993,
+      "col": 888,
+      "row": 808,
+      "vs30": 277.04,
+      "is_nodata": false
+    },
+    {
+      "name": "Los Angeles (Downtown)",
+      "latitude": 34.0522,
+      "longitude": -118.2437,
+      "col": 811,
+      "row": 1014,
+      "vs30": 304.47,
+      "is_nodata": false
+    },
+    {
+      "name": "San Francisco (Financial Dist)",
+      "latitude": 37.7946,
+      "longitude": -122.3999,
+      "col": 312,
+      "row": 565,
+      "vs30": 239.72,
+      "is_nodata": false
+    },
+    {
+      "name": "Bakersfield (Central Valley)",
+      "latitude": 35.3733,
+      "longitude": -119.0187,
+      "col": 718,
+      "row": 855,
+      "vs30": 245.95,
+      "is_nodata": false
+    },
+    {
+      "name": "Fresno (San Joaquin Valley)",
+      "latitude": 36.7468,
+      "longitude": -119.7726,
+      "col": 627,
+      "row": 690,
+      "vs30": 324.9,
+      "is_nodata": false
+    },
+    {
+      "name": "Pacific Ocean (Offshore)",
+      "latitude": 35.0,
+      "longitude": -123.0,
+      "col": 240,
+      "row": 900,
+      "vs30": -9999.0,
+      "is_nodata": true
+    }
+  ]
+}

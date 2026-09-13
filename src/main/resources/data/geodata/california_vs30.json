@@ -1,0 +1,44 @@
+{
+  "dataset_id": "usgs-global-vs30-mosaic-2025",
+  "title": "USGS Global Vs30 Mosaic (California Subset)",
+  "citation": "Heath, D.C., Wald, D.J., Worden, C.B., Thompson, E.M., and Smoczyk, G.M. (2020, updated 2025)",
+  "doi": "https://doi.org/10.5066/P1NV6UNM",
+  "sciencebase_url": "https://www.sciencebase.gov/catalog/item/67be4ac3d34e8876fcbfbd89",
+  "source_assets": {
+    "median_cog_url": "https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/67be4ac3d34e8876fcbfbd89/vs30_mosaic_median_30c.tif",
+    "sd_cog_url": "https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/67be4ac3d34e8876fcbfbd89/vs30_mosaic_sd_30c.tif"
+  },
+  "spatial_reference": {
+    "crs": "EPSG:4326 (WGS84)",
+    "west_bound_longitude": -125.0,
+    "east_bound_longitude": -114.0,
+    "south_bound_latitude": 32.0,
+    "north_bound_latitude": 42.5,
+    "longitude_step_degrees": 0.008333333333333333,
+    "latitude_step_degrees": 0.008333333333333333,
+    "width": 1320,
+    "height": 1260,
+    "resolution_arc_seconds": 30
+  },
+  "binary_layout": {
+    "endianness": "big-endian",
+    "header_bytes": 52,
+    "magic": "CVS3",
+    "version": 1,
+    "data_type": "float32",
+    "bands": [
+      {
+        "name": "median_vs30",
+        "units": "m/s",
+        "bytes": 6652800
+      },
+      {
+        "name": "ln_sigma",
+        "units": "logarithmic standard deviation",
+        "bytes": 6652800
+      }
+    ],
+    "nodata_sentinel": -9999.0
+  },
+  "generated_utc": "2026-09-13T08:14:18Z"
+}

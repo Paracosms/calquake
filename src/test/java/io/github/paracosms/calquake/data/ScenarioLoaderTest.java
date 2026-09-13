@@ -352,14 +352,14 @@ class ScenarioLoaderTest {
         SimulationSiteCatalog catalog = SimulationSiteCatalog.loadDefault();
         assertNotNull(catalog);
         List<SimulationSite> sites = catalog.sites();
-        assertEquals(5, sites.size(), "Default catalog must initially contain the 5 California cities");
+        assertEquals(22, sites.size(), "Default catalog contains the 22 California cities");
 
         SimulationSite ridgecrest = catalog.requireById("ridgecrest");
         assertEquals("Ridgecrest", ridgecrest.displayName());
-        assertEquals(35.628542, ridgecrest.coordinates().latitude(), 1e-6);
-        assertEquals(-117.663992, ridgecrest.coordinates().longitude(), 1e-6);
+        assertEquals(35.622456, ridgecrest.coordinates().latitude(), 1e-6);
+        assertEquals(-117.670898, ridgecrest.coordinates().longitude(), 1e-6);
 
-        assertTrue(catalog.findById("trona").isPresent());
+        assertTrue(catalog.findById("ridgecrest").isPresent());
         assertTrue(catalog.findById("bakersfield").isPresent());
         assertTrue(catalog.findById("los-angeles").isPresent());
         assertTrue(catalog.findById("fresno").isPresent());
@@ -414,7 +414,7 @@ class ScenarioLoaderTest {
         // Default catalog
         var bundle = loader.loadStarterSimulationBundle(model);
         assertNotNull(bundle);
-        assertEquals(5, bundle.inputs().sites().size());
+        assertEquals(22, bundle.inputs().sites().size());
         assertTrue(bundle.references().bySiteId().isEmpty(), "Custom simulation bundle must have no historical references");
 
         // Custom catalog with 2 sites

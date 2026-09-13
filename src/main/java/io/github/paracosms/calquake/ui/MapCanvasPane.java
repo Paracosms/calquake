@@ -23,9 +23,14 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.LinearGradient;
+import javafx.scene.paint.Stop;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.shape.StrokeLineJoin;
@@ -33,8 +38,14 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.util.Duration;
 
+import io.github.paracosms.calquake.core.MappedFault;
+import io.github.paracosms.calquake.core.Vs30Sample;
+import io.github.paracosms.calquake.data.CaliforniaFaultCatalog;
+import io.github.paracosms.calquake.data.CaliforniaVs30Grid;
+
 import java.util.Locale;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,7 +116,17 @@ public class MapCanvasPane extends Pane {
     private FrameState lastFrame;
     private final Tooltip mapTooltip;
     private ApplicationMode applicationMode = ApplicationMode.SIMULATION;
-    private boolean showFaultGeometry = false;
+    private boolean showMappedFaults = false;
+    private boolean showVs30Heatmap = false;
+    private boolean showScenarioRupture = true;
+
+    private List<List<ProjectedPoint>> cachedWellConstrainedFaults;
+    private List<List<ProjectedPoint>> cachedInferredFaults;
+    private WritableImage cachedHeatmapImage;
+    private double heatmapMinXKm;
+    private double heatmapMinYKm;
+    private double heatmapWidthKm;
+    private double heatmapHeightKm;
 
     public MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline) {
         this.mapScenario = Objects.requireNonNull(mapScenario, "mapScenario cannot be null");
@@ -188,12 +209,42 @@ public class MapCanvasPane extends Pane {
     }
 
     public boolean isFaultGeometryVisible() {
-        return showFaultGeometry;
+        return showScenarioRupture;
     }
 
     public void setFaultGeometryVisible(boolean visible) {
-        if (this.showFaultGeometry != visible) {
-            this.showFaultGeometry = visible;
+        setScenarioRuptureVisible(visible);
+    }
+
+    public boolean isMappedFaultsVisible() {
+        return showMappedFaults;
+    }
+
+    public void setMappedFaultsVisible(boolean visible) {
+        if (this.showMappedFaults != visible) {
+            this.showMappedFaults = visible;
+            redrawStaticMap();
+        }
+    }
+
+    public boolean isVs30HeatmapVisible() {
+        return showVs30Heatmap;
+    }
+
+    public void setVs30HeatmapVisible(boolean visible) {
+        if (this.showVs30Heatmap != visible) {
+            this.showVs30Heatmap = visible;
+            redrawStaticMap();
+        }
+    }
+
+    public boolean isScenarioRuptureVisible() {
+        return showScenarioRupture;
+    }
+
+    public void setScenarioRuptureVisible(boolean visible) {
+        if (this.showScenarioRupture != visible) {
+            this.showScenarioRupture = visible;
             redrawStaticMap();
         }
     }
@@ -241,18 +292,208 @@ public class MapCanvasPane extends Pane {
             gc.stroke();
         }
 
-        // 3. Fault Geometry Overlay (orange-red, semi-transparent fault-trace polyline)
-        drawFaultGeometry(gc);
+        // 3. Vs30 Heatmap (clipped to California outline)
+        drawVs30Heatmap(gc);
 
-        // 4. Epicenter marker and label
+        // 4. Mapped Faults Reference Layer (USGS QFaults)
+        drawMappedFaults(gc);
+
+        // 5. Scenario Rupture Overlay (high-contrast active predictor rupture)
+        drawScenarioRupture(gc);
+
+        // 6. Epicenter marker and label
         drawEpicenter(gc);
 
-        // 5. Simulation Site Station Dots (neutral base map markers)
+        // 7. Simulation Site Station Dots (neutral base map markers)
         drawSiteDots(gc);
+
+        // 8. Visual Layer Legends
+        drawLayerLegends(gc, w, h);
     }
 
-    private void drawFaultGeometry(GraphicsContext gc) {
-        if (!showFaultGeometry || mapScenario == null || currentTransform == null) {
+    private void drawVs30Heatmap(GraphicsContext gc) {
+        if (!showVs30Heatmap || currentTransform == null) {
+            return;
+        }
+        ensureHeatmapImageCached();
+        if (cachedHeatmapImage == null) {
+            return;
+        }
+
+        gc.save();
+        // Mask heatmap to the California landmass polygon rings
+        List<List<ProjectedPoint>> projectedRings = outline.projectRings(projection);
+        gc.beginPath();
+        for (List<ProjectedPoint> ring : projectedRings) {
+            if (ring.isEmpty()) continue;
+            ScreenPoint first = currentTransform.toScreen(ring.get(0));
+            gc.moveTo(first.xPx(), first.yPx());
+            for (int i = 1; i < ring.size(); i++) {
+                ScreenPoint pt = currentTransform.toScreen(ring.get(i));
+                gc.lineTo(pt.xPx(), pt.yPx());
+            }
+            gc.closePath();
+        }
+        gc.clip();
+
+        ScreenPoint screenTopLeft = currentTransform.toScreen(heatmapMinXKm, heatmapMinYKm);
+        double screenW = heatmapWidthKm * currentTransform.scalePxPerKm();
+        double screenH = heatmapHeightKm * currentTransform.scalePxPerKm();
+
+        gc.drawImage(cachedHeatmapImage, screenTopLeft.xPx(), screenTopLeft.yPx(), screenW, screenH);
+        gc.restore();
+    }
+
+    private void ensureHeatmapImageCached() {
+        if (cachedHeatmapImage != null) {
+            return;
+        }
+        CaliforniaVs30Grid grid = CaliforniaVs30Grid.loadDefault();
+        if (grid == null) {
+            return;
+        }
+
+        double west = grid.west();
+        double east = grid.east();
+        double north = grid.north();
+        double south = grid.south();
+
+        ProjectedPoint nw = projection.project(new GeoPoint(north, west));
+        ProjectedPoint se = projection.project(new GeoPoint(south, east));
+
+        this.heatmapMinXKm = nw.xKm();
+        this.heatmapMinYKm = nw.yKm();
+        this.heatmapWidthKm = se.xKm() - nw.xKm();
+        this.heatmapHeightKm = se.yKm() - nw.yKm();
+
+        int imgW = 1320;
+        int imgH = 1400;
+        WritableImage img = new WritableImage(imgW, imgH);
+        PixelWriter writer = img.getPixelWriter();
+
+        for (int y = 0; y < imgH; y++) {
+            double yKm = heatmapMinYKm + (y + 0.5) / imgH * heatmapHeightKm;
+            for (int x = 0; x < imgW; x++) {
+                double xKm = heatmapMinXKm + (x + 0.5) / imgW * heatmapWidthKm;
+                GeoPoint pt = projection.unproject(xKm, yKm);
+                Optional<Vs30Sample> sample = grid.sample(pt);
+                int argb = sample.map(s -> vs30ToArgb(s.vs30MetersPerSecond())).orElse(0x00000000);
+                writer.setArgb(x, y, argb);
+            }
+        }
+        this.cachedHeatmapImage = img;
+    }
+
+    private static int vs30ToArgb(double vs30) {
+        if (!Double.isFinite(vs30) || vs30 <= 0.0 || (vs30 >= 600.0 && vs30 <= 603.0)) {
+            return 0x00000000;
+        }
+
+        final double[] vsStops = {150.0, 180.0, 240.0, 300.0, 360.0, 490.0, 600.0, 760.0, 1500.0};
+        final int[][] rgbStops = {
+                {199, 32, 38},
+                {220, 70, 30},
+                {247, 143, 30},
+                {255, 200, 8},
+                {246, 235, 20},
+                {150, 205, 133},
+                {112, 192, 103},
+                {52, 153, 70},
+                {52, 102, 103}
+        };
+
+        double clamped = Math.max(vsStops[0], Math.min(vsStops[vsStops.length - 1], vs30));
+        double logVal = Math.log(clamped);
+
+        int i = 0;
+        while (i < vsStops.length - 2 && clamped > vsStops[i + 1]) {
+            i++;
+        }
+
+        double log0 = Math.log(vsStops[i]);
+        double log1 = Math.log(vsStops[i + 1]);
+        double frac = (logVal - log0) / (log1 - log0);
+        frac = Math.max(0.0, Math.min(1.0, frac));
+
+        int r = (int) Math.round(rgbStops[i][0] + frac * (rgbStops[i + 1][0] - rgbStops[i][0]));
+        int g = (int) Math.round(rgbStops[i][1] + frac * (rgbStops[i + 1][1] - rgbStops[i][1]));
+        int b = (int) Math.round(rgbStops[i][2] + frac * (rgbStops[i + 1][2] - rgbStops[i][2]));
+
+        int a = 153; // ~60% opacity
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    private void ensureFaultCatalogCached() {
+        if (cachedWellConstrainedFaults != null && cachedInferredFaults != null) {
+            return;
+        }
+        CaliforniaFaultCatalog catalog = CaliforniaFaultCatalog.loadDefault();
+        if (catalog == null) {
+            return;
+        }
+        List<List<ProjectedPoint>> well = new ArrayList<>();
+        List<List<ProjectedPoint>> inferred = new ArrayList<>();
+
+        for (MappedFault fault : catalog.faults()) {
+            List<List<ProjectedPoint>> projected = fault.project(projection);
+            if (fault.isWellConstrained()) {
+                well.addAll(projected);
+            } else {
+                inferred.addAll(projected);
+            }
+        }
+        this.cachedWellConstrainedFaults = List.copyOf(well);
+        this.cachedInferredFaults = List.copyOf(inferred);
+    }
+
+    private void drawMappedFaults(GraphicsContext gc) {
+        if (!showMappedFaults || currentTransform == null) {
+            return;
+        }
+        ensureFaultCatalogCached();
+        if (cachedWellConstrainedFaults == null || cachedInferredFaults == null) {
+            return;
+        }
+
+        gc.save();
+        gc.setLineWidth(1.1);
+        gc.setLineCap(StrokeLineCap.ROUND);
+        gc.setLineJoin(StrokeLineJoin.ROUND);
+
+        // Inferred/concealed faults (dashed line)
+        gc.setStroke(Color.rgb(150, 50, 35, 0.40));
+        gc.setLineDashes(4.0, 3.0);
+        for (List<ProjectedPoint> part : cachedInferredFaults) {
+            if (part.size() < 2) continue;
+            gc.beginPath();
+            ScreenPoint first = currentTransform.toScreen(part.get(0));
+            gc.moveTo(first.xPx(), first.yPx());
+            for (int i = 1; i < part.size(); i++) {
+                ScreenPoint pt = currentTransform.toScreen(part.get(i));
+                gc.lineTo(pt.xPx(), pt.yPx());
+            }
+            gc.stroke();
+        }
+
+        // Well-constrained faults (solid line)
+        gc.setStroke(Color.rgb(140, 35, 20, 0.50));
+        gc.setLineDashes();
+        for (List<ProjectedPoint> part : cachedWellConstrainedFaults) {
+            if (part.size() < 2) continue;
+            gc.beginPath();
+            ScreenPoint first = currentTransform.toScreen(part.get(0));
+            gc.moveTo(first.xPx(), first.yPx());
+            for (int i = 1; i < part.size(); i++) {
+                ScreenPoint pt = currentTransform.toScreen(part.get(i));
+                gc.lineTo(pt.xPx(), pt.yPx());
+            }
+            gc.stroke();
+        }
+        gc.restore();
+    }
+
+    private void drawScenarioRupture(GraphicsContext gc) {
+        if (!showScenarioRupture || mapScenario == null || currentTransform == null) {
             return;
         }
         Optional<RuptureGeometry> ruptureOpt = mapScenario.event().ruptureGeometry();
@@ -266,16 +507,14 @@ public class MapCanvasPane extends Pane {
         }
 
         gc.save();
-        // Orange-red, semi-transparent fault-trace polyline
-        gc.setStroke(Color.rgb(255, 69, 0, 0.75));
-        gc.setLineWidth(2.5);
         gc.setLineCap(StrokeLineCap.ROUND);
         gc.setLineJoin(StrokeLineJoin.ROUND);
 
+        // Pass 1: Contrast halo
+        gc.setStroke(Color.rgb(255, 255, 255, 0.85));
+        gc.setLineWidth(5.2);
         for (List<GeoPoint> part : parts) {
-            if (part == null || part.size() < 2) {
-                continue;
-            }
+            if (part == null || part.size() < 2) continue;
             gc.beginPath();
             ScreenPoint first = currentTransform.toScreen(projection.project(part.get(0)));
             gc.moveTo(first.xPx(), first.yPx());
@@ -285,6 +524,107 @@ public class MapCanvasPane extends Pane {
             }
             gc.stroke();
         }
+
+        // Pass 2: High-contrast bright orange-red rupture trace
+        gc.setStroke(Color.rgb(255, 69, 0, 0.95));
+        gc.setLineWidth(2.8);
+        for (List<GeoPoint> part : parts) {
+            if (part == null || part.size() < 2) continue;
+            gc.beginPath();
+            ScreenPoint first = currentTransform.toScreen(projection.project(part.get(0)));
+            gc.moveTo(first.xPx(), first.yPx());
+            for (int i = 1; i < part.size(); i++) {
+                ScreenPoint pt = currentTransform.toScreen(projection.project(part.get(i)));
+                gc.lineTo(pt.xPx(), pt.yPx());
+            }
+            gc.stroke();
+        }
+        gc.restore();
+    }
+
+    private void drawLayerLegends(GraphicsContext gc, double w, double h) {
+        if (!showVs30Heatmap && !showMappedFaults) {
+            return;
+        }
+
+        gc.save();
+        double curY = h - 14.0;
+
+        if (showVs30Heatmap) {
+            double cardH = 50.0;
+            double cardW = 180.0;
+            curY -= cardH;
+            double cardX = 14.0;
+
+            // Background card
+            gc.setFill(Color.rgb(255, 255, 255, 0.90));
+            gc.setStroke(Color.rgb(148, 163, 184, 0.80));
+            gc.setLineWidth(1.0);
+            gc.fillRoundRect(cardX, curY, cardW, cardH, 6.0, 6.0);
+            gc.strokeRoundRect(cardX, curY, cardW, cardH, 6.0, 6.0);
+
+            // Title
+            gc.setFill(Color.web("#1E293B"));
+            gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9.5));
+            gc.fillText("Vs30 (m/s) · USGS Mosaic", cardX + 8.0, curY + 14.0);
+
+            // Color bar
+            double barX = cardX + 8.0;
+            double barY = curY + 20.0;
+            double barW = cardW - 16.0;
+            double barH = 8.0;
+
+            LinearGradient gradient = new LinearGradient(
+                    barX, barY, barX + barW, barY, false, CycleMethod.NO_CYCLE,
+                    new Stop(0.0, Color.rgb(199, 32, 38)),
+                    new Stop(0.18, Color.rgb(247, 143, 30)),
+                    new Stop(0.33, Color.rgb(255, 200, 8)),
+                    new Stop(0.44, Color.rgb(246, 235, 20)),
+                    new Stop(0.60, Color.rgb(150, 205, 133)),
+                    new Stop(0.70, Color.rgb(112, 192, 103)),
+                    new Stop(0.78, Color.rgb(52, 153, 70)),
+                    new Stop(1.0, Color.rgb(52, 102, 103))
+            );
+            gc.setFill(gradient);
+            gc.fillRect(barX, barY, barW, barH);
+            gc.setStroke(Color.rgb(100, 116, 139, 0.5));
+            gc.strokeRect(barX, barY, barW, barH);
+
+            // Ticks
+            gc.setFill(Color.web("#475569"));
+            gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 8.5));
+            gc.fillText("150", barX, curY + 41.0);
+            gc.fillText("300", barX + barW * 0.33 - 6.0, curY + 41.0);
+            gc.fillText("760", barX + barW * 0.78 - 6.0, curY + 41.0);
+            gc.fillText("1500", barX + barW - 18.0, curY + 41.0);
+
+            curY -= 8.0;
+        }
+
+        if (showMappedFaults) {
+            double cardH = 26.0;
+            double cardW = 180.0;
+            curY -= cardH;
+            double cardX = 14.0;
+
+            gc.setFill(Color.rgb(255, 255, 255, 0.90));
+            gc.setStroke(Color.rgb(148, 163, 184, 0.80));
+            gc.setLineWidth(1.0);
+            gc.fillRoundRect(cardX, curY, cardW, cardH, 6.0, 6.0);
+            gc.strokeRoundRect(cardX, curY, cardW, cardH, 6.0, 6.0);
+
+            // Line swatch
+            gc.setStroke(Color.rgb(140, 35, 20, 0.80));
+            gc.setLineWidth(1.8);
+            gc.setLineDashes();
+            gc.strokeLine(cardX + 8.0, curY + cardH / 2.0, cardX + 22.0, curY + cardH / 2.0);
+
+            // Label
+            gc.setFill(Color.web("#1E293B"));
+            gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 9.0));
+            gc.fillText("Mapped faults (USGS QFaults)", cardX + 26.0, curY + 16.0);
+        }
+
         gc.restore();
     }
 

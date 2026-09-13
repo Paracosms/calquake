@@ -23,6 +23,8 @@ import io.github.paracosms.calquake.core.ScenarioReferences;
 import io.github.paracosms.calquake.core.SimulationAssumptionSet;
 import io.github.paracosms.calquake.core.SimulationScenarioSettings;
 import io.github.paracosms.calquake.core.SimulationSite;
+import io.github.paracosms.calquake.core.SiteCondition;
+import io.github.paracosms.calquake.core.SiteConditionProvenance;
 import io.github.paracosms.calquake.core.SimulationValidator;
 import io.github.paracosms.calquake.core.TravelTimeModel;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
@@ -58,6 +60,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
+
+import java.util.Locale;
 import javafx.stage.Stage;
 
 import java.io.File;
@@ -171,6 +175,14 @@ public class CalQuakeApp extends Application {
     private Label elapsedSubLabel;
     private Label statusReplayLabel;
     private CheckBox faultGeometryCheckBox;
+    private CheckBox mappedFaultsCheckBox;
+    private CheckBox vs30CheckBox;
+    private CheckBox scenarioRuptureCheckBox;
+    private Label simAssumptionsSiteLabel;
+    private Label simAssumptionsFallbackLabel;
+    private Label simAssumptionsRuptureLabel;
+    private Label simAssumptionsFaultsLabel;
+    private Label simAssumptionsNoteLabel;
     private AnimationTimer animationTimer;
 
     public CalQuakeApp() {
@@ -755,22 +767,70 @@ public class CalQuakeApp extends Application {
         VBox box = new VBox(4.0);
         box.getStyleClass().add("group-box");
 
-        Label title = new Label("Fixed Model Assumptions");
+        Label title = new Label("Scenario Inputs & Assumptions");
         title.getStyleClass().add("group-box-title");
 
-        Label l1 = new Label("• Rupture: Wells & Coppersmith (1994) all-slip");
-        l1.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
-        Label l2 = new Label("• Mechanism: Generic strike-slip (0° rake / 0° strike / 90° dip)");
-        l2.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
-        Label l3 = new Label("• Site condition: Reference rock, Vs30 760 m/s (DEFAULT)");
-        l3.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
-        Label l4 = new Label("• Ground motion: BSSA14 / Cua-Heaton envelope / Worden (2012)");
-        l4.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
-        Label l5 = new Label("• Assumption set: calquake-custom-v1 (read-only)");
-        l5.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #64748B;");
+        this.simAssumptionsSiteLabel = new Label("• Site conditions: USGS mapped Vs30 at each marker");
+        simAssumptionsSiteLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
 
-        box.getChildren().addAll(title, l1, l2, l3, l4, l5);
+        this.simAssumptionsFallbackLabel = new Label("• Fallbacks: none");
+        simAssumptionsFallbackLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #B45309;");
+        simAssumptionsFallbackLabel.setVisible(false);
+        simAssumptionsFallbackLabel.setManaged(false);
+
+        this.simAssumptionsRuptureLabel = new Label("• Scenario rupture: generated model geometry (W&C 1994)");
+        simAssumptionsRuptureLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+
+        this.simAssumptionsFaultsLabel = new Label("• Mapped faults: USGS QFaults reference layer (display only)");
+        simAssumptionsFaultsLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+
+        this.simAssumptionsNoteLabel = new Label("• Marker note: Vs30 is sampled at named marker coordinates");
+        simAssumptionsNoteLabel.setStyle("-fx-font-size: 9.0px; -fx-font-style: italic; -fx-text-fill: #64748B;");
+
+        box.getChildren().addAll(title, simAssumptionsSiteLabel, simAssumptionsFallbackLabel,
+                simAssumptionsRuptureLabel, simAssumptionsFaultsLabel, simAssumptionsNoteLabel);
+        updateAssumptionsSummary();
         return box;
+    }
+
+    private void updateAssumptionsSummary() {
+        if (simAssumptionsSiteLabel == null) return;
+        if (simulationPreparedReplay != null && simulationPreparedReplay.inputs() != null) {
+            List<SimulationSite> sites = simulationPreparedReplay.inputs().sites();
+            double minVs = Double.POSITIVE_INFINITY;
+            double maxVs = Double.NEGATIVE_INFINITY;
+            int fallbackCount = 0;
+            for (SimulationSite s : sites) {
+                if (s.siteCondition().isPresent()) {
+                    SiteCondition cond = s.siteCondition().get();
+                    if (cond.provenance() == SiteConditionProvenance.DEFAULT) {
+                        fallbackCount++;
+                    } else {
+                        minVs = Math.min(minVs, cond.vs30MetersPerSecond());
+                        maxVs = Math.max(maxVs, cond.vs30MetersPerSecond());
+                    }
+                }
+            }
+            if (minVs != Double.POSITIVE_INFINITY) {
+                simAssumptionsSiteLabel.setText(String.format(Locale.US,
+                        "• Site conditions: USGS mapped Vs30 (%.0f–%.0f m/s)", minVs, maxVs));
+            } else {
+                simAssumptionsSiteLabel.setText("• Site conditions: USGS mapped Vs30 at each marker");
+            }
+            if (fallbackCount > 0) {
+                simAssumptionsFallbackLabel.setVisible(true);
+                simAssumptionsFallbackLabel.setManaged(true);
+                simAssumptionsFallbackLabel.setText(String.format(
+                        "• Fallbacks: %d site(s) use reference rock (760 m/s)", fallbackCount));
+            } else {
+                simAssumptionsFallbackLabel.setVisible(false);
+                simAssumptionsFallbackLabel.setManaged(false);
+            }
+        } else {
+            simAssumptionsSiteLabel.setText("• Site conditions: USGS mapped Vs30 at each marker");
+            simAssumptionsFallbackLabel.setVisible(false);
+            simAssumptionsFallbackLabel.setManaged(false);
+        }
     }
 
     private VBox buildScenarioFileBox() {
@@ -1003,14 +1063,26 @@ public class CalQuakeApp extends Application {
     }
 
     private HBox buildStatusBar() {
-        HBox bar = new HBox(8.0);
+        HBox bar = new HBox(12.0);
         bar.getStyleClass().add("status-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
 
-        this.faultGeometryCheckBox = new CheckBox("Fault Geometry");
-        faultGeometryCheckBox.setId("fault-geometry-toggle");
-        faultGeometryCheckBox.getStyleClass().add("status-pane");
-        faultGeometryCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+        this.mappedFaultsCheckBox = new CheckBox("Mapped faults");
+        mappedFaultsCheckBox.setId("mapped-faults-toggle");
+        mappedFaultsCheckBox.getStyleClass().add("status-pane");
+        mappedFaultsCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+
+        this.vs30CheckBox = new CheckBox("Vs30");
+        vs30CheckBox.setId("vs30-toggle");
+        vs30CheckBox.getStyleClass().add("status-pane");
+        vs30CheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+
+        this.scenarioRuptureCheckBox = new CheckBox("Scenario rupture");
+        scenarioRuptureCheckBox.setId("scenario-rupture-toggle");
+        scenarioRuptureCheckBox.setSelected(true);
+        scenarioRuptureCheckBox.getStyleClass().add("status-pane");
+        scenarioRuptureCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+        this.faultGeometryCheckBox = scenarioRuptureCheckBox; // Alias for backward compatibility
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -1019,7 +1091,7 @@ public class CalQuakeApp extends Application {
         statusReplayLabel.getStyleClass().add("status-pane");
         statusReplayLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
 
-        bar.getChildren().addAll(faultGeometryCheckBox, spacer, statusReplayLabel);
+        bar.getChildren().addAll(mappedFaultsCheckBox, vs30CheckBox, scenarioRuptureCheckBox, spacer, statusReplayLabel);
         return bar;
     }
 
@@ -1233,10 +1305,26 @@ public class CalQuakeApp extends Application {
             });
         }
 
-        if (faultGeometryCheckBox != null) {
-            faultGeometryCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+        if (mappedFaultsCheckBox != null) {
+            mappedFaultsCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
                 if (mapCanvasPane != null) {
-                    mapCanvasPane.setFaultGeometryVisible(newVal);
+                    mapCanvasPane.setMappedFaultsVisible(newVal);
+                }
+            });
+        }
+
+        if (vs30CheckBox != null) {
+            vs30CheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.setVs30HeatmapVisible(newVal);
+                }
+            });
+        }
+
+        if (scenarioRuptureCheckBox != null) {
+            scenarioRuptureCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.setScenarioRuptureVisible(newVal);
                 }
             });
         }
@@ -1644,6 +1732,7 @@ public class CalQuakeApp extends Application {
                     simTimelineScrubber.setMajorTickUnit(Math.max(5.0, simulationController.durationSeconds() / 4.0));
                 }
                 updateSimulationWarningBanner();
+                updateAssumptionsSummary();
                 if (simSettingsStatusLabel != null) {
                     if (!simulationWarnings.isEmpty()) {
                         simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #B45309;");
@@ -2049,6 +2138,38 @@ public class CalQuakeApp extends Application {
 
     public CheckBox getFaultGeometryCheckBox() {
         return faultGeometryCheckBox;
+    }
+
+    public CheckBox getMappedFaultsCheckBox() {
+        return mappedFaultsCheckBox;
+    }
+
+    public CheckBox getVs30CheckBox() {
+        return vs30CheckBox;
+    }
+
+    public CheckBox getScenarioRuptureCheckBox() {
+        return scenarioRuptureCheckBox;
+    }
+
+    public Label getSimAssumptionsSiteLabel() {
+        return simAssumptionsSiteLabel;
+    }
+
+    public Label getSimAssumptionsFallbackLabel() {
+        return simAssumptionsFallbackLabel;
+    }
+
+    public Label getSimAssumptionsRuptureLabel() {
+        return simAssumptionsRuptureLabel;
+    }
+
+    public Label getSimAssumptionsFaultsLabel() {
+        return simAssumptionsFaultsLabel;
+    }
+
+    public Label getSimAssumptionsNoteLabel() {
+        return simAssumptionsNoteLabel;
     }
 
     public AnimationTimer getAnimationTimer() {
