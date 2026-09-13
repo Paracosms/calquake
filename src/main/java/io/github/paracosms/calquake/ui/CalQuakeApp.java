@@ -149,6 +149,7 @@ public class CalQuakeApp extends Application {
     private Label simWarningBannerLabel;
     private Label simLegendMeaningLabel;
     private Label replayLegendMeaningLabel;
+    private SimulationSoundManager simulationSoundManager;
 
     // Asynchronous preparation state
     private CompletableFuture<?> preparationFuture;
@@ -273,6 +274,9 @@ public class CalQuakeApp extends Application {
                         IntensityDisplayMode.MAXIMUM_REACHED, SimulationAssumptionSet.DEFAULT_ID);
                 this.simulationDraftSettings = this.simulationInstalledSettings;
             }
+            if (this.simulationSoundManager == null) {
+                this.simulationSoundManager = new SimulationSoundManager();
+            }
         } catch (Throwable t) {
             this.startupError = t;
         }
@@ -341,6 +345,11 @@ public class CalQuakeApp extends Application {
                     FrameState frame = ctrl.tick();
                     updateTimeDisplays();
                     updateControlStates();
+                    if (currentMode == ApplicationMode.SIMULATION && simulationSoundManager != null) {
+                        double mw = simulationInstalledSettings != null ? simulationInstalledSettings.magnitude()
+                                : (simulationScenario != null ? simulationScenario.event().magnitude() : 0.0);
+                        simulationSoundManager.onPlaybackTick(ctrl.elapsedSeconds(), mw, true);
+                    }
                     if (mapCanvasPane != null) {
                         mapCanvasPane.renderFrame(frame);
                     }
@@ -374,6 +383,9 @@ public class CalQuakeApp extends Application {
     public void stop() {
         if (animationTimer != null) {
             animationTimer.stop();
+        }
+        if (simulationSoundManager != null) {
+            simulationSoundManager.stop();
         }
         lifecycleStage = null;
         preparationGeneration.incrementAndGet();
@@ -1108,6 +1120,12 @@ public class CalQuakeApp extends Application {
             }
             leavingController.restart();
         }
+        if (simulationSoundManager != null) {
+            simulationSoundManager.stop();
+            if (newMode == ApplicationMode.SIMULATION) {
+                simulationSoundManager.reset();
+            }
+        }
         this.wasPlayingBeforeDeactivation = false;
 
         // 2. Cancel or supersede pending background preparation
@@ -1179,6 +1197,9 @@ public class CalQuakeApp extends Application {
             simRestartButton.setOnAction(e -> {
                 if (simulationController != null) {
                     simulationController.restart();
+                    if (simulationSoundManager != null) {
+                        simulationSoundManager.reset();
+                    }
                     wasPlayingBeforeDeactivation = false;
                     updateControlStates();
                     updateTimeDisplays();
@@ -1193,6 +1214,9 @@ public class CalQuakeApp extends Application {
             simTimelineScrubber.valueProperty().addListener((obs, oldVal, newVal) -> {
                 if (updatingSimScrubber || simulationController == null) return;
                 simulationController.seek(newVal.doubleValue());
+                if (simulationSoundManager != null) {
+                    simulationSoundManager.onSeek(newVal.doubleValue());
+                }
                 updateControlStates();
                 updateTimeDisplays();
                 if (mapCanvasPane != null) {
@@ -1202,6 +1226,9 @@ public class CalQuakeApp extends Application {
             simTimelineScrubber.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
                 if (!isChanging && simulationController != null) {
                     simulationController.seek(simTimelineScrubber.getValue());
+                    if (simulationSoundManager != null) {
+                        simulationSoundManager.onSeek(simTimelineScrubber.getValue());
+                    }
                     updateControlStates();
                     updateTimeDisplays();
                     if (mapCanvasPane != null) {
@@ -1635,6 +1662,9 @@ public class CalQuakeApp extends Application {
             simulationController.pause();
             simulationController.restart();
         }
+        if (simulationSoundManager != null) {
+            simulationSoundManager.reset();
+        }
         wasPlayingBeforeDeactivation = false;
         preparingReplay = true;
         preparationError = null;
@@ -1718,6 +1748,9 @@ public class CalQuakeApp extends Application {
             this.simulationPreparedReplay = installation.replay();
             this.simulationScenario = installation.bundle().scenario();
             this.simulationController = replacement;
+            if (simulationSoundManager != null) {
+                simulationSoundManager.reset();
+            }
             this.draftStale = false;
             this.preparingReplay = false;
             this.preparationError = null;
@@ -2254,6 +2287,14 @@ public class CalQuakeApp extends Application {
 
     public Label getReplayLegendMeaningLabel() {
         return replayLegendMeaningLabel;
+    }
+
+    public SimulationSoundManager getSimulationSoundManager() {
+        return simulationSoundManager;
+    }
+
+    public void setSimulationSoundManager(SimulationSoundManager simulationSoundManager) {
+        this.simulationSoundManager = simulationSoundManager;
     }
 
     void setStartupErrorForTesting(Throwable t) {
