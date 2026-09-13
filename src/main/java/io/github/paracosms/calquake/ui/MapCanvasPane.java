@@ -400,7 +400,7 @@ public class MapCanvasPane extends Pane {
         if (frame == null || frame.locationIntensities() == null) {
             return;
         }
-        double badgeSize = 24.0;
+        double badgeSize = 40.0;
         for (LocationIntensityState state : frame.locationIntensities()) {
             if (!state.isRevealed()) {
                 continue;
@@ -425,7 +425,7 @@ public class MapCanvasPane extends Pane {
             String roman,
             String colorHex
     ) {
-        drawLocationBadge(gc, x, y, roman, colorHex, 24.0);
+        drawLocationBadge(gc, x, y, roman, colorHex, 40.0);
     }
 
     private void drawLocationBadge(

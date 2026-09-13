@@ -73,12 +73,12 @@ class CalQuakeAppIntegrationTest {
                 var epicenter = app.getMapCanvasPane().getEpicenterScreenPoint();
                 assertTrue(epicenter.xPx() >= 0.0 && epicenter.xPx() <= width);
                 assertTrue(epicenter.yPx() >= 0.0 && epicenter.yPx() <= height);
-                for (var location : app.getScenario().locations()) {
-                    var point = app.getMapCanvasPane().getLocationScreenPoint(location.city());
+                for (var site : app.getMapCanvasPane().getMapScenario().sites()) {
+                    var point = app.getMapCanvasPane().getLocationScreenPoint(site.displayName());
                     assertTrue(point.xPx() >= 0.0 && point.xPx() <= width,
-                            location.city() + " must be visible horizontally");
+                            site.displayName() + " must be visible horizontally");
                     assertTrue(point.yPx() >= 0.0 && point.yPx() <= height,
-                            location.city() + " must be visible vertically");
+                            site.displayName() + " must be visible vertically");
                 }
 
                 // Switch to Replay mode
@@ -156,7 +156,9 @@ class CalQuakeAppIntegrationTest {
                 assertTrue(controller.isFinished());
                 assertEquals(controller.durationSeconds(), controller.elapsedSeconds(), 1e-9);
                 assertTrue(app.getPlayPauseButton().isDisable());
-                assertTrue(app.getControlStateLabel().getText().contains("Require Restart"));
+                assertEquals(app.getCurrentMode().displayName() + ": FINISHED", app.getStatusReplayLabel().getText());
+                assertFalse(app.getStatusReplayLabel().getText().contains("Require Restart"));
+                assertNull(app.getControlStateLabel().getParent(), "State label must not be in controls hierarchy");
 
                 app.getRestartButton().fire();
                 assertTrue(controller.isPaused());
@@ -674,7 +676,15 @@ class CalQuakeAppIntegrationTest {
                                 || "N/A".equals(l.getText())),
                         "N/A Outside coverage must be removed from simulation MMI scale");
 
-                // 8. In Replay sidebar, verify N/A Outside Coverage is also removed
+                // 8. Simulation Controls title has no (Initially Paused) and no Wavefront Fronts
+                assertTrue(simLabels.stream().anyMatch(l -> "Simulation Controls".equals(l.getText())),
+                        "Title must say 'Simulation Controls'");
+                assertFalse(simLabels.stream().anyMatch(l -> l.getText() != null && l.getText().contains("Initially Paused")),
+                        "Title must not contain '(Initially Paused)'");
+                assertFalse(simLabels.stream().anyMatch(l -> l.getText() != null && l.getText().contains("Wavefront Fronts")),
+                        "Wavefront Fronts box must be removed from simulation controls");
+
+                // 9. In Replay sidebar, verify N/A Outside Coverage and meaning label are removed
                 app.switchMode(ApplicationMode.REPLAY);
                 assertEquals(ApplicationMode.REPLAY, app.getMapCanvasPane().getApplicationMode());
                 assertNull(app.getHudStateLabel().getParent(),
@@ -686,6 +696,25 @@ class CalQuakeAppIntegrationTest {
                 assertFalse(replayLabels.stream().anyMatch(l -> "Outside coverage".equalsIgnoreCase(l.getText())
                                 || "N/A".equals(l.getText())),
                         "N/A Outside coverage must also be removed from replay MMI scale");
+
+                // 10. Replay Controls title has no (Initially Paused), no Wavefront Fronts, and no meaning label in MMI scale
+                assertTrue(replayLabels.stream().anyMatch(l -> "Replay Controls".equals(l.getText())),
+                        "Title must say 'Replay Controls'");
+                assertFalse(replayLabels.stream().anyMatch(l -> l.getText() != null && l.getText().contains("Initially Paused")),
+                        "Title must not contain '(Initially Paused)'");
+                assertFalse(replayLabels.stream().anyMatch(l -> l.getText() != null && l.getText().contains("Wavefront Fronts")),
+                        "Wavefront Fronts box must be removed from replay controls");
+                assertNull(app.getReplayLegendMeaningLabel().getParent(),
+                        "Updating text must be removed from replay MMI scale");
+
+                // 11. Bottom status bar: only mode and playing/paused/finished, no bottom 3 info boxes
+                assertEquals("Replay: PAUSED", app.getStatusReplayLabel().getText());
+                assertFalse(collectLabels(stage.getScene().getRoot()).stream().anyMatch(l -> l.getText() != null && l.getText().contains("Baseline:")),
+                        "Baseline info box must be removed from status bar");
+                assertFalse(collectLabels(stage.getScene().getRoot()).stream().anyMatch(l -> l.getText() != null && l.getText().contains("TauP 3.2.1")),
+                        "Model info box must be removed from status bar");
+                assertFalse(collectLabels(stage.getScene().getRoot()).stream().anyMatch(l -> l.getText() != null && l.getText().contains("cb_2020_20m")),
+                        "Outline info box must be removed from status bar");
             } finally {
                 app.stop();
                 stage.close();

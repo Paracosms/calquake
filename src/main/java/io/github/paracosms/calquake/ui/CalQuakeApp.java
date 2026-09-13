@@ -528,7 +528,7 @@ public class CalQuakeApp extends Application {
         VBox box = new VBox(8.0);
         box.getStyleClass().add("group-box");
 
-        Label title = new Label("Simulation Controls (Initially Paused)");
+        Label title = new Label("Simulation Controls");
         title.getStyleClass().add("group-box-title");
 
         HBox buttonsRow = new HBox(8.0);
@@ -554,18 +554,12 @@ public class CalQuakeApp extends Application {
         simTimelineScrubber.setShowTickMarks(true);
         simTimelineScrubber.setShowTickLabels(false);
 
-        VBox statusInfo = new VBox(2.0);
         this.simControlStateLabel = new Label("State: PAUSED (Ready)");
-        simControlStateLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #1E293B;");
 
         this.simControlTimeLabel = new Label("Elapsed: 0.00 s");
         simControlTimeLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #475569;");
 
-        statusInfo.getChildren().addAll(simControlStateLabel, simControlTimeLabel);
-
-        VBox frontLegendBox = buildWavefrontLegendBox();
-
-        box.getChildren().addAll(title, buttonsRow, simTimelineScrubber, statusInfo, frontLegendBox);
+        box.getChildren().addAll(title, buttonsRow, simTimelineScrubber, simControlTimeLabel);
         return box;
     }
 
@@ -836,7 +830,7 @@ public class CalQuakeApp extends Application {
         VBox box = new VBox(8.0);
         box.getStyleClass().add("group-box");
 
-        Label title = new Label("Replay Controls (Initially Paused)");
+        Label title = new Label("Replay Controls");
         title.getStyleClass().add("group-box-title");
 
         HBox buttonsRow = new HBox(8.0);
@@ -862,18 +856,12 @@ public class CalQuakeApp extends Application {
         replayTimelineScrubber.setShowTickMarks(true);
         replayTimelineScrubber.setShowTickLabels(false);
 
-        VBox statusInfo = new VBox(2.0);
         this.replayControlStateLabel = new Label("State: PAUSED (Ready)");
-        replayControlStateLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #1E293B;");
 
         this.replayControlTimeLabel = new Label("Elapsed: 0.00 s");
         replayControlTimeLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #475569;");
 
-        statusInfo.getChildren().addAll(replayControlStateLabel, replayControlTimeLabel);
-
-        VBox frontLegendBox = buildWavefrontLegendBox();
-
-        box.getChildren().addAll(title, buttonsRow, replayTimelineScrubber, statusInfo, frontLegendBox);
+        box.getChildren().addAll(title, buttonsRow, replayTimelineScrubber, replayControlTimeLabel);
         return box;
     }
 
@@ -985,11 +973,7 @@ public class CalQuakeApp extends Application {
             r++;
         }
 
-        if (isSimulation) {
-            box.getChildren().addAll(title, grid);
-        } else {
-            box.getChildren().addAll(title, meaningLabel, grid);
-        }
+        box.getChildren().addAll(title, grid);
         return box;
     }
 
@@ -1020,24 +1004,14 @@ public class CalQuakeApp extends Application {
         bar.getStyleClass().add("status-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
 
-        Label p1 = new Label("Baseline: 1280×800 | Aspect Ratio: 1:1");
-        p1.getStyleClass().add("status-pane");
-
-        Label p2 = new Label("Model: Hadley-Kanamori (TauP 3.2.1)");
-        p2.getStyleClass().add("status-pane");
-
-        Label p3 = new Label("Outline: California cb_2020_20m (6 rings, 468 vertices)");
-        p3.getStyleClass().add("status-pane");
-
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        this.statusReplayLabel = new Label(currentMode == ApplicationMode.SIMULATION
-                ? "Simulation: READY" : "Replay: READY");
+        this.statusReplayLabel = new Label(currentMode.displayName() + ": PAUSED");
         statusReplayLabel.getStyleClass().add("status-pane");
         statusReplayLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
 
-        bar.getChildren().addAll(p1, p2, p3, spacer, statusReplayLabel);
+        bar.getChildren().addAll(spacer, statusReplayLabel);
         return bar;
     }
 
@@ -1758,7 +1732,7 @@ public class CalQuakeApp extends Application {
             }
             if (activeStateLbl != null) activeStateLbl.setText("State: PLAYING");
             if (statusReplayLabel != null) {
-                statusReplayLabel.setText(String.format("%s: PLAYING (T + %.1f s)", currentMode.displayName(), elapsed));
+                statusReplayLabel.setText(String.format("%s: PLAYING", currentMode.displayName()));
             }
         } else if (ctrl.isPaused()) {
             if (activePlayBtn != null) {
@@ -1771,14 +1745,11 @@ public class CalQuakeApp extends Application {
             }
             if (elapsed == 0.0) {
                 if (activeStateLbl != null) activeStateLbl.setText("State: PAUSED (Ready)");
-                if (statusReplayLabel != null) {
-                    statusReplayLabel.setText(String.format("%s: READY (0.00s / %.2fs)", currentMode.displayName(), ctrl.durationSeconds()));
-                }
             } else {
                 if (activeStateLbl != null) activeStateLbl.setText("State: PAUSED");
-                if (statusReplayLabel != null) {
-                    statusReplayLabel.setText(String.format("%s: PAUSED (T + %.1f s)", currentMode.displayName(), elapsed));
-                }
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText(String.format("%s: PAUSED", currentMode.displayName()));
             }
         } else if (ctrl.isFinished()) {
             if (activePlayBtn != null) {
@@ -1789,9 +1760,9 @@ public class CalQuakeApp extends Application {
                 hudStateLabel.setText("FINISHED");
                 hudStateLabel.getStyleClass().setAll("status-badge-finished");
             }
-            if (activeStateLbl != null) activeStateLbl.setText("State: FINISHED (Require Restart)");
+            if (activeStateLbl != null) activeStateLbl.setText("");
             if (statusReplayLabel != null) {
-                statusReplayLabel.setText(String.format("%s: FINISHED (Require Restart)", currentMode.displayName()));
+                statusReplayLabel.setText(String.format("%s: FINISHED", currentMode.displayName()));
             }
         }
     }
