@@ -2,7 +2,9 @@ package io.github.paracosms.calquake.data;
 
 import io.github.paracosms.calquake.core.SimulationSite;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -97,5 +99,19 @@ public interface SimulationSiteCatalog {
      */
     static SimulationSiteCatalog loadFromJsonString(String json) {
         return JsonSimulationSiteCatalog.loadFromJsonString(json);
+    }
+
+    /**
+     * Loads a simulation site catalog from a JSON file.
+     */
+    static SimulationSiteCatalog loadFromFile(Path path) throws IOException {
+        return of(SimulationSiteSerializer.readFromFile(path));
+    }
+
+    /**
+     * Atomically writes this simulation site catalog to a JSON file.
+     */
+    default void writeToFile(Path path) throws IOException {
+        SimulationSiteSerializer.writeToFile(sites(), path);
     }
 }

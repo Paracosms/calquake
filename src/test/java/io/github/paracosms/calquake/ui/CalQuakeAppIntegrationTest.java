@@ -11,7 +11,11 @@ import io.github.paracosms.calquake.data.CaliforniaOutline;
 import io.github.paracosms.calquake.data.ScenarioLoader;
 import io.github.paracosms.calquake.testsupport.FakeMonotonicClock;
 import io.github.paracosms.calquake.testsupport.JavaFxTestHelper;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.Label;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyEvent;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.Test;
 
@@ -487,6 +491,8 @@ class CalQuakeAppIntegrationTest {
                 assertTrue(app.getApplyButton().isDisable());
                 assertTrue(app.getSaveButton().isDisable(), "Save must be disabled while playing");
                 assertTrue(app.getImportButton().isDisable(), "Import must be disabled while playing");
+                assertTrue(app.getSaveCitiesButton().isDisable(), "Save cities must be disabled while playing");
+                assertTrue(app.getImportCitiesButton().isDisable(), "Import cities must be disabled while playing");
 
                 app.getPlayPauseButton().fire();
                 assertTrue(app.getController().isPaused());
@@ -494,6 +500,8 @@ class CalQuakeAppIntegrationTest {
                 assertFalse(app.getApplyButton().isDisable());
                 assertFalse(app.getSaveButton().isDisable(), "Save must be enabled while paused");
                 assertFalse(app.getImportButton().isDisable(), "Import must be enabled while paused");
+                assertFalse(app.getSaveCitiesButton().isDisable(), "Save cities must be enabled while paused");
+                assertFalse(app.getImportCitiesButton().isDisable(), "Import cities must be enabled while paused");
 
                 // 3. Draft editing marks stale and disables Play button
                 app.getEpicenterLatField().setText("36.2000");
@@ -572,7 +580,7 @@ class CalQuakeAppIntegrationTest {
     void simulationSaveAndImportRoundTripWorkflow() throws Exception {
         CalQuakeApp[] appRef = new CalQuakeApp[1];
         Stage[] stageRef = new Stage[1];
-        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("calquake-ui-test-", ".calquake.json");
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("calquake-ui-test-", ".json");
         java.nio.file.Path badFile = java.nio.file.Files.createTempFile("calquake-ui-bad-", ".json");
         try {
             java.nio.file.Files.writeString(badFile, "{ \"schema_version\": 999, \"type\": \"bad\" }");
@@ -641,6 +649,97 @@ class CalQuakeAppIntegrationTest {
     }
 
     @Test
+    void simulationSaveAndImportCitiesRoundTripWorkflow() throws Exception {
+        CalQuakeApp[] appRef = new CalQuakeApp[1];
+        Stage[] stageRef = new Stage[1];
+        java.nio.file.Path tempCitiesFile = java.nio.file.Files.createTempFile("cities-", ".json");
+        java.nio.file.Path badCitiesFile = java.nio.file.Files.createTempFile("cities-bad-", ".json");
+        java.nio.file.Path customCitiesFile = java.nio.file.Files.createTempFile("cities-custom-", ".json");
+        try {
+            java.nio.file.Files.writeString(badCitiesFile, "{ \"invalid\": true }");
+            String customCitiesJson = """
+                    [
+                      { "id": "custom-sf", "display_name": "San Francisco Custom", "latitude": 37.7749, "longitude": -122.4194 },
+                      { "id": "custom-la", "display_name": "Los Angeles Custom", "latitude": 34.0522, "longitude": -118.2437 },
+                      { "id": "custom-sd", "display_name": "San Diego Custom", "latitude": 32.7157, "longitude": -117.1611 }
+                    ]
+                    """;
+            java.nio.file.Files.writeString(customCitiesFile, customCitiesJson);
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = new CalQuakeApp();
+                app.init();
+                Stage stage = new Stage();
+                app.start(stage);
+                appRef[0] = app;
+                stageRef[0] = stage;
+
+                assertNotNull(app.getSimulationFileBox());
+                assertNotNull(app.getCitiesFileBox());
+                assertNotNull(app.getSaveCitiesButton());
+                assertNotNull(app.getImportCitiesButton());
+                assertNotNull(app.getLoadCitiesButton());
+
+                // Initial catalog has 22 cities
+                assertEquals(22, app.getSimulationSiteCatalog().sites().size());
+
+                // 1. Save default cities to temp file
+                app.saveCitiesToFile(app.getSimulationSiteCatalog().sites(), tempCitiesFile);
+                assertTrue(java.nio.file.Files.exists(tempCitiesFile));
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("Saved cities"));
+
+                // 2. Import invalid cities file -> fails transactionally without mutating catalog
+                boolean importedBad = app.importCitiesFromFile(badCitiesFile);
+                assertFalse(importedBad);
+                assertTrue(app.getSimSettingsStatusLabel().getText().contains("Import cities failed"));
+                assertEquals(22, app.getSimulationSiteCatalog().sites().size());
+
+                // 3. Import valid custom cities file (3 cities)
+                boolean importedCustom = app.importCitiesFromFile(customCitiesFile);
+                assertTrue(importedCustom);
+                assertTrue(app.isPreparingReplay());
+                assertEquals(3, app.getSimulationSiteCatalog().sites().size());
+            });
+
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                assertFalse(app.isPreparingReplay());
+                assertEquals(3, app.getSimulationSiteCatalog().sites().size());
+                assertEquals(3, app.getMapCanvasPane().getMapScenario().sites().size());
+                assertFalse(app.getPlayPauseButton().isDisable());
+
+                // 4. Import original saved cities back (22 cities)
+                boolean importedOriginal = app.importCitiesFromFile(tempCitiesFile);
+                assertTrue(importedOriginal);
+                assertTrue(app.isPreparingReplay());
+            });
+
+            appRef[0].getPreparationFuture().get(10, TimeUnit.SECONDS);
+            JavaFxTestHelper.runOnFxThread(() -> {});
+
+            JavaFxTestHelper.runOnFxThread(() -> {
+                CalQuakeApp app = appRef[0];
+                assertFalse(app.isPreparingReplay());
+                assertEquals(22, app.getSimulationSiteCatalog().sites().size());
+                assertEquals(22, app.getMapCanvasPane().getMapScenario().sites().size());
+            });
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempCitiesFile);
+            java.nio.file.Files.deleteIfExists(badCitiesFile);
+            java.nio.file.Files.deleteIfExists(customCitiesFile);
+            if (appRef[0] != null) {
+                JavaFxTestHelper.runOnFxThread(() -> {
+                    appRef[0].stop();
+                    if (stageRef[0] != null) stageRef[0].close();
+                });
+            }
+        }
+    }
+
+    @Test
     void simulationAndReplayLayoutSimplifications() throws Exception {
         JavaFxTestHelper.runOnFxThread(() -> {
             CalQuakeApp app = new CalQuakeApp();
@@ -692,6 +791,14 @@ class CalQuakeAppIntegrationTest {
                 assertFalse(simLabels.stream().anyMatch(l -> l.getText() != null && l.getText().contains("Wavefront Fronts")),
                         "Wavefront Fronts box must be removed from simulation controls");
 
+                // Simulation File and Cities File sections
+                assertTrue(simLabels.stream().anyMatch(l -> "Simulation File".equals(l.getText())),
+                        "Title must say 'Simulation File'");
+                assertTrue(simLabels.stream().anyMatch(l -> "Cities File".equals(l.getText())),
+                        "Title must say 'Cities File'");
+                assertFalse(simLabels.stream().anyMatch(l -> "Scenario File".equals(l.getText())),
+                        "Scenario File must be renamed to Simulation File");
+
                 // 9. In Replay sidebar, verify N/A Outside Coverage and meaning label are removed
                 app.switchMode(ApplicationMode.REPLAY);
                 assertEquals(ApplicationMode.REPLAY, app.getMapCanvasPane().getApplicationMode());
@@ -724,6 +831,87 @@ class CalQuakeAppIntegrationTest {
                 assertFalse(collectLabels(stage.getScene().getRoot()).stream().anyMatch(l -> l.getText() != null && l.getText().contains("cb_2020_20m")),
                         "Outline info box must be removed from status bar");
             } finally {
+                app.stop();
+                stage.close();
+            }
+        });
+    }
+
+    @Test
+    void fullscreenModeCanBeToggledViaShortcutMenuAndApi() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            CalQuakeApp app = new CalQuakeApp();
+            app.init();
+            Stage stage = new Stage();
+            try {
+                app.start(stage);
+
+                CheckMenuItem fullScreenItem = app.getFullScreenMenuItem();
+                assertNotNull(fullScreenItem, "Settings menu must contain fullScreenMenuItem");
+                assertEquals("Full Screen", fullScreenItem.getText());
+                assertNotNull(fullScreenItem.getAccelerator());
+                assertEquals(KeyCode.F11, ((KeyCodeCombination) fullScreenItem.getAccelerator()).getCode());
+                assertFalse(fullScreenItem.isSelected());
+                assertFalse(app.isFullScreen());
+
+                // 1. Toggle via public API
+                app.setFullScreen(true);
+                assertTrue(app.isFullScreen());
+                assertTrue(fullScreenItem.isSelected());
+
+                app.setFullScreen(false);
+                assertFalse(app.isFullScreen());
+                assertFalse(fullScreenItem.isSelected());
+
+                // 2. Toggle via toggleFullScreen method
+                app.toggleFullScreen();
+                assertTrue(app.isFullScreen());
+                assertTrue(fullScreenItem.isSelected());
+
+                app.toggleFullScreen();
+                assertFalse(app.isFullScreen());
+                assertFalse(fullScreenItem.isSelected());
+
+                // 3. Toggle via menu item action
+                fullScreenItem.setSelected(true);
+                fullScreenItem.getOnAction().handle(new javafx.event.ActionEvent());
+                assertTrue(app.isFullScreen());
+
+                fullScreenItem.setSelected(false);
+                fullScreenItem.getOnAction().handle(new javafx.event.ActionEvent());
+                assertFalse(app.isFullScreen());
+
+                // 4. Toggle via F11 KeyEvent on Scene
+                KeyEvent f11Event = new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.F11,
+                        false, false, false, false);
+                javafx.event.Event.fireEvent(stage.getScene(), f11Event);
+                assertTrue(app.isFullScreen());
+
+                // Fire F11 again to toggle back
+                KeyEvent f11ExitEvent = new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.F11,
+                        false, false, false, false);
+                javafx.event.Event.fireEvent(stage.getScene(), f11ExitEvent);
+                assertFalse(app.isFullScreen());
+            } finally {
+                app.stop();
+                stage.close();
+            }
+        });
+    }
+
+    @Test
+    void startInFullScreenSupportedViaStaticHelperAndCli() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            CalQuakeApp.setStartFullScreen(true);
+            CalQuakeApp app = new CalQuakeApp();
+            app.init();
+            Stage stage = new Stage();
+            try {
+                app.start(stage);
+                assertTrue(app.isFullScreen(), "Stage should start in fullscreen when requested");
+                assertTrue(app.getFullScreenMenuItem().isSelected());
+            } finally {
+                CalQuakeApp.setStartFullScreen(false);
                 app.stop();
                 stage.close();
             }

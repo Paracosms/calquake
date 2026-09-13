@@ -472,7 +472,7 @@ class ScenarioLoaderTest {
         assertEquals(original.assumptionSetId(), deserialized.assumptionSetId());
 
         // Test atomic file write and read
-        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("calquake-test-", ".calquake.json");
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("calquake-test-", ".json");
         try {
             SimulationScenarioSerializer.writeToFile(original, tempFile);
             assertTrue(java.nio.file.Files.size(tempFile) > 0);
@@ -599,6 +599,87 @@ class ScenarioLoaderTest {
         for (var site : recordedBundle.inputs().sites()) {
             assertTrue(site.siteCondition().isEmpty(), "Recorded sites must not contain Vs30 / site condition");
         }
+    }
+
+    @Test
+    void testSimulationSiteSerializerRoundTrip() {
+        List<SimulationSite> originalSites = SimulationSiteCatalog.loadDefault().sites();
+        assertEquals(22, originalSites.size());
+
+        String json = SimulationSiteSerializer.toJson(originalSites);
+        assertNotNull(json);
+        assertTrue(json.startsWith("["), "Should be serialized as top-level JSON array");
+        assertTrue(json.contains("\"id\" : \"eureka\""));
+        assertTrue(json.contains("\"display_name\" : \"Eureka\""));
+        assertTrue(json.contains("\"latitude\" : 40.802071"));
+        assertTrue(json.contains("\"longitude\" : -124.163673"));
+
+        List<SimulationSite> deserialized = SimulationSiteSerializer.fromJson(json);
+        assertEquals(originalSites.size(), deserialized.size());
+        for (int i = 0; i < originalSites.size(); i++) {
+            SimulationSite orig = originalSites.get(i);
+            SimulationSite des = deserialized.get(i);
+            assertEquals(orig.id(), des.id());
+            assertEquals(orig.displayName(), des.displayName());
+            assertEquals(orig.coordinates().latitude(), des.coordinates().latitude(), 1e-6);
+            assertEquals(orig.coordinates().longitude(), des.coordinates().longitude(), 1e-6);
+        }
+    }
+
+    @Test
+    void testSimulationSiteSerializerFileIo() throws Exception {
+        List<SimulationSite> sites = List.of(
+                new SimulationSite("city-a", "City Alpha", new GeoPoint(37.1234, -122.1234)),
+                new SimulationSite("city-b", "City Beta", new GeoPoint(38.5678, -121.5678))
+        );
+
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("cities-test-", ".json");
+        try {
+            SimulationSiteSerializer.writeToFile(sites, tempFile);
+            assertTrue(java.nio.file.Files.size(tempFile) > 0);
+
+            List<SimulationSite> readBack = SimulationSiteSerializer.readFromFile(tempFile);
+            assertEquals(2, readBack.size());
+            assertEquals("city-a", readBack.get(0).id());
+            assertEquals("City Alpha", readBack.get(0).displayName());
+            assertEquals(37.1234, readBack.get(0).coordinates().latitude(), 1e-6);
+            assertEquals(-122.1234, readBack.get(0).coordinates().longitude(), 1e-6);
+
+            // Also test SimulationSiteCatalog loadFromFile and writeToFile
+            SimulationSiteCatalog catalog = SimulationSiteCatalog.loadFromFile(tempFile);
+            assertEquals(2, catalog.sites().size());
+            catalog.writeToFile(tempFile);
+            assertEquals(2, SimulationSiteCatalog.loadFromFile(tempFile).sites().size());
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempFile);
+        }
+    }
+
+    @Test
+    void testSimulationSiteSerializerValidationErrors() {
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteSerializer.toJson(List.of()));
+        assertThrows(NullPointerException.class, () -> SimulationSiteSerializer.toJson(null));
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteSerializer.fromJson(""));
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteSerializer.fromJson("   "));
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteSerializer.fromJson("not-json"));
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteSerializer.fromJson("[]")); // empty array
+
+        // Duplicate ID
+        String duplicateJson = """
+                [
+                  { "id": "dup", "display_name": "City 1", "latitude": 37.0, "longitude": -122.0 },
+                  { "id": "DUP", "display_name": "City 2", "latitude": 38.0, "longitude": -121.0 }
+                ]
+                """;
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteSerializer.fromJson(duplicateJson));
+
+        // Invalid coordinates
+        String invalidLatJson = """
+                [
+                  { "id": "c1", "display_name": "City 1", "latitude": 95.0, "longitude": -122.0 }
+                ]
+                """;
+        assertThrows(IllegalArgumentException.class, () -> SimulationSiteSerializer.fromJson(invalidLatJson));
     }
 }
 

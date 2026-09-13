@@ -31,6 +31,7 @@ import io.github.paracosms.calquake.data.CaliforniaOutline;
 import io.github.paracosms.calquake.data.ScenarioLoader;
 import io.github.paracosms.calquake.data.SimulationScenarioSerializer;
 import io.github.paracosms.calquake.data.SimulationSiteCatalog;
+import io.github.paracosms.calquake.data.SimulationSiteSerializer;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -39,9 +40,13 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.RadioMenuItem;
@@ -98,6 +103,8 @@ public class CalQuakeApp extends Application {
     private boolean windowInactive;
     private boolean wasPlayingBeforeDeactivation;
     private Throwable startupError;
+    private static boolean startFullScreen = Boolean.getBoolean("calquake.fullscreen");
+    private boolean fullScreenRequested;
 
     private final ScenarioLoader scenarioLoader = new ScenarioLoader();
     private final TravelTimeModel travelTimeModel = new HadleyKanamoriTauPModel();
@@ -141,7 +148,11 @@ public class CalQuakeApp extends Application {
     private Label simSettingsStatusLabel;
     private Button saveButton;
     private Button importButton;
+    private Button saveCitiesButton;
+    private Button importCitiesButton;
     private VBox simulationSidebar;
+    private VBox simulationFileBox;
+    private VBox citiesFileBox;
     private SimulationSiteCatalog simulationSiteCatalog;
     private SimulationScenarioSettings simulationInstalledSettings;
     private SimulationScenarioSettings simulationDraftSettings;
@@ -166,6 +177,7 @@ public class CalQuakeApp extends Application {
     private RadioMenuItem simulationMenuItem;
     private RadioMenuItem replayMenuItem;
     private Menu settingsMenu;
+    private CheckMenuItem fullScreenMenuItem;
     private Button settingsButton;
 
     // Center & Layout Containers
@@ -374,9 +386,17 @@ public class CalQuakeApp extends Application {
         String cssPath = Objects.requireNonNull(getClass().getResource("/styles/calquake.css")).toExternalForm();
         scene.getStylesheets().add(cssPath);
 
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (KeyCode.F11.equals(event.getCode())) {
+                toggleFullScreen();
+                event.consume();
+            }
+        });
+
         primaryStage.setTitle("CalQuake");
         primaryStage.setMinWidth(MIN_WIDTH);
         primaryStage.setMinHeight(MIN_HEIGHT);
+        primaryStage.setFullScreenExitHint("Press F11 or ESC to exit full screen");
         primaryStage.setScene(scene);
         primaryStage.setOnCloseRequest(e -> {
             if (animationTimer != null) {
@@ -385,6 +405,9 @@ public class CalQuakeApp extends Application {
         });
 
         setupWindowLifecycleHandlers(primaryStage);
+        if (fullScreenRequested || startFullScreen) {
+            primaryStage.setFullScreen(true);
+        }
         primaryStage.show();
         handleWindowActivityChanged();
     }
@@ -409,6 +432,19 @@ public class CalQuakeApp extends Application {
 
         stage.focusedProperty().addListener((observable, oldValue, newValue) -> handleWindowActivityChanged());
         stage.iconifiedProperty().addListener((observable, oldValue, newValue) -> handleWindowActivityChanged());
+        stage.fullScreenProperty().addListener((observable, oldValue, isFullScreen) -> {
+            this.fullScreenRequested = isFullScreen;
+            if (fullScreenMenuItem != null && fullScreenMenuItem.isSelected() != isFullScreen) {
+                fullScreenMenuItem.setSelected(isFullScreen);
+            }
+            Platform.runLater(() -> {
+                if (mapCanvasPane != null) {
+                    ReplayController ctrl = getController();
+                    FrameState currentFrame = ctrl != null ? ctrl.currentFrame() : null;
+                    mapCanvasPane.refresh(currentFrame);
+                }
+            });
+        });
     }
 
     private void handleWindowActivityChanged() {
@@ -493,11 +529,15 @@ public class CalQuakeApp extends Application {
 
         modeMenu.getItems().addAll(simulationMenuItem, replayMenuItem);
 
-        // 2. Settings menu (placeholder for later work)
+        // 2. Settings menu (fullscreen toggle + settings placeholder)
         this.settingsMenu = new Menu("Settings");
+        this.fullScreenMenuItem = new CheckMenuItem("Full Screen");
+        fullScreenMenuItem.setAccelerator(new KeyCodeCombination(KeyCode.F11));
+        fullScreenMenuItem.setOnAction(e -> setFullScreen(fullScreenMenuItem.isSelected()));
+
         MenuItem settingsItem = new MenuItem("Settings...");
         settingsItem.setDisable(true);
-        settingsMenu.getItems().add(settingsItem);
+        settingsMenu.getItems().addAll(fullScreenMenuItem, settingsItem);
 
         this.calQuakeMenu = new Menu("CalQuake");
 
@@ -551,13 +591,16 @@ public class CalQuakeApp extends Application {
         // Section 3: Rupture Details
         VBox assumptionsBox = buildFixedAssumptionsBox();
 
-        // Section 4: Scenario File
-        VBox fileBox = buildScenarioFileBox();
+        // Section 4: Simulation File
+        this.simulationFileBox = buildSimulationFileBox();
 
-        // Section 5: MMI Legend
+        // Section 5: Cities File
+        this.citiesFileBox = buildCitiesFileBox();
+
+        // Section 6: MMI Legend
         VBox legendBox = buildLegendBox(true);
 
-        sidebar.getChildren().addAll(controlsBox, simWarningBanner, settingsBox, assumptionsBox, fileBox, legendBox);
+        sidebar.getChildren().addAll(controlsBox, simWarningBanner, settingsBox, assumptionsBox, simulationFileBox, citiesFileBox, legendBox);
         return sidebar;
     }
 
@@ -904,11 +947,11 @@ public class CalQuakeApp extends Application {
         }
     }
 
-    private VBox buildScenarioFileBox() {
+    private VBox buildSimulationFileBox() {
         VBox box = new VBox(6.0);
         box.getStyleClass().add("group-box");
 
-        Label title = new Label("Scenario File");
+        Label title = new Label("Simulation File");
         title.getStyleClass().add("group-box-title");
 
         HBox buttonsRow = new HBox(8.0);
@@ -923,6 +966,29 @@ public class CalQuakeApp extends Application {
         importButton.setPrefWidth(120.0);
 
         buttonsRow.getChildren().addAll(saveButton, importButton);
+        box.getChildren().addAll(title, buttonsRow);
+        return box;
+    }
+
+    private VBox buildCitiesFileBox() {
+        VBox box = new VBox(6.0);
+        box.getStyleClass().add("group-box");
+
+        Label title = new Label("Cities File");
+        title.getStyleClass().add("group-box-title");
+
+        HBox buttonsRow = new HBox(8.0);
+        buttonsRow.setAlignment(Pos.CENTER_LEFT);
+
+        this.saveCitiesButton = new Button("Save to File…");
+        saveCitiesButton.getStyleClass().add("button");
+        saveCitiesButton.setPrefWidth(120.0);
+
+        this.importCitiesButton = new Button("Import…");
+        importCitiesButton.getStyleClass().add("button");
+        importCitiesButton.setPrefWidth(120.0);
+
+        buttonsRow.getChildren().addAll(saveCitiesButton, importCitiesButton);
         box.getChildren().addAll(title, buttonsRow);
         return box;
     }
@@ -1309,6 +1375,14 @@ public class CalQuakeApp extends Application {
             importButton.setOnAction(e -> handleImportScenario());
         }
 
+        if (saveCitiesButton != null) {
+            saveCitiesButton.setOnAction(e -> handleSaveCities());
+        }
+
+        if (importCitiesButton != null) {
+            importCitiesButton.setOnAction(e -> handleImportCities());
+        }
+
         // Replay Controls
         if (replayPlayPauseButton != null) {
             replayPlayPauseButton.setOnAction(e -> {
@@ -1515,13 +1589,12 @@ public class CalQuakeApp extends Application {
                 scenarioId, name, createdUtc, new GeoPoint(lat, lon), mag, depth, displayMode, assumptionSetId);
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Save Simulation Scenario");
+        fileChooser.setTitle("Save Simulation File");
         fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("CalQuake Simulation Scenario (*.calquake.json)", "*.calquake.json"),
                 new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
                 new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
         );
-        fileChooser.setInitialFileName(sanitizeFileName(name) + ".calquake.json");
+        fileChooser.setInitialFileName("earthquake.json");
 
         Stage stage = lifecycleStage;
         if (stage == null && saveButton != null && saveButton.getScene() != null) {
@@ -1561,9 +1634,8 @@ public class CalQuakeApp extends Application {
         }
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Import Simulation Scenario");
+        fileChooser.setTitle("Import Simulation File");
         fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("CalQuake Simulation Scenario (*.calquake.json)", "*.calquake.json"),
                 new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
                 new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
         );
@@ -1635,6 +1707,122 @@ public class CalQuakeApp extends Application {
         }
 
         requestSimulationPreparation(imported, result.warnings());
+        return true;
+    }
+
+    void handleSaveCities() {
+        ReplayController ctrl = getController();
+        if (ctrl != null && ctrl.isPlaying()) {
+            return;
+        }
+
+        List<SimulationSite> sites = simulationSiteCatalog != null
+                ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Simulation Cities");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+        );
+        fileChooser.setInitialFileName("cities.json");
+
+        Stage stage = lifecycleStage;
+        if (stage == null && saveCitiesButton != null && saveCitiesButton.getScene() != null) {
+            stage = (Stage) saveCitiesButton.getScene().getWindow();
+        }
+        File selected = fileChooser.showSaveDialog(stage);
+        if (selected != null) {
+            saveCitiesToFile(sites, selected.toPath());
+        }
+    }
+
+    public void saveCitiesToFile(List<SimulationSite> sites, Path targetFile) {
+        try {
+            SimulationSiteSerializer.writeToFile(sites, targetFile);
+            if (simSettingsStatusLabel != null) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #166534;");
+                simSettingsStatusLabel.setText("Saved cities: " + targetFile.getFileName().toString());
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Simulation: Saved cities " + targetFile.getFileName().toString());
+            }
+        } catch (Exception e) {
+            if (simSettingsStatusLabel != null) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                simSettingsStatusLabel.setText("Save cities failed: " + e.getMessage());
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Simulation: Save cities failed");
+            }
+        }
+    }
+
+    void handleImportCities() {
+        ReplayController ctrl = getController();
+        if (ctrl != null && ctrl.isPlaying()) {
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Import Simulation Cities");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+        );
+
+        Stage stage = lifecycleStage;
+        if (stage == null && importCitiesButton != null && importCitiesButton.getScene() != null) {
+            stage = (Stage) importCitiesButton.getScene().getWindow();
+        }
+        File selected = fileChooser.showOpenDialog(stage);
+        if (selected != null) {
+            importCitiesFromFile(selected.toPath());
+        }
+    }
+
+    public boolean importCitiesFromFile(Path path) {
+        if (path == null) return false;
+        List<SimulationSite> imported;
+        try {
+            imported = SimulationSiteSerializer.readFromFile(path);
+        } catch (Exception e) {
+            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            if (simSettingsStatusLabel != null) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                simSettingsStatusLabel.setText("Import cities failed: " + message);
+            }
+            if (statusReplayLabel != null) {
+                statusReplayLabel.setText("Simulation: Import cities failed");
+            }
+            return false;
+        }
+        return applyImportedCities(imported);
+    }
+
+    public boolean applyImportedCities(List<SimulationSite> importedSites) {
+        if (importedSites == null || importedSites.isEmpty()) return false;
+
+        if (currentMode != ApplicationMode.SIMULATION) {
+            switchMode(ApplicationMode.SIMULATION);
+        }
+
+        this.simulationSiteCatalog = SimulationSiteCatalog.of(importedSites);
+
+        SimulationScenarioSettings currentSettings = simulationDraftSettings != null
+                ? simulationDraftSettings
+                : (simulationInstalledSettings != null ? simulationInstalledSettings : scenarioLoader.loadStarterSimulationSettings());
+
+        SimulationValidator.ValidationResult result = SimulationValidator.validate(
+                currentSettings.epicenter().latitude(), currentSettings.epicenter().longitude(),
+                currentSettings.magnitude(), currentSettings.depthKm(), importedSites, outline);
+
+        if (simSettingsStatusLabel != null) {
+            simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+            simSettingsStatusLabel.setText("Imported " + importedSites.size() + " cities. Preparing scenario...");
+        }
+
+        requestSimulationPreparation(currentSettings, result.warnings());
         return true;
     }
 
@@ -1739,9 +1927,19 @@ public class CalQuakeApp extends Application {
             EarthquakeEvent event = new EarthquakeEvent(
                     settings.scenarioId(), "calquake", settings.displayName(),
                     settings.createdUtc(), settings.epicenter(), settings.depthKm(), settings.magnitude(), "mw", "");
-            List<ReferenceLocation> locations = simulationScenario != null
-                    ? simulationScenario.locations()
-                    : scenarioLoader.loadStarterSimulationScenario().locations();
+            List<ReferenceLocation> locations = sites.stream()
+                    .map(s -> new ReferenceLocation(
+                            s.displayName(),
+                            s.displayName(),
+                            s.id(),
+                            "",
+                            "",
+                            s.coordinates(),
+                            new ReferenceLocation.SampledGridNode(s.coordinates(), 0.0),
+                            new ReferenceLocation.PeakIntensity(1.0, 1.0, "I", "Not felt", "None", "#ffffff"),
+                            null
+                    ))
+                    .toList();
             Scenario scenario = new Scenario(event, locations);
             ScenarioLoader.ScenarioBundle bundle = new ScenarioLoader.ScenarioBundle(
                     scenario, inputs, new ScenarioReferences(Map.of()));
@@ -1875,9 +2073,13 @@ public class CalQuakeApp extends Application {
             if (applyButton != null) applyButton.setDisable(isPlaying || preparingReplay);
             if (saveButton != null) saveButton.setDisable(isPlaying || preparingReplay);
             if (importButton != null) importButton.setDisable(isPlaying || preparingReplay);
+            if (saveCitiesButton != null) saveCitiesButton.setDisable(isPlaying || preparingReplay);
+            if (importCitiesButton != null) importCitiesButton.setDisable(isPlaying || preparingReplay);
         } else {
             if (saveButton != null) saveButton.setDisable(true);
             if (importButton != null) importButton.setDisable(true);
+            if (saveCitiesButton != null) saveCitiesButton.setDisable(true);
+            if (importCitiesButton != null) importCitiesButton.setDisable(true);
         }
 
         if (preparingReplay) {
@@ -2154,6 +2356,28 @@ public class CalQuakeApp extends Application {
         return settingsButton;
     }
 
+    public CheckMenuItem getFullScreenMenuItem() {
+        return fullScreenMenuItem;
+    }
+
+    public void setFullScreen(boolean fullScreen) {
+        this.fullScreenRequested = fullScreen;
+        if (lifecycleStage != null) {
+            lifecycleStage.setFullScreen(fullScreen);
+        }
+    }
+
+    public boolean isFullScreen() {
+        if (lifecycleStage != null) {
+            return lifecycleStage.isFullScreen();
+        }
+        return fullScreenRequested;
+    }
+
+    public void toggleFullScreen() {
+        setFullScreen(!isFullScreen());
+    }
+
     public ComboBox<String> getEventSelector() {
         return currentMode == ApplicationMode.REPLAY ? eventSelector : null;
     }
@@ -2326,6 +2550,30 @@ public class CalQuakeApp extends Application {
         return importButton;
     }
 
+    public Button getSaveCitiesButton() {
+        return saveCitiesButton;
+    }
+
+    public Button getImportCitiesButton() {
+        return importCitiesButton;
+    }
+
+    public Button getLoadCitiesButton() {
+        return importCitiesButton;
+    }
+
+    public VBox getSimulationFileBox() {
+        return simulationFileBox;
+    }
+
+    public VBox getScenarioFileBox() {
+        return simulationFileBox;
+    }
+
+    public VBox getCitiesFileBox() {
+        return citiesFileBox;
+    }
+
     public SimulationScenarioSettings getSimulationInstalledSettings() {
         return simulationInstalledSettings;
     }
@@ -2374,7 +2622,20 @@ public class CalQuakeApp extends Application {
         this.startupError = t;
     }
 
+    public static void setStartFullScreen(boolean fullScreen) {
+        startFullScreen = fullScreen;
+    }
+
+    public static boolean isStartFullScreen() {
+        return startFullScreen;
+    }
+
     public static void main(String[] args) {
+        for (String arg : args) {
+            if ("--fullscreen".equalsIgnoreCase(arg) || "-fullscreen".equalsIgnoreCase(arg)) {
+                startFullScreen = true;
+            }
+        }
         launch(args);
     }
 
