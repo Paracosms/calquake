@@ -1,5 +1,6 @@
 package io.github.paracosms.calquake.ui;
 
+import io.github.paracosms.calquake.core.ApplicationMode;
 import io.github.paracosms.calquake.core.FrameState;
 import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.IntensityDisplayMode;
@@ -16,10 +17,12 @@ import io.github.paracosms.calquake.core.Scenario;
 import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.WavefrontRadii;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
+import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -60,6 +63,11 @@ public class MapCanvasPane extends Pane {
      */
     public static final double BASELINE_VIEWPORT_HEIGHT = 719.0;
 
+    public static final double MIN_ZOOM = 0.5;
+    public static final double MAX_ZOOM = 25.0;
+    public static final double DEFAULT_ZOOM_STEP = 1.25;
+    public static final double DEFAULT_PAN_STEP_PX = 60.0;
+
     // Fixed label offsets (dx, dy) relative to projected screen point to prevent overlaps
     public record LabelOffset(double dx, double dy, String align) {}
     public static final Map<String, LabelOffset> FIXED_LABEL_OFFSETS = Map.of(
@@ -81,10 +89,19 @@ public class MapCanvasPane extends Pane {
     private BoundingBox projectedBounds;
     private ViewportTransform currentTransform;
 
+    private double zoomFactor = 1.0;
+    private double centerKmX;
+    private double centerKmY;
+
+    private double dragStartX;
+    private double dragStartY;
+    private boolean isDragging;
+
     private double lastWidth = -1.0;
     private double lastHeight = -1.0;
     private FrameState lastFrame;
     private final Tooltip mapTooltip;
+    private ApplicationMode applicationMode = ApplicationMode.SIMULATION;
 
     public MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline) {
         this.mapScenario = Objects.requireNonNull(mapScenario, "mapScenario cannot be null");
@@ -92,6 +109,8 @@ public class MapCanvasPane extends Pane {
 
         this.projection = MercatorProjection.californiaDefault();
         this.projectedBounds = outline.computeProjectedBoundingBox(projection);
+        this.centerKmX = projectedBounds.centerXKm();
+        this.centerKmY = projectedBounds.centerYKm();
 
         this.staticCanvas = new Canvas();
         this.dynamicCanvas = new Canvas();
@@ -110,7 +129,9 @@ public class MapCanvasPane extends Pane {
         this.mapTooltip = new Tooltip();
         mapTooltip.setShowDelay(Duration.millis(80));
         mapTooltip.setHideDelay(Duration.millis(150));
-        setupHoverTooltips();
+        setupMouseInteractions();
+
+        updateTransform(BASELINE_VIEWPORT_WIDTH, BASELINE_VIEWPORT_HEIGHT);
     }
 
     public MapCanvasPane(Scenario scenario, CaliforniaOutline outline) {
@@ -153,6 +174,15 @@ public class MapCanvasPane extends Pane {
         return mapScenario;
     }
 
+    public void setApplicationMode(ApplicationMode applicationMode) {
+        this.applicationMode = Objects.requireNonNull(applicationMode, "applicationMode cannot be null");
+        redrawStaticMap();
+    }
+
+    public ApplicationMode getApplicationMode() {
+        return applicationMode;
+    }
+
     /**
      * Redraws static geometry onto {@code staticCanvas}.
      * Executed when size, scenario, or window lifecycle state changes.
@@ -162,7 +192,7 @@ public class MapCanvasPane extends Pane {
         double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
         synchronizeCanvasDimensions(w, h);
 
-        this.currentTransform = projection.createViewportTransform(projectedBounds, w, h, DEFAULT_MARGIN_PX);
+        updateTransform(w, h);
         GraphicsContext gc = staticCanvas.getGraphicsContext2D();
 
         // Clear canvas
@@ -196,14 +226,27 @@ public class MapCanvasPane extends Pane {
             gc.stroke();
         }
 
-        // 3. Map Title / Coordinate Bar (classic desktop top-right stamp)
-        drawCartographicScale(gc, w, h);
-
-        // 4. Epicenter marker and label
+        // 3. Epicenter marker and label
         drawEpicenter(gc);
 
-        // 5. Simulation Site Station Dots (neutral base map markers)
+        // 4. Simulation Site Station Dots (neutral base map markers)
         drawSiteDots(gc);
+    }
+
+    private void updateTransform(double w, double h) {
+        double availW = w - 2.0 * DEFAULT_MARGIN_PX;
+        double availH = h - 2.0 * DEFAULT_MARGIN_PX;
+        if (availW <= 0 || availH <= 0) {
+            return;
+        }
+
+        double baseScale = Math.min(availW / projectedBounds.widthKm(), availH / projectedBounds.heightKm());
+        double scale = baseScale * zoomFactor;
+
+        double originScreenX = (w / 2.0) - centerKmX * scale;
+        double originScreenY = (h / 2.0) - centerKmY * scale;
+
+        this.currentTransform = new ViewportTransform(scale, originScreenX, originScreenY);
     }
 
     /**
@@ -253,57 +296,39 @@ public class MapCanvasPane extends Pane {
         gc.setStroke(Color.web("#CFDFED"));
         gc.setLineWidth(0.75);
 
-        // Fixed geographic graticule lines every 2 degrees of longitude and latitude
-        for (double lon = -124.0; lon <= -114.0; lon += 2.0) {
+        if (currentTransform == null) return;
+
+        // Invert viewport corners to lat/lon so grid lines render across the visible view
+        ProjectedPoint pTopLeft = currentTransform.toProjected(0, 0);
+        ProjectedPoint pBottomRight = currentTransform.toProjected(w, h);
+
+        GeoPoint geoTopLeft = projection.unproject(pTopLeft);
+        GeoPoint geoBottomRight = projection.unproject(pBottomRight);
+
+        double minLon = Math.min(geoTopLeft.longitude(), geoBottomRight.longitude()) - 2.0;
+        double maxLon = Math.max(geoTopLeft.longitude(), geoBottomRight.longitude()) + 2.0;
+        double minLat = Math.min(geoTopLeft.latitude(), geoBottomRight.latitude()) - 2.0;
+        double maxLat = Math.max(geoTopLeft.latitude(), geoBottomRight.latitude()) + 2.0;
+
+        minLon = Math.max(-180.0, Math.floor(minLon / 2.0) * 2.0);
+        maxLon = Math.min(180.0, Math.ceil(maxLon / 2.0) * 2.0);
+        minLat = Math.max(-85.0, Math.floor(minLat / 2.0) * 2.0);
+        maxLat = Math.min(85.0, Math.ceil(maxLat / 2.0) * 2.0);
+
+        for (double lon = minLon; lon <= maxLon; lon += 2.0) {
             ProjectedPoint p = projection.project(new GeoPoint(MercatorProjection.DEFAULT_CENTER_LATITUDE, lon));
             ScreenPoint sp = currentTransform.toScreen(p);
-            if (sp.xPx() >= 0 && sp.xPx() <= w) {
+            if (sp.xPx() >= -10 && sp.xPx() <= w + 10) {
                 gc.strokeLine(sp.xPx(), 0, sp.xPx(), h);
             }
         }
-        for (double lat = 32.0; lat <= 42.0; lat += 2.0) {
+        for (double lat = minLat; lat <= maxLat; lat += 2.0) {
             ProjectedPoint p = projection.project(new GeoPoint(lat, MercatorProjection.DEFAULT_CENTER_LONGITUDE));
             ScreenPoint sp = currentTransform.toScreen(p);
-            if (sp.yPx() >= 0 && sp.yPx() <= h) {
+            if (sp.yPx() >= -10 && sp.yPx() <= h + 10) {
                 gc.strokeLine(0, sp.yPx(), w, sp.yPx());
             }
         }
-    }
-
-    private void drawCartographicScale(GraphicsContext gc, double w, double h) {
-        // Distance scale bar (100 km) in bottom-left corner (evaluated at mean CA latitude 37°N)
-        double scaleKm = 100.0;
-        double cosLat = Math.cos(Math.toRadians(MercatorProjection.DEFAULT_CENTER_LATITUDE));
-        double scalePx = currentTransform.toScreenRadius(scaleKm / cosLat);
-
-        double barX = 20.0;
-        double barY = h - 25.0;
-
-        // Scale bar box
-        gc.setFill(Color.web("#FFFFFF", 0.85));
-        gc.setStroke(Color.web("#7A8B9E"));
-        gc.setLineWidth(1.0);
-        gc.fillRect(barX - 6, barY - 18, scalePx + 12, 28);
-        gc.strokeRect(barX - 6, barY - 18, scalePx + 12, 28);
-
-        // Scale bar
-        gc.setStroke(Color.web("#1E293B"));
-        gc.setLineWidth(2.5);
-        gc.strokeLine(barX, barY, barX + scalePx, barY);
-        gc.strokeLine(barX, barY - 4, barX, barY + 4);
-        gc.strokeLine(barX + scalePx, barY - 4, barX + scalePx, barY + 4);
-
-        gc.setFill(Color.web("#1E293B"));
-        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10.0));
-        gc.fillText("0", barX - 3, barY - 6);
-        gc.fillText("100 km", barX + scalePx - 20, barY - 6);
-
-        // North arrow
-        double arrowX = w - 40.0;
-        double arrowY = 35.0;
-        gc.setFill(Color.web("#1E293B"));
-        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12.0));
-        gc.fillText("N ↑", arrowX - 6, arrowY);
     }
 
     private void drawEpicenter(GraphicsContext gc) {
@@ -313,6 +338,11 @@ public class MapCanvasPane extends Pane {
 
         // Draw 5-point star
         drawStar(gc, ex, ey, 14.0, 6.0, Color.web("#DC2626"), Color.web("#7F1D1D"));
+
+        // Omit red info box in simulation mode
+        if (applicationMode == ApplicationMode.SIMULATION) {
+            return;
+        }
 
         // Label with fixed offset
         LabelOffset offset = FIXED_LABEL_OFFSETS.getOrDefault("EPICENTER", new LabelOffset(-130.0, -28.0, "RIGHT"));
@@ -584,9 +614,56 @@ public class MapCanvasPane extends Pane {
         return mapTooltip;
     }
 
-    private void setupHoverTooltips() {
+    private void setupMouseInteractions() {
+        setOnMousePressed(e -> {
+            if (e.getButton() == MouseButton.PRIMARY) {
+                dragStartX = e.getX();
+                dragStartY = e.getY();
+                isDragging = false;
+            }
+        });
+
+        setOnMouseDragged(e -> {
+            if (e.getButton() == MouseButton.PRIMARY) {
+                double dx = e.getX() - dragStartX;
+                double dy = e.getY() - dragStartY;
+                if (!isDragging && (Math.abs(dx) > 2.0 || Math.abs(dy) > 2.0)) {
+                    isDragging = true;
+                    setCursor(Cursor.CLOSED_HAND);
+                    mapTooltip.hide();
+                }
+                if (isDragging) {
+                    pan(dx, dy);
+                    dragStartX = e.getX();
+                    dragStartY = e.getY();
+                }
+            }
+        });
+
+        setOnMouseReleased(e -> {
+            if (isDragging) {
+                isDragging = false;
+                setCursor(Cursor.DEFAULT);
+            }
+        });
+
+        setOnScroll(e -> {
+            double deltaY = e.getDeltaY();
+            if (deltaY != 0) {
+                double factor = deltaY > 0 ? 1.15 : (1.0 / 1.15);
+                zoom(factor, e.getX(), e.getY());
+                e.consume();
+            }
+        });
+
+        setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2 && e.getButton() == MouseButton.PRIMARY) {
+                zoom(DEFAULT_ZOOM_STEP, e.getX(), e.getY());
+            }
+        });
+
         setOnMouseMoved(e -> {
-            if (currentTransform == null) return;
+            if (isDragging || currentTransform == null) return;
             double mx = e.getX();
             double my = e.getY();
 
@@ -630,6 +707,106 @@ public class MapCanvasPane extends Pane {
         });
 
         setOnMouseExited(e -> mapTooltip.hide());
+    }
+
+    public void zoomIn() {
+        double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
+        double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
+        zoom(DEFAULT_ZOOM_STEP, w / 2.0, h / 2.0);
+    }
+
+    public void zoomOut() {
+        double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
+        double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
+        zoom(1.0 / DEFAULT_ZOOM_STEP, w / 2.0, h / 2.0);
+    }
+
+    public void zoom(double factor, double pivotXPx, double pivotYPx) {
+        double oldZoom = zoomFactor;
+        double newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomFactor * factor));
+        if (Math.abs(newZoom - oldZoom) < 1e-6) {
+            return;
+        }
+
+        double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
+        double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
+        if (currentTransform == null) {
+            updateTransform(w, h);
+        }
+
+        double oldScale = currentTransform.scalePxPerKm();
+        double pivotKmX = (pivotXPx - currentTransform.originScreenXPx()) / oldScale;
+        double pivotKmY = (pivotYPx - currentTransform.originScreenYPx()) / oldScale;
+
+        double availW = w - 2.0 * DEFAULT_MARGIN_PX;
+        double availH = h - 2.0 * DEFAULT_MARGIN_PX;
+        double baseScale = Math.min(availW / projectedBounds.widthKm(), availH / projectedBounds.heightKm());
+        double newScale = baseScale * newZoom;
+
+        this.zoomFactor = newZoom;
+        this.centerKmX = pivotKmX + (w / 2.0 - pivotXPx) / newScale;
+        this.centerKmY = pivotKmY + (h / 2.0 - pivotYPx) / newScale;
+
+        redrawStaticMap();
+        if (lastFrame != null) {
+            renderFrame(lastFrame);
+        }
+    }
+
+    public void pan(double deltaXPx, double deltaYPx) {
+        double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
+        double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
+        if (currentTransform == null) {
+            updateTransform(w, h);
+        }
+
+        double scale = currentTransform.scalePxPerKm();
+        this.centerKmX -= deltaXPx / scale;
+        this.centerKmY -= deltaYPx / scale;
+
+        redrawStaticMap();
+        if (lastFrame != null) {
+            renderFrame(lastFrame);
+        }
+    }
+
+    public void panUp() {
+        pan(0.0, DEFAULT_PAN_STEP_PX);
+    }
+
+    public void panDown() {
+        pan(0.0, -DEFAULT_PAN_STEP_PX);
+    }
+
+    public void panLeft() {
+        pan(DEFAULT_PAN_STEP_PX, 0.0);
+    }
+
+    public void panRight() {
+        pan(-DEFAULT_PAN_STEP_PX, 0.0);
+    }
+
+    public void resetView() {
+        this.zoomFactor = 1.0;
+        this.centerKmX = projectedBounds.centerXKm();
+        this.centerKmY = projectedBounds.centerYKm();
+
+        redrawStaticMap();
+        if (lastFrame != null) {
+            renderFrame(lastFrame);
+        }
+    }
+
+    public double getZoomFactor() {
+        return zoomFactor;
+    }
+
+    public double getCenterKmX() {
+        return centerKmX;
+    }
+
+    public double getCenterKmY() {
+        return centerKmY;
     }
 
     private LocationIntensityState findSiteState(String siteId) {

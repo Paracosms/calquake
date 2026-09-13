@@ -60,7 +60,7 @@ class CalQuakeAppIntegrationTest {
                 assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
                 assertEquals("PAUSED", app.getHudStateLabel().getText());
                 assertEquals("SIMULATION ELAPSED TIME", app.getHudTitleLabel().getText());
-                assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
+                assertEquals("00:00.00", app.getElapsedDigitsLabel().getText());
                 assertFalse(app.getPlayPauseButton().isDisable());
 
                 assertNotNull(app.getTimelineScrubber());
@@ -129,7 +129,7 @@ class CalQuakeAppIntegrationTest {
                 clock.advanceSeconds(4.0);
                 controller.tick();
                 app.updateTimeDisplays();
-                assertEquals("00:00:04.00", app.getElapsedDigitsLabel().getText());
+                assertEquals("00:04.00", app.getElapsedDigitsLabel().getText());
 
                 app.getPlayPauseButton().fire();
                 assertTrue(controller.isPaused());
@@ -146,7 +146,7 @@ class CalQuakeAppIntegrationTest {
                 app.getRestartButton().fire();
                 assertTrue(controller.isPaused());
                 assertEquals(0.0, controller.elapsedSeconds(), 1e-9);
-                assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
+                assertEquals("00:00.00", app.getElapsedDigitsLabel().getText());
 
                 app.getPlayPauseButton().fire();
                 clock.advanceSeconds(controller.durationSeconds() + 5.0);
@@ -260,7 +260,7 @@ class CalQuakeAppIntegrationTest {
                 // Scrub forward to 50.0 seconds
                 app.getTimelineScrubber().setValue(50.0);
                 assertEquals(50.0, controller.elapsedSeconds(), 1e-9);
-                assertEquals("00:00:50.00", app.getElapsedDigitsLabel().getText());
+                assertEquals("00:50.00", app.getElapsedDigitsLabel().getText());
                 assertTrue(controller.isPaused());
 
                 // Scrub to the prepared duration to finish playback
@@ -314,7 +314,7 @@ class CalQuakeAppIntegrationTest {
                 assertEquals(18.2, app.getScenario().event().depthKm(), 1e-9);
                 assertEquals(0.0, app.getController().elapsedSeconds(), 1e-9);
                 assertTrue(app.getController().isPaused());
-                assertEquals("00:00:00.00", app.getElapsedDigitsLabel().getText());
+                assertEquals("00:00.00", app.getElapsedDigitsLabel().getText());
 
                 // Verify locations for Northridge
                 assertEquals(5, app.getScenario().locations().size());
@@ -628,5 +628,81 @@ class CalQuakeAppIntegrationTest {
                 });
             }
         }
+    }
+
+    @Test
+    void simulationAndReplayLayoutSimplifications() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            CalQuakeApp app = new CalQuakeApp();
+            app.init();
+            Stage stage = new Stage();
+            try {
+                app.start(stage);
+
+                // 1. Hud state label (Playing/Paused/Finished) removed from HUD overlay hierarchy for all modes
+                assertNotNull(app.getHudStateLabel());
+                assertNull(app.getHudStateLabel().getParent(),
+                        "Playing/Paused/Finished badge must not be attached to HUD overlay");
+
+                // 2. Apply button text is 'Apply'
+                assertEquals("Apply", app.getApplyButton().getText());
+
+                // 3. MapCanvasPane application mode tracks active mode
+                assertEquals(ApplicationMode.SIMULATION, app.getMapCanvasPane().getApplicationMode());
+
+                // 4. In Simulation sidebar, check that subtitle and disclaimer are removed
+                javafx.scene.Node simSidebar = app.getSimulationSidebar();
+                assertNotNull(simSidebar);
+                List<Label> simLabels = collectLabels(simSidebar);
+                assertFalse(simLabels.stream().anyMatch(l -> "Enter custom earthquake parameters:".equals(l.getText())),
+                        "Subtitle 'Enter custom earthquake parameters:' must be removed");
+                assertFalse(simLabels.stream().anyMatch(l -> l.getText() != null && l.getText().contains("Exploratory Toy Simulation")),
+                        "Disclaimer box must be removed from simulation sidebar");
+
+                // 5. MMI Scale title is 'MMI Scale'
+                assertTrue(simLabels.stream().anyMatch(l -> "MMI Scale".equals(l.getText())),
+                        "Title must say 'MMI Scale'");
+                assertFalse(simLabels.stream().anyMatch(l -> l.getText() != null && l.getText().contains("Worden et al., 2012")),
+                        "Title must not contain 'Worden et al., 2012'");
+
+                // 6. Updating meaning label is not in simulation legend hierarchy
+                assertNull(app.getSimLegendMeaningLabel().getParent(),
+                        "Updating text must be removed from simulation MMI scale");
+
+                // 7. N/A Outside Coverage is removed from simulation legend
+                assertFalse(simLabels.stream().anyMatch(l -> "Outside coverage".equalsIgnoreCase(l.getText())
+                                || "N/A".equals(l.getText())),
+                        "N/A Outside coverage must be removed from simulation MMI scale");
+
+                // 8. In Replay sidebar, verify N/A Outside Coverage is also removed
+                app.switchMode(ApplicationMode.REPLAY);
+                assertEquals(ApplicationMode.REPLAY, app.getMapCanvasPane().getApplicationMode());
+                assertNull(app.getHudStateLabel().getParent(),
+                        "Playing/Paused/Finished badge must remain omitted in replay mode as well");
+
+                javafx.scene.Node replaySidebar = app.getReplaySidebar();
+                assertNotNull(replaySidebar);
+                List<Label> replayLabels = collectLabels(replaySidebar);
+                assertFalse(replayLabels.stream().anyMatch(l -> "Outside coverage".equalsIgnoreCase(l.getText())
+                                || "N/A".equals(l.getText())),
+                        "N/A Outside coverage must also be removed from replay MMI scale");
+            } finally {
+                app.stop();
+                stage.close();
+            }
+        });
+    }
+
+    private static List<Label> collectLabels(javafx.scene.Node root) {
+        List<Label> result = new java.util.ArrayList<>();
+        if (root instanceof Label l) {
+            result.add(l);
+        }
+        if (root instanceof javafx.scene.Parent parent) {
+            for (javafx.scene.Node child : parent.getChildrenUnmodifiable()) {
+                result.addAll(collectLabels(child));
+            }
+        }
+        return result;
     }
 }

@@ -202,6 +202,17 @@ public final class MercatorProjection {
         public double toScreenRadius(double radiusKm) {
             return radiusKm * scalePxPerKm;
         }
+
+        public ProjectedPoint toProjected(double screenXPx, double screenYPx) {
+            return new ProjectedPoint(
+                    (screenXPx - originScreenXPx) / scalePxPerKm,
+                    (screenYPx - originScreenYPx) / scalePxPerKm
+            );
+        }
+
+        public ProjectedPoint toProjected(ScreenPoint sp) {
+            return toProjected(sp.xPx(), sp.yPx());
+        }
     }
 
     /**

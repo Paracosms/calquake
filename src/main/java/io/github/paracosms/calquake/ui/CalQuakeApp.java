@@ -282,6 +282,7 @@ public class CalQuakeApp extends Application {
 
         // 2. Center: Map Canvas Viewport with Overlaid Top-Left Timer Box
         this.mapCanvasPane = new MapCanvasPane(getActiveMapScenario(), outline);
+        mapCanvasPane.setApplicationMode(currentMode);
         mapCanvasPane.getStyleClass().add("map-viewport-frame");
 
         StackPane centerStack = new StackPane();
@@ -474,13 +475,10 @@ public class CalQuakeApp extends Application {
     }
 
     private VBox buildTimerHudOverlay() {
-        VBox box = new VBox(2.0);
+        VBox box = new VBox();
         box.getStyleClass().add("timer-overlay-box");
         box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         box.setMouseTransparent(true);
-
-        HBox topRow = new HBox(8.0);
-        topRow.setAlignment(Pos.CENTER_LEFT);
 
         this.hudTitleLabel = new Label(currentMode == ApplicationMode.SIMULATION
                 ? "SIMULATION ELAPSED TIME" : "REPLAY ELAPSED TIME");
@@ -489,15 +487,13 @@ public class CalQuakeApp extends Application {
         this.hudStateLabel = new Label("PAUSED");
         hudStateLabel.getStyleClass().add("status-badge-paused");
 
-        topRow.getChildren().addAll(hudTitleLabel, hudStateLabel);
-
-        this.elapsedDigitsLabel = new Label("00:00:00.00");
+        this.elapsedDigitsLabel = new Label("00:00.00");
         elapsedDigitsLabel.getStyleClass().add("timer-digits");
 
         this.elapsedSubLabel = new Label("T + 0.0 s");
         elapsedSubLabel.getStyleClass().add("timer-subtext");
 
-        box.getChildren().addAll(topRow, elapsedDigitsLabel, elapsedSubLabel);
+        box.getChildren().add(elapsedDigitsLabel);
         return box;
     }
 
@@ -524,10 +520,7 @@ public class CalQuakeApp extends Application {
         // Section 5: MMI Legend
         VBox legendBox = buildLegendBox(true);
 
-        // Section 6: Toy Disclaimer
-        VBox disclaimerBox = buildDisclaimerBox();
-
-        sidebar.getChildren().addAll(controlsBox, simWarningBanner, settingsBox, assumptionsBox, fileBox, legendBox, disclaimerBox);
+        sidebar.getChildren().addAll(controlsBox, simWarningBanner, settingsBox, assumptionsBox, fileBox, legendBox);
         return sidebar;
     }
 
@@ -610,9 +603,6 @@ public class CalQuakeApp extends Application {
         Label title = new Label("Simulation Settings");
         title.getStyleClass().add("group-box-title");
 
-        Label subtitle = new Label("Enter custom earthquake parameters:");
-        subtitle.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #64748B;");
-
         GridPane grid = new GridPane();
         grid.setHgap(8.0);
         grid.setVgap(6.0);
@@ -679,7 +669,7 @@ public class CalQuakeApp extends Application {
         grid.add(depthLabel, 0, 3);
         grid.add(depthField, 1, 3);
 
-        this.applyButton = new Button("Apply / Prepare");
+        this.applyButton = new Button("Apply");
         applyButton.getStyleClass().addAll("button", "button-primary");
         applyButton.setMaxWidth(Double.MAX_VALUE);
         applyButton.setOnAction(e -> handleApplySettings());
@@ -690,7 +680,7 @@ public class CalQuakeApp extends Application {
                 : "-fx-font-size: 10px; -fx-text-fill: #B45309;");
         simSettingsStatusLabel.setWrapText(true);
 
-        box.getChildren().addAll(title, subtitle, grid, displayLabel, intensityDisplaySelector, applyButton, simSettingsStatusLabel);
+        box.getChildren().addAll(title, grid, displayLabel, intensityDisplaySelector, applyButton, simSettingsStatusLabel);
         return box;
     }
 
@@ -750,7 +740,7 @@ public class CalQuakeApp extends Application {
                 simSettingsStatusLabel.setText("⚠ Stale draft. " + result.warningSummary());
             } else {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
-                simSettingsStatusLabel.setText("Settings modified (stale). Click Apply / Prepare to update simulation.");
+                simSettingsStatusLabel.setText("Settings modified (stale). Click Apply to update simulation.");
             }
         } else {
             if (!simulationWarnings.isEmpty()) {
@@ -950,7 +940,7 @@ public class CalQuakeApp extends Application {
         VBox box = new VBox(6.0);
         box.getStyleClass().add("group-box");
 
-        Label title = new Label("MMI Scale (Worden et al., 2012)");
+        Label title = new Label("MMI Scale");
         title.getStyleClass().add("group-box-title");
 
         Label meaningLabel = new Label();
@@ -970,6 +960,9 @@ public class CalQuakeApp extends Application {
 
         int r = 0;
         for (MmiLegend.MmiBin bin : MmiLegend.ALL_BINS) {
+            if ("N/A".equals(bin.roman())) {
+                continue;
+            }
             Rectangle swatch = new Rectangle(20.0, 14.0, Color.web(bin.colorHex()));
             swatch.setStroke(Color.web("#94A3B8"));
             swatch.setStrokeWidth(0.8);
@@ -992,7 +985,11 @@ public class CalQuakeApp extends Application {
             r++;
         }
 
-        box.getChildren().addAll(title, meaningLabel, grid);
+        if (isSimulation) {
+            box.getChildren().addAll(title, grid);
+        } else {
+            box.getChildren().addAll(title, meaningLabel, grid);
+        }
         return box;
     }
 
@@ -1091,6 +1088,8 @@ public class CalQuakeApp extends Application {
 
         // 6. Redraw map canvas pane with the incoming scenario and reset frame
         if (mapCanvasPane != null) {
+            mapCanvasPane.resetView();
+            mapCanvasPane.setApplicationMode(currentMode);
             mapCanvasPane.setMapScenario(getActiveMapScenario());
             if (enteringController != null) {
                 mapCanvasPane.renderFrame(enteringController.currentFrame());
@@ -1616,6 +1615,7 @@ public class CalQuakeApp extends Application {
             this.preparationError = null;
             if (currentMode == ApplicationMode.REPLAY) {
                 if (mapCanvasPane != null) {
+                    mapCanvasPane.resetView();
                     mapCanvasPane.setMapScenario(getActiveMapScenario());
                     mapCanvasPane.renderFrame(replayController.currentFrame());
                 }
@@ -1645,6 +1645,7 @@ public class CalQuakeApp extends Application {
             this.preparationError = null;
             if (currentMode == ApplicationMode.SIMULATION) {
                 if (mapCanvasPane != null) {
+                    mapCanvasPane.resetView();
                     mapCanvasPane.setMapScenario(MapScenario.fromInputs(installation.replay().inputs()));
                     mapCanvasPane.renderFrame(simulationController.currentFrame());
                 }
@@ -1804,7 +1805,7 @@ public class CalQuakeApp extends Application {
         int centis = (int) Math.round((elapsed - Math.floor(elapsed)) * 100.0);
         if (centis >= 100) centis = 99;
 
-        String formatted = String.format("00:%02d:%02d.%02d", minutes, seconds, centis);
+        String formatted = String.format(java.util.Locale.US, "%02d:%02d.%02d", minutes, seconds, centis);
         if (elapsedDigitsLabel != null) elapsedDigitsLabel.setText(formatted);
         double duration = ctrl.durationSeconds();
         if (elapsedSubLabel != null) {
