@@ -81,10 +81,26 @@ public class MapCanvasPane extends Pane {
     public static final double MAX_ZOOM = 25.0;
     public static final double DEFAULT_ZOOM_STEP = 1.25;
     public static final double DEFAULT_PAN_STEP_PX = 60.0;
+    public static final double DEFAULT_MMI_BOX_SIZE = 40.0;
+
+    public static final int STREET_VIEW_GRID_ROWS = 4;
+    public static final int STREET_VIEW_GRID_COLS = 4;
+    public static final String STREET_VIEW_RESOURCE_FORMAT = "/data/geodata/california_basemap_tile_%d_%d.jpg";
+    public static final String STREET_VIEW_RESOURCE = String.format(STREET_VIEW_RESOURCE_FORMAT, 0, 0);
+    public static final double STREET_VIEW_NORTH = 42.032974332441405;
+    public static final double STREET_VIEW_SOUTH = 31.95216223802497;
+    public static final double STREET_VIEW_WEST = -125.15625;
+    public static final double STREET_VIEW_EAST = -113.90625;
 
     public static final Color COLOR_MAPPED_FAULTS = Color.web("#36A6A6");
-    public static final Color COLOR_RUPTURE = Color.web("#FF7A18");
+    public static final Color COLOR_RUPTURE = Color.web("#F7B500");
     public static final Color COLOR_EPICENTER = Color.web("#E84532");
+    public static final Color COLOR_OCEAN = Color.web("#BCE6FF");
+    public static final Color COLOR_GRATICULE = Color.web("#A5D7F5");
+    public static final Color COLOR_P_WAVE = Color.web("#00A7E1");
+    public static final Color COLOR_S_WAVE = Color.web("#F0443A");
+    public static final Color COLOR_S_WAVE_FILL = Color.color(
+            COLOR_S_WAVE.getRed(), COLOR_S_WAVE.getGreen(), COLOR_S_WAVE.getBlue(), 0.18);
 
     // Fixed label offsets (dx, dy) relative to projected screen point to prevent overlaps
     public record LabelOffset(double dx, double dy, String align) {}
@@ -122,15 +138,27 @@ public class MapCanvasPane extends Pane {
     private ApplicationMode applicationMode = ApplicationMode.SIMULATION;
     private boolean showMappedFaults = false;
     private boolean showVs30Heatmap = false;
+    private boolean showStreetView = true;
     private boolean showScenarioRupture = true;
+    private double mmiBoxSize = DEFAULT_MMI_BOX_SIZE;
 
     private List<List<ProjectedPoint>> cachedWellConstrainedFaults;
     private List<List<ProjectedPoint>> cachedInferredFaults;
-    private WritableImage cachedHeatmapImage;
-    private double heatmapMinXKm;
-    private double heatmapMinYKm;
-    private double heatmapWidthKm;
-    private double heatmapHeightKm;
+    private static WritableImage cachedHeatmapImage;
+    private static double heatmapMinXKm;
+    private static double heatmapMinYKm;
+    private static double heatmapWidthKm;
+    private static double heatmapHeightKm;
+    private static boolean heatmapBoundsInitialized = false;
+
+    private static final Image[][] cachedStreetViewTiles = new Image[STREET_VIEW_GRID_ROWS][STREET_VIEW_GRID_COLS];
+    private static double streetViewMinXKm;
+    private static double streetViewMinYKm;
+    private static double streetViewMaxXKm;
+    private static double streetViewMaxYKm;
+    private static double streetViewColWidthKm;
+    private static double streetViewRowHeightKm;
+    private static boolean streetViewBoundsInitialized = false;
 
     public MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline) {
         this.mapScenario = Objects.requireNonNull(mapScenario, "mapScenario cannot be null");
@@ -242,6 +270,17 @@ public class MapCanvasPane extends Pane {
         }
     }
 
+    public boolean isStreetViewVisible() {
+        return showStreetView;
+    }
+
+    public void setStreetViewVisible(boolean visible) {
+        if (this.showStreetView != visible) {
+            this.showStreetView = visible;
+            redrawStaticMap();
+        }
+    }
+
     public boolean isScenarioRuptureVisible() {
         return showScenarioRupture;
     }
@@ -250,6 +289,20 @@ public class MapCanvasPane extends Pane {
         if (this.showScenarioRupture != visible) {
             this.showScenarioRupture = visible;
             redrawStaticMap();
+        }
+    }
+
+    public double getMmiBoxSize() {
+        return mmiBoxSize;
+    }
+
+    public void setMmiBoxSize(double size) {
+        if (Math.abs(this.mmiBoxSize - size) > 0.1) {
+            this.mmiBoxSize = size;
+            redrawStaticMap();
+            if (lastFrame != null) {
+                renderFrame(lastFrame);
+            }
         }
     }
 
@@ -268,8 +321,8 @@ public class MapCanvasPane extends Pane {
         // Clear canvas
         gc.clearRect(0, 0, w, h);
 
-        // 1. Ocean background (soft muted blue-gray cartographic fill)
-        gc.setFill(Color.web("#E2EDF6"));
+        // 1. Ocean background (consistent with Street View water fill)
+        gc.setFill(COLOR_OCEAN);
         gc.fillRect(0, 0, w, h);
 
         // Subtle graticule / grid lines (classic desktop GIS feel)
@@ -296,23 +349,148 @@ public class MapCanvasPane extends Pane {
             gc.stroke();
         }
 
-        // 3. Vs30 Heatmap (clipped to California outline)
+        // 3. Street View / Topo & Road Basemap (clipped to California outline)
+        if (showStreetView) {
+            drawStreetView(gc);
+            gc.setStroke(Color.web("#475569"));
+            gc.setLineWidth(1.4);
+            gc.setLineCap(StrokeLineCap.ROUND);
+            for (List<ProjectedPoint> ring : projectedRings) {
+                if (ring.isEmpty()) continue;
+                gc.beginPath();
+                ScreenPoint first = currentTransform.toScreen(ring.get(0));
+                gc.moveTo(first.xPx(), first.yPx());
+                for (int i = 1; i < ring.size(); i++) {
+                    ScreenPoint pt = currentTransform.toScreen(ring.get(i));
+                    gc.lineTo(pt.xPx(), pt.yPx());
+                }
+                gc.closePath();
+                gc.stroke();
+            }
+        }
+
+        // 4. Vs30 Heatmap (clipped to California outline)
         drawVs30Heatmap(gc);
 
-        // 4. Mapped Faults Reference Layer (USGS QFaults)
+        // 5. Mapped Faults Reference Layer (USGS QFaults)
         drawMappedFaults(gc);
 
-        // 5. Scenario Rupture Overlay (high-contrast active predictor rupture)
-        drawScenarioRupture(gc);
-
-        // 6. Epicenter marker and label
-        drawEpicenter(gc);
-
-        // 7. Simulation Site Station Dots (neutral base map markers)
+        // 6. Simulation Site Station Dots (neutral base map markers)
         drawSiteDots(gc);
 
-        // 8. Visual Layer Legends
+        // 7. Visual Layer Legends
         drawLayerLegends(gc, w, h);
+    }
+
+    private void drawStreetView(GraphicsContext gc) {
+        if (!showStreetView || currentTransform == null) {
+            return;
+        }
+        ensureStreetViewImageCached();
+
+        boolean anyLoaded = false;
+        for (int r = 0; r < STREET_VIEW_GRID_ROWS; r++) {
+            for (int c = 0; c < STREET_VIEW_GRID_COLS; c++) {
+                if (cachedStreetViewTiles[r][c] != null) {
+                    anyLoaded = true;
+                    break;
+                }
+            }
+            if (anyLoaded) break;
+        }
+        if (!anyLoaded) {
+            return;
+        }
+
+        gc.save();
+        // Mask Street View to the California landmass polygon rings
+        List<List<ProjectedPoint>> projectedRings = outline.projectRings(projection);
+        gc.beginPath();
+        for (List<ProjectedPoint> ring : projectedRings) {
+            if (ring.isEmpty()) continue;
+            ScreenPoint first = currentTransform.toScreen(ring.get(0));
+            gc.moveTo(first.xPx(), first.yPx());
+            for (int i = 1; i < ring.size(); i++) {
+                ScreenPoint pt = currentTransform.toScreen(ring.get(i));
+                gc.lineTo(pt.xPx(), pt.yPx());
+            }
+            gc.closePath();
+        }
+        gc.clip();
+
+        double scale = currentTransform.scalePxPerKm();
+
+        for (int r = 0; r < STREET_VIEW_GRID_ROWS; r++) {
+            double cellMinYKm = streetViewMinYKm + r * streetViewRowHeightKm;
+            double cellMaxYKm = (r == STREET_VIEW_GRID_ROWS - 1) ? streetViewMaxYKm : cellMinYKm + streetViewRowHeightKm;
+
+            for (int c = 0; c < STREET_VIEW_GRID_COLS; c++) {
+                Image tile = cachedStreetViewTiles[r][c];
+                if (tile == null) continue;
+
+                double cellMinXKm = streetViewMinXKm + c * streetViewColWidthKm;
+                double cellMaxXKm = (c == STREET_VIEW_GRID_COLS - 1) ? streetViewMaxXKm : cellMinXKm + streetViewColWidthKm;
+
+                ScreenPoint topLeft = currentTransform.toScreen(cellMinXKm, cellMinYKm);
+                double w = (cellMaxXKm - cellMinXKm) * scale;
+                double h = (cellMaxYKm - cellMinYKm) * scale;
+
+                // Subpixel seam compensation: + 0.5 px overlap prevents hairline gaps
+                gc.drawImage(tile, topLeft.xPx(), topLeft.yPx(), w + 0.5, h + 0.5);
+            }
+        }
+
+        gc.restore();
+    }
+
+    private synchronized void ensureStreetViewImageCached() {
+        if (!streetViewBoundsInitialized) {
+            ProjectedPoint nw = projection.project(new GeoPoint(STREET_VIEW_NORTH, STREET_VIEW_WEST));
+            ProjectedPoint se = projection.project(new GeoPoint(STREET_VIEW_SOUTH, STREET_VIEW_EAST));
+
+            streetViewMinXKm = nw.xKm();
+            streetViewMinYKm = nw.yKm();
+            streetViewMaxXKm = se.xKm();
+            streetViewMaxYKm = se.yKm();
+            streetViewColWidthKm = (streetViewMaxXKm - streetViewMinXKm) / (double) STREET_VIEW_GRID_COLS;
+            streetViewRowHeightKm = (streetViewMaxYKm - streetViewMinYKm) / (double) STREET_VIEW_GRID_ROWS;
+            streetViewBoundsInitialized = true;
+        }
+
+        boolean allLoaded = true;
+        for (int r = 0; r < STREET_VIEW_GRID_ROWS; r++) {
+            for (int c = 0; c < STREET_VIEW_GRID_COLS; c++) {
+                if (cachedStreetViewTiles[r][c] == null) {
+                    allLoaded = false;
+                    break;
+                }
+            }
+            if (!allLoaded) break;
+        }
+        if (allLoaded) {
+            return;
+        }
+
+        for (int r = 0; r < STREET_VIEW_GRID_ROWS; r++) {
+            for (int c = 0; c < STREET_VIEW_GRID_COLS; c++) {
+                if (cachedStreetViewTiles[r][c] == null) {
+                    String res = String.format(STREET_VIEW_RESOURCE_FORMAT, r, c);
+                    cachedStreetViewTiles[r][c] = loadStreetViewTile(res);
+                }
+            }
+        }
+    }
+
+    private static Image loadStreetViewTile(String resourcePath) {
+        try (var is = MapCanvasPane.class.getResourceAsStream(resourcePath)) {
+            if (is != null) {
+                // 1024 x 1152 px per tile yields 4,096 x 4,608 px across all 16 tiles (72 MB VRAM),
+                // strictly preventing Direct3D texture pool exhaustion while delivering over 19 Megapixels of Zoom 10 cartography.
+                return new Image(is, 1024, 1152, true, true);
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private void drawVs30Heatmap(GraphicsContext gc) {
@@ -348,7 +526,7 @@ public class MapCanvasPane extends Pane {
         gc.restore();
     }
 
-    private void ensureHeatmapImageCached() {
+    private synchronized void ensureHeatmapImageCached() {
         if (cachedHeatmapImage != null) {
             return;
         }
@@ -365,10 +543,11 @@ public class MapCanvasPane extends Pane {
         ProjectedPoint nw = projection.project(new GeoPoint(north, west));
         ProjectedPoint se = projection.project(new GeoPoint(south, east));
 
-        this.heatmapMinXKm = nw.xKm();
-        this.heatmapMinYKm = nw.yKm();
-        this.heatmapWidthKm = se.xKm() - nw.xKm();
-        this.heatmapHeightKm = se.yKm() - nw.yKm();
+        heatmapMinXKm = nw.xKm();
+        heatmapMinYKm = nw.yKm();
+        heatmapWidthKm = se.xKm() - nw.xKm();
+        heatmapHeightKm = se.yKm() - nw.yKm();
+        heatmapBoundsInitialized = true;
 
         int imgW = 1320;
         int imgH = 1400;
@@ -385,7 +564,7 @@ public class MapCanvasPane extends Pane {
                 writer.setArgb(x, y, argb);
             }
         }
-        this.cachedHeatmapImage = img;
+        cachedHeatmapImage = img;
     }
 
     private static int vs30ToArgb(double vs30) {
@@ -496,8 +675,8 @@ public class MapCanvasPane extends Pane {
         gc.restore();
     }
 
-    private void drawScenarioRupture(GraphicsContext gc) {
-        if (!showScenarioRupture || mapScenario == null || currentTransform == null) {
+    private void drawScenarioRupture(GraphicsContext gc, FrameState frame) {
+        if (!showScenarioRupture || mapScenario == null || currentTransform == null || frame == null) {
             return;
         }
         Optional<RuptureGeometry> ruptureOpt = mapScenario.event().ruptureGeometry();
@@ -510,6 +689,48 @@ public class MapCanvasPane extends Pane {
             return;
         }
 
+        // At t == 0.0 (preview before simulation starts), show full derived rupture (fraction = 1.0).
+        // At t >= 1.0, calculate dynamic clamped wavefront growth from epicenter.
+        double fraction = 1.0;
+        GeoPoint epi = mapScenario.event().epicenter();
+        ProjectedPoint projEpi = projection.project(epi);
+
+        if (frame.elapsedSeconds() >= 1.0) {
+            // Find max extent (radius) from epicenter across all rupture points
+            double maxExtentKm = 0.0;
+            for (List<GeoPoint> part : parts) {
+                if (part == null) continue;
+                for (GeoPoint pt : part) {
+                    ProjectedPoint projPt = projection.project(pt);
+                    double dx = projPt.xKm() - projEpi.xKm();
+                    double dy = projPt.yKm() - projEpi.yKm();
+                    double dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > maxExtentKm) {
+                        maxExtentKm = dist;
+                    }
+                }
+            }
+            if (maxExtentKm < 0.01) {
+                maxExtentKm = 1.0;
+            }
+
+            // Current growth distance from epicenter (half of S-wave diameter = S-wave radius)
+            double curGrowthKm;
+            WavefrontRadii radii = frame.frontRadii();
+            if (radii.hasS()) {
+                curGrowthKm = radii.sRadiusKm();
+            } else {
+                // Before S-wave reaches surface, expand at typical subshear rupture velocity ~2.8 km/s
+                double elapsedSinceNucleation = Math.max(0.0, frame.elapsedSeconds() - 1.0);
+                curGrowthKm = elapsedSinceNucleation * 2.8;
+            }
+
+            fraction = Math.min(1.0, Math.max(0.0, curGrowthKm / maxExtentKm));
+            if (fraction <= 0.0) {
+                return;
+            }
+        }
+
         gc.save();
         gc.setLineCap(StrokeLineCap.ROUND);
         gc.setLineJoin(StrokeLineJoin.ROUND);
@@ -520,10 +741,16 @@ public class MapCanvasPane extends Pane {
         for (List<GeoPoint> part : parts) {
             if (part == null || part.size() < 2) continue;
             gc.beginPath();
-            ScreenPoint first = currentTransform.toScreen(projection.project(part.get(0)));
+            ProjectedPoint p0 = projection.project(part.get(0));
+            double x0 = projEpi.xKm() + fraction * (p0.xKm() - projEpi.xKm());
+            double y0 = projEpi.yKm() + fraction * (p0.yKm() - projEpi.yKm());
+            ScreenPoint first = currentTransform.toScreen(x0, y0);
             gc.moveTo(first.xPx(), first.yPx());
             for (int i = 1; i < part.size(); i++) {
-                ScreenPoint pt = currentTransform.toScreen(projection.project(part.get(i)));
+                ProjectedPoint pi = projection.project(part.get(i));
+                double xi = projEpi.xKm() + fraction * (pi.xKm() - projEpi.xKm());
+                double yi = projEpi.yKm() + fraction * (pi.yKm() - projEpi.yKm());
+                ScreenPoint pt = currentTransform.toScreen(xi, yi);
                 gc.lineTo(pt.xPx(), pt.yPx());
             }
             gc.stroke();
@@ -535,10 +762,16 @@ public class MapCanvasPane extends Pane {
         for (List<GeoPoint> part : parts) {
             if (part == null || part.size() < 2) continue;
             gc.beginPath();
-            ScreenPoint first = currentTransform.toScreen(projection.project(part.get(0)));
+            ProjectedPoint p0 = projection.project(part.get(0));
+            double x0 = projEpi.xKm() + fraction * (p0.xKm() - projEpi.xKm());
+            double y0 = projEpi.yKm() + fraction * (p0.yKm() - projEpi.yKm());
+            ScreenPoint first = currentTransform.toScreen(x0, y0);
             gc.moveTo(first.xPx(), first.yPx());
             for (int i = 1; i < part.size(); i++) {
-                ScreenPoint pt = currentTransform.toScreen(projection.project(part.get(i)));
+                ProjectedPoint pi = projection.project(part.get(i));
+                double xi = projEpi.xKm() + fraction * (pi.xKm() - projEpi.xKm());
+                double yi = projEpi.yKm() + fraction * (pi.yKm() - projEpi.yKm());
+                ScreenPoint pt = currentTransform.toScreen(xi, yi);
                 gc.lineTo(pt.xPx(), pt.yPx());
             }
             gc.stroke();
@@ -692,7 +925,7 @@ public class MapCanvasPane extends Pane {
     }
 
     private void drawGridLines(GraphicsContext gc, double w, double h) {
-        gc.setStroke(Color.web("#CFDFED"));
+        gc.setStroke(COLOR_GRATICULE);
         gc.setLineWidth(0.75);
 
         if (currentTransform == null) return;
@@ -734,9 +967,9 @@ public class MapCanvasPane extends Pane {
         ScreenPoint epiScreen = currentTransform.toScreen(projection.project(mapScenario.event().epicenter()));
         double ex = epiScreen.xPx();
         double ey = epiScreen.yPx();
-
-        // Draw 5-point star
-        drawStar(gc, ex, ey, 14.0, 6.0, COLOR_EPICENTER, Color.web("#7F1D1D"));
+        
+        double epicenterSize = mmiBoxSize * 1.2;
+        drawEpicenterCross(gc, ex, ey, epicenterSize);
 
         // Omit red info box in simulation mode
         if (applicationMode == ApplicationMode.SIMULATION) {
@@ -749,7 +982,7 @@ public class MapCanvasPane extends Pane {
         double ly = ey + offset.dy();
 
         // Classic badge box
-        String title = "★ Epicenter (M " + mapScenario.event().magnitude() + ")";
+        String title = "✕ Epicenter (M " + mapScenario.event().magnitude() + ")";
         String sub = String.format("%.2f°N, %.2f°W  (%s km)",
                 mapScenario.event().epicenter().latitude(),
                 Math.abs(mapScenario.event().epicenter().longitude()),
@@ -799,7 +1032,7 @@ public class MapCanvasPane extends Pane {
         if (frame == null || frame.locationIntensities() == null) {
             return;
         }
-        double badgeSize = 40.0;
+        double badgeSize = this.mmiBoxSize;
         for (LocationIntensityState state : frame.locationIntensities()) {
             if (!state.isRevealed()) {
                 continue;
@@ -824,7 +1057,7 @@ public class MapCanvasPane extends Pane {
             String roman,
             String colorHex
     ) {
-        drawLocationBadge(gc, x, y, roman, colorHex, 40.0);
+        drawLocationBadge(gc, x, y, roman, colorHex, mmiBoxSize);
     }
 
     private void drawLocationBadge(
@@ -856,30 +1089,46 @@ public class MapCanvasPane extends Pane {
         // Roman numeral inside colored square
         double lum = 0.299 * mmiColor.getRed() + 0.587 * mmiColor.getGreen() + 0.114 * mmiColor.getBlue();
         gc.setFill(lum > 0.55 ? Color.BLACK : Color.WHITE);
-        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, roman.length() > 3 ? 8.5 : 10.5));
-        double textX = x + (badgeSize / 2.0) - (roman.length() * 3.0);
-        gc.fillText(roman, Math.max(x + 2, textX), y + 15.0);
+        double fontSize = Math.max(7.0, badgeSize * (roman.length() > 3 ? 0.22 : 0.28));
+        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, fontSize));
+        double textX = x + (badgeSize / 2.0) - (roman.length() * (fontSize * 0.28));
+        double textY = y + (badgeSize / 2.0) + (fontSize * 0.35);
+        gc.fillText(roman, Math.max(x + 2, textX), textY);
     }
 
-    private void drawStar(GraphicsContext gc, double cx, double cy, double rOuter, double rInner, Color fill, Color stroke) {
-        int points = 5;
-        double[] xPoints = new double[points * 2];
-        double[] yPoints = new double[points * 2];
-        double angleStep = Math.PI / points;
-        double startAngle = -Math.PI / 2.0;
+    private void drawEpicenterCross(GraphicsContext gc, double cx, double cy, double crossSize) {
+        gc.save();
+        gc.setLineCap(StrokeLineCap.SQUARE);
 
-        for (int i = 0; i < points * 2; i++) {
-            double r = (i % 2 == 0) ? rOuter : rInner;
-            double angle = startAngle + i * angleStep;
-            xPoints[i] = cx + r * Math.cos(angle);
-            yPoints[i] = cy + r * Math.sin(angle);
-        }
+        double redWidth = crossSize * 0.18;
+        double whiteBorder = 3.2;
+        double darkBorder = 1.2;
 
-        gc.setFill(fill);
-        gc.setStroke(stroke);
-        gc.setLineWidth(1.5);
-        gc.fillPolygon(xPoints, yPoints, points * 2);
-        gc.strokePolygon(xPoints, yPoints, points * 2);
+        double whiteWidth = redWidth + 2.0 * whiteBorder;
+        double darkWidth = whiteWidth + 2.0 * darkBorder;
+
+        double r = (crossSize / 2.0) * Math.sqrt(2.0) - (darkWidth / 2.0);
+        double d = r / Math.sqrt(2.0);
+
+        // 1. Dark outer border / subtle shadow
+        gc.setStroke(Color.web("#7F1D1D"));
+        gc.setLineWidth(darkWidth);
+        gc.strokeLine(cx - d, cy - d, cx + d, cy + d);
+        gc.strokeLine(cx - d, cy + d, cx + d, cy - d);
+
+        // 2. Crisp white halo outline
+        gc.setStroke(Color.WHITE);
+        gc.setLineWidth(whiteWidth);
+        gc.strokeLine(cx - d, cy - d, cx + d, cy + d);
+        gc.strokeLine(cx - d, cy + d, cx + d, cy - d);
+
+        // 3. Vibrant red core
+        gc.setStroke(COLOR_EPICENTER);
+        gc.setLineWidth(redWidth);
+        gc.strokeLine(cx - d, cy - d, cx + d, cy + d);
+        gc.strokeLine(cx - d, cy + d, cx + d, cy - d);
+
+        gc.restore();
     }
 
     /**
@@ -915,18 +1164,26 @@ public class MapCanvasPane extends Pane {
         gc.rect(0, 0, w, h);
         gc.clip();
 
-        // P-wave: low-opacity cyan fill with dashed cyan moving outline (when surface arrival has occurred)
+        // P-wave: outline only (no fill), dashed #00A7E1 moving outline (when surface arrival has occurred)
         if (radii.hasP()) {
             double rKm = radii.pRadiusKm();
             renderWavefrontRing(gc, frame.epicenter(), rKm,
-                    Color.web("#06B6D4", 0.15), Color.web("#06B6D4"), 2.0, new double[]{6.0, 4.0});
+                    null, COLOR_P_WAVE, 2.0, new double[]{6.0, 4.0});
         }
 
-        // S-wave: low-opacity orange fill with solid orange moving outline (when surface arrival has occurred)
+        // S-wave: 18% opacity fill with solid moving outline (same color as border)
         if (radii.hasS()) {
             double rKm = radii.sRadiusKm();
             renderWavefrontRing(gc, frame.epicenter(), rKm,
-                    Color.web("#F97316", 0.15), Color.web("#F97316"), 2.5, null);
+                    COLOR_S_WAVE_FILL, COLOR_S_WAVE, 2.5, null);
+        }
+
+        // Epicenter marker and derived rupture:
+        // Visible before simulation starts (t <= 1e-9) and at t >= 1.0s.
+        // Invisible ONLY during 0 < t < 1.
+        if (frame.elapsedSeconds() <= 1e-9 || frame.elapsedSeconds() >= 1.0) {
+            drawScenarioRupture(gc, frame);
+            drawEpicenter(gc);
         }
 
         // Draw revealed MMI badges on dynamic canvas when S-wave arrival has occurred
@@ -951,8 +1208,10 @@ public class MapCanvasPane extends Pane {
         }
         gc.closePath();
 
-        gc.setFill(fill);
-        gc.fill();
+        if (fill != null && fill.getOpacity() > 0) {
+            gc.setFill(fill);
+            gc.fill();
+        }
 
         gc.setStroke(stroke);
         gc.setLineWidth(strokeWidth);
@@ -1083,23 +1342,26 @@ public class MapCanvasPane extends Pane {
                 }
             }
 
-            // Check epicenter
-            ScreenPoint epi = currentTransform.toScreen(projection.project(mapScenario.event().epicenter()));
-            double edx = mx - epi.xPx();
-            double edy = my - epi.yPx();
-            if (edx * edx + edy * edy <= 256.0) {
-                mapTooltip.setText(String.format(Locale.US,
-                        "★ Epicenter\nMagnitude: M %.1f\nDepth: %.1f km\nLocation: %.4f°N, %.4f°W",
-                        mapScenario.event().magnitude(),
-                        mapScenario.event().depthKm(),
-                        mapScenario.event().epicenter().latitude(),
-                        Math.abs(mapScenario.event().epicenter().longitude())));
-                try {
-                    if (getScene() != null && getScene().getWindow() != null && !mapTooltip.isShowing()) {
-                        mapTooltip.show(this, e.getScreenX() + 12, e.getScreenY() + 12);
-                    }
-                } catch (Exception ignored) {}
-                return;
+            // Check epicenter (only when visible: t <= 1e-9 or t >= 1.0s)
+            boolean epiVisible = (lastFrame == null || lastFrame.elapsedSeconds() <= 1e-9 || lastFrame.elapsedSeconds() >= 1.0);
+            if (epiVisible) {
+                ScreenPoint epi = currentTransform.toScreen(projection.project(mapScenario.event().epicenter()));
+                double edx = mx - epi.xPx();
+                double edy = my - epi.yPx();
+                if (edx * edx + edy * edy <= 256.0) {
+                    mapTooltip.setText(String.format(Locale.US,
+                            "★ Epicenter\nMagnitude: M %.1f\nDepth: %.1f km\nLocation: %.4f°N, %.4f°W",
+                            mapScenario.event().magnitude(),
+                            mapScenario.event().depthKm(),
+                            mapScenario.event().epicenter().latitude(),
+                            Math.abs(mapScenario.event().epicenter().longitude())));
+                    try {
+                        if (getScene() != null && getScene().getWindow() != null && !mapTooltip.isShowing()) {
+                            mapTooltip.show(this, e.getScreenX() + 12, e.getScreenY() + 12);
+                        }
+                    } catch (Exception ignored) {}
+                    return;
+                }
             }
 
             mapTooltip.hide();

@@ -59,6 +59,28 @@ class RenderSnapshotGeneratorTest {
                 WritableImage snapApp = stage.getScene().snapshot(null);
                 assertMeaningfullyRendered(snapApp, "65-second application window");
                 saveImage(snapApp, outDir.resolve("calquake_full_window_65s.png"));
+
+                // Snapshot slider widget under MMI scale
+                var slider = app.getMmiBoxSizeSlider();
+                if (slider != null && slider.getParent() != null) {
+                    WritableImage snapSlider = slider.getParent().snapshot(null, null);
+                    saveImage(snapSlider, outDir.resolve("mmi_scale_slider_widget.png"));
+                }
+
+                // Small MMI boxes (24px)
+                slider.setValue(24.0);
+                app.getMapCanvasPane().renderFrame(app.getController().currentFrame());
+                WritableImage snap24 = app.getMapCanvasPane().snapshot(params, null);
+                saveImage(snap24, outDir.resolve("mmi_boxes_small_24px.png"));
+
+                // Large MMI boxes (56px)
+                slider.setValue(56.0);
+                app.getMapCanvasPane().renderFrame(app.getController().currentFrame());
+                WritableImage snap56 = app.getMapCanvasPane().snapshot(params, null);
+                saveImage(snap56, outDir.resolve("mmi_boxes_large_56px.png"));
+
+                // Reset back to default
+                slider.setValue(40.0);
             } finally {
                 app.stop();
                 stage.close();

@@ -30,6 +30,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MapCanvasPaneIntegrationTest {
@@ -55,8 +56,13 @@ class MapCanvasPaneIntegrationTest {
             pane.refresh(initialFrame);
             assertEquals(initialFrame, pane.getLastFrame());
             assertTrue(countVisiblePixels(pane.getStaticCanvas()) > 0, "The base map must render");
+            assertTrue(countVisiblePixels(pane.getDynamicCanvas()) > 0,
+                    "Epicenter and rupture preview must be visible before playback starts at t = 0.0");
+
+            FrameState preSurfaceFrame = engine.frameAt(scenario, 0.5);
+            pane.renderFrame(preSurfaceFrame);
             assertEquals(0, countVisiblePixels(pane.getDynamicCanvas()),
-                    "No wavefront is visible before its surface arrival");
+                    "Dynamic canvas must be completely empty during 0 < t < 1.0s");
 
             FrameState activeFrame = engine.frameAt(scenario, 10.0);
             pane.renderFrame(activeFrame);
@@ -134,8 +140,8 @@ class MapCanvasPaneIntegrationTest {
             int rx = (int) Math.round(ridgecrestPoint.xPx());
             int ry = (int) Math.round(ridgecrestPoint.yPx());
 
-            // t = 0.0: S-wave has not arrived
-            FrameState f0 = engine.frameAt(scenario, 0.0);
+            // t = 0.5s: S-wave has not arrived at Ridgecrest (arrival is at ~5.8s; within 0 < t < 1.0s pre-arrival phase)
+            FrameState f0 = engine.frameAt(scenario, 0.5);
             pane.renderFrame(f0);
 
             SnapshotParameters params = new SnapshotParameters();
@@ -143,6 +149,16 @@ class MapCanvasPaneIntegrationTest {
             WritableImage dynImg0 = pane.getDynamicCanvas().snapshot(params, null);
             int alphaAtDot0 = (dynImg0.getPixelReader().getArgb(rx, ry) >>> 24);
             assertEquals(0, alphaAtDot0, "City dot position on dynamic canvas must be transparent before S-wave arrival");
+
+            // Also verify a distant site (Bakersfield) at t = 0.0s before simulation starts has no MMI badge
+            var bakersfieldPoint = pane.getLocationScreenPoint("Bakersfield");
+            int bx = (int) Math.round(bakersfieldPoint.xPx());
+            int by = (int) Math.round(bakersfieldPoint.yPx());
+            FrameState f00 = engine.frameAt(scenario, 0.0);
+            pane.renderFrame(f00);
+            WritableImage dynImg00 = pane.getDynamicCanvas().snapshot(params, null);
+            assertEquals(0, (dynImg00.getPixelReader().getArgb(bx, by) >>> 24),
+                    "Bakersfield position on dynamic canvas must be transparent before S-wave arrival");
 
             // t = 10.0: Ridgecrest S-wave arrival has occurred (~5.8s)
             FrameState f10 = engine.frameAt(scenario, 10.0);
@@ -226,6 +242,128 @@ class MapCanvasPaneIntegrationTest {
             assertDoesNotThrow(() -> pane.renderFrame(frame));
             assertEquals(frame, pane.getLastFrame());
             assertTrue(countVisiblePixels(pane.getDynamicCanvas()) > 0);
+        });
+    }
+
+    @Test
+    void streetViewTogglingRedrawsCleanly() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            MapCanvasPane pane = new MapCanvasPane(scenario, outline);
+            pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
+
+            assertTrue(pane.isStreetViewVisible(), "Street View should be visible by default");
+            assertDoesNotThrow(() -> pane.redrawStaticMap());
+            assertTrue(countVisiblePixels(pane.getStaticCanvas()) > 0);
+
+            // Toggle off
+            pane.setStreetViewVisible(false);
+            assertFalse(pane.isStreetViewVisible());
+            assertDoesNotThrow(() -> pane.redrawStaticMap());
+            assertTrue(countVisiblePixels(pane.getStaticCanvas()) > 0);
+
+            // Toggle back on
+            pane.setStreetViewVisible(true);
+            assertTrue(pane.isStreetViewVisible());
+            assertDoesNotThrow(() -> pane.redrawStaticMap());
+            assertTrue(countVisiblePixels(pane.getStaticCanvas()) > 0);
+        });
+    }
+
+    @Test
+    void mmiBoxSizeAdjustmentAndEpicenterCrossRedraw() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            MapCanvasPane pane = new MapCanvasPane(scenario, outline);
+            pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
+
+            assertEquals(MapCanvasPane.DEFAULT_MMI_BOX_SIZE, pane.getMmiBoxSize(), 1e-6);
+
+            // Change MMI box size
+            pane.setMmiBoxSize(60.0);
+            assertEquals(60.0, pane.getMmiBoxSize(), 1e-6);
+            assertDoesNotThrow(() -> pane.redrawStaticMap());
+            assertTrue(countVisiblePixels(pane.getStaticCanvas()) > 0);
+
+            // Dynamic frame rendering with changed MMI box size
+            FrameState frame = engine.frameAt(scenario, 20.0);
+            assertDoesNotThrow(() -> pane.renderFrame(frame));
+            assertTrue(countVisiblePixels(pane.getDynamicCanvas()) > 0);
+
+            // Shrink MMI box size
+            pane.setMmiBoxSize(20.0);
+            assertEquals(20.0, pane.getMmiBoxSize(), 1e-6);
+            assertDoesNotThrow(() -> pane.redrawStaticMap());
+            assertDoesNotThrow(() -> pane.renderFrame(frame));
+        });
+    }
+
+    @Test
+    void epicenterAndRuptureAppearOnlyAtOneSecondMarkAndRuptureGrowsClamped() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            MapCanvasPane pane = new MapCanvasPane(scenario, outline);
+            pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
+            pane.redrawStaticMap();
+
+            var epiPt = pane.getEpicenterScreenPoint();
+            int ex = (int) Math.round(epiPt.xPx());
+            int ey = (int) Math.round(epiPt.yPx());
+
+            // t = 0.0s: Epicenter and rupture preview must be visible before playback starts
+            FrameState f00 = engine.frameAt(scenario, 0.0);
+            pane.renderFrame(f00);
+            assertTrue(countVisiblePixels(pane.getDynamicCanvas()) > 0,
+                    "Epicenter and rupture preview must be visible before simulation starts at t = 0.0s");
+
+            // t = 0.5s (0 < t < 1.0s): dynamic canvas must have 0 visible pixels
+            FrameState f05 = engine.frameAt(scenario, 0.5);
+            pane.renderFrame(f05);
+            assertEquals(0, countVisiblePixels(pane.getDynamicCanvas()),
+                    "Dynamic canvas must be completely empty during 0 < t < 1.0s");
+
+            // t = 1.0s: Epicenter appears!
+            FrameState f10 = engine.frameAt(scenario, 1.0);
+            pane.renderFrame(f10);
+            int countAt1s = countVisiblePixels(pane.getDynamicCanvas());
+            assertTrue(countAt1s > 0, "Epicenter and rupture nucleation must appear at 1.0s mark");
+
+            // Verify pixel at epicenter center is rendered
+            SnapshotParameters params = new SnapshotParameters();
+            params.setFill(Color.TRANSPARENT);
+            WritableImage dynImg10 = pane.getDynamicCanvas().snapshot(params, null);
+            int alphaAtEpi = (dynImg10.getPixelReader().getArgb(ex, ey) >>> 24);
+            assertTrue(alphaAtEpi > 0, "Epicenter cross must be visible on dynamic canvas at t >= 1.0s");
+
+            // t = 5.0s: S-wave arrives and rupture grows
+            FrameState f50 = engine.frameAt(scenario, 5.0);
+            pane.renderFrame(f50);
+            int countAt5s = countVisiblePixels(pane.getDynamicCanvas());
+            assertTrue(countAt5s > countAt1s, "Rupture line and wavefronts must grow dynamically");
+
+            // Seeking into 0 < t < 1.0s (e.g. t = 0.2s): Dynamic canvas must be clear
+            FrameState f02 = engine.frameAt(scenario, 0.2);
+            pane.renderFrame(f02);
+            assertEquals(0, countVisiblePixels(pane.getDynamicCanvas()),
+                    "Epicenter and rupture must disappear during 0 < t < 1.0s");
+
+            // Seeking back to t = 0.0s: Epicenter and rupture preview must appear again
+            pane.renderFrame(f00);
+            assertTrue(countVisiblePixels(pane.getDynamicCanvas()) > 0,
+                    "Epicenter and rupture preview must be visible when reset to t = 0.0s");
+        });
+    }
+
+    @Test
+    void pWaveHasNoFillAndUsesNewBlueColorAndSWaveUsesNewRedColor() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            MapCanvasPane pane = new MapCanvasPane(scenario, outline);
+            pane.resize(MapCanvasPane.BASELINE_VIEWPORT_WIDTH, MapCanvasPane.BASELINE_VIEWPORT_HEIGHT);
+
+            assertEquals(Color.web("#00A7E1"), MapCanvasPane.COLOR_P_WAVE);
+            assertEquals(Color.web("#F0443A"), MapCanvasPane.COLOR_S_WAVE);
+            assertEquals(Color.web("#F7B500"), MapCanvasPane.COLOR_RUPTURE);
+            assertEquals(MapCanvasPane.COLOR_S_WAVE.getRed(), MapCanvasPane.COLOR_S_WAVE_FILL.getRed(), 1e-6);
+            assertEquals(MapCanvasPane.COLOR_S_WAVE.getGreen(), MapCanvasPane.COLOR_S_WAVE_FILL.getGreen(), 1e-6);
+            assertEquals(MapCanvasPane.COLOR_S_WAVE.getBlue(), MapCanvasPane.COLOR_S_WAVE_FILL.getBlue(), 1e-6);
+            assertEquals(0.18, MapCanvasPane.COLOR_S_WAVE_FILL.getOpacity(), 1e-6);
         });
     }
 

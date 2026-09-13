@@ -35,6 +35,8 @@ import io.github.paracosms.calquake.data.SimulationSiteSerializer;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -193,6 +195,7 @@ public class CalQuakeApp extends Application {
     private CheckBox faultGeometryCheckBox;
     private CheckBox mappedFaultsCheckBox;
     private CheckBox vs30CheckBox;
+    private CheckBox streetViewCheckBox;
     private CheckBox scenarioRuptureCheckBox;
     private Label simAssumptionsSiteLabel;
     private Label simAssumptionsFallbackLabel;
@@ -202,6 +205,9 @@ public class CalQuakeApp extends Application {
     private Label simAssumptionsFaultsLabel;
     private Label simAssumptionsNoteLabel;
     private AnimationTimer animationTimer;
+    private final DoubleProperty mmiBoxSizeProperty = new SimpleDoubleProperty(MapCanvasPane.DEFAULT_MMI_BOX_SIZE);
+    private Slider simMmiBoxSizeSlider;
+    private Slider replayMmiBoxSizeSlider;
 
     public CalQuakeApp() {
         this.currentMode = ApplicationMode.SIMULATION;
@@ -325,7 +331,14 @@ public class CalQuakeApp extends Application {
         // 2. Center: Map Canvas Viewport with Overlaid Top-Left Timer Box
         this.mapCanvasPane = new MapCanvasPane(getActiveMapScenario(), outline);
         mapCanvasPane.setApplicationMode(currentMode);
+        mapCanvasPane.setMmiBoxSize(mmiBoxSizeProperty.get());
         mapCanvasPane.getStyleClass().add("map-viewport-frame");
+
+        mmiBoxSizeProperty.addListener((obs, oldVal, newVal) -> {
+            if (mapCanvasPane != null) {
+                mapCanvasPane.setMmiBoxSize(newVal.doubleValue());
+            }
+        });
 
         StackPane centerStack = new StackPane();
         centerStack.getChildren().add(mapCanvasPane);
@@ -358,6 +371,11 @@ public class CalQuakeApp extends Application {
         setupControlHandlers();
         updateTimeDisplays();
         updateControlStates();
+
+        ReplayController initialCtrl = getController();
+        if (initialCtrl != null && mapCanvasPane != null) {
+            mapCanvasPane.renderFrame(initialCtrl.currentFrame());
+        }
 
         // 5. Animation Timer for Replay Engine Loop
         this.animationTimer = new AnimationTimer() {
@@ -1081,20 +1099,20 @@ public class CalQuakeApp extends Application {
         HBox pRow = new HBox(6.0);
         pRow.setAlignment(Pos.CENTER_LEFT);
         javafx.scene.shape.Line pLine = new javafx.scene.shape.Line(0, 0, 22, 0);
-        pLine.setStroke(Color.web("#06B6D4"));
+        pLine.setStroke(Color.web("#00A7E1"));
         pLine.setStrokeWidth(2.0);
         pLine.getStrokeDashArray().addAll(6.0, 4.0);
-        Label pText = new Label("P-Wave: Dashed cyan circle (Compressional)");
-        pText.setStyle("-fx-font-size: 9px; -fx-text-fill: #0E7490; -fx-font-weight: bold;");
+        Label pText = new Label("P-Wave: Dashed blue outline (Compressional)");
+        pText.setStyle("-fx-font-size: 9px; -fx-text-fill: #00A7E1; -fx-font-weight: bold;");
         pRow.getChildren().addAll(pLine, pText);
 
         HBox sRow = new HBox(6.0);
         sRow.setAlignment(Pos.CENTER_LEFT);
         javafx.scene.shape.Line sLine = new javafx.scene.shape.Line(0, 0, 22, 0);
-        sLine.setStroke(Color.web("#F97316"));
+        sLine.setStroke(Color.web("#F0443A"));
         sLine.setStrokeWidth(2.5);
-        Label sText = new Label("S-Wave: Solid orange circle (Shear)");
-        sText.setStyle("-fx-font-size: 9px; -fx-text-fill: #C2410C; -fx-font-weight: bold;");
+        Label sText = new Label("S-Wave: Solid red circle (Shear)");
+        sText.setStyle("-fx-font-size: 9px; -fx-text-fill: #F0443A; -fx-font-weight: bold;");
         sRow.getChildren().addAll(sLine, sText);
 
         frontLegendBox.getChildren().addAll(frontTitle, pRow, sRow);
@@ -1179,7 +1197,40 @@ public class CalQuakeApp extends Application {
             r++;
         }
 
-        box.getChildren().addAll(title, grid);
+        VBox sliderBox = new VBox(4.0);
+        sliderBox.setPadding(new Insets(6.0, 2.0, 2.0, 2.0));
+
+        Label sliderLabel = new Label("MMI Box Size: " + (int) mmiBoxSizeProperty.get() + " px");
+        sliderLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155; -fx-font-weight: 600;");
+
+        Slider boxSizeSlider = new Slider(16.0, 72.0, mmiBoxSizeProperty.get());
+        boxSizeSlider.setId(isSimulation ? "sim-mmi-box-size-slider" : "replay-mmi-box-size-slider");
+        boxSizeSlider.setBlockIncrement(2.0);
+        boxSizeSlider.setShowTickMarks(true);
+        boxSizeSlider.setMajorTickUnit(14.0);
+        boxSizeSlider.setMinorTickCount(1);
+        if (isSimulation) {
+            this.simMmiBoxSizeSlider = boxSizeSlider;
+        } else {
+            this.replayMmiBoxSizeSlider = boxSizeSlider;
+        }
+
+        boxSizeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            double val = Math.round(newVal.doubleValue());
+            if (Math.abs(mmiBoxSizeProperty.get() - val) > 0.5) {
+                mmiBoxSizeProperty.set(val);
+            }
+            sliderLabel.setText("MMI Box Size: " + (int) val + " px");
+        });
+        mmiBoxSizeProperty.addListener((obs, oldVal, newVal) -> {
+            if (Math.abs(boxSizeSlider.getValue() - newVal.doubleValue()) > 0.5) {
+                boxSizeSlider.setValue(newVal.doubleValue());
+            }
+            sliderLabel.setText("MMI Box Size: " + newVal.intValue() + " px");
+        });
+
+        sliderBox.getChildren().addAll(sliderLabel, boxSizeSlider);
+        box.getChildren().addAll(title, grid, sliderBox);
         return box;
     }
 
@@ -1220,6 +1271,12 @@ public class CalQuakeApp extends Application {
         vs30CheckBox.getStyleClass().add("status-pane");
         vs30CheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
 
+        this.streetViewCheckBox = new CheckBox("Street View");
+        streetViewCheckBox.setId("street-view-toggle");
+        streetViewCheckBox.setSelected(true);
+        streetViewCheckBox.getStyleClass().add("status-pane");
+        streetViewCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+
         this.scenarioRuptureCheckBox = new CheckBox("Derived Rupture");
         scenarioRuptureCheckBox.setId("scenario-rupture-toggle");
         scenarioRuptureCheckBox.setSelected(true);
@@ -1234,7 +1291,7 @@ public class CalQuakeApp extends Application {
         statusReplayLabel.getStyleClass().add("status-pane");
         statusReplayLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
 
-        bar.getChildren().addAll(mappedFaultsCheckBox, vs30CheckBox, scenarioRuptureCheckBox, spacer, statusReplayLabel);
+        bar.getChildren().addAll(mappedFaultsCheckBox, vs30CheckBox, streetViewCheckBox, scenarioRuptureCheckBox, spacer, statusReplayLabel);
         return bar;
     }
 
@@ -1483,6 +1540,14 @@ public class CalQuakeApp extends Application {
             vs30CheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
                 if (mapCanvasPane != null) {
                     mapCanvasPane.setVs30HeatmapVisible(newVal);
+                }
+            });
+        }
+
+        if (streetViewCheckBox != null) {
+            streetViewCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.setStreetViewVisible(newVal);
                 }
             });
         }
@@ -2497,6 +2562,26 @@ public class CalQuakeApp extends Application {
 
     public CheckBox getVs30CheckBox() {
         return vs30CheckBox;
+    }
+
+    public CheckBox getStreetViewCheckBox() {
+        return streetViewCheckBox;
+    }
+
+    public DoubleProperty mmiBoxSizeProperty() {
+        return mmiBoxSizeProperty;
+    }
+
+    public Slider getSimMmiBoxSizeSlider() {
+        return simMmiBoxSizeSlider;
+    }
+
+    public Slider getReplayMmiBoxSizeSlider() {
+        return replayMmiBoxSizeSlider;
+    }
+
+    public Slider getMmiBoxSizeSlider() {
+        return currentMode == ApplicationMode.SIMULATION ? simMmiBoxSizeSlider : replayMmiBoxSizeSlider;
     }
 
     public CheckBox getScenarioRuptureCheckBox() {

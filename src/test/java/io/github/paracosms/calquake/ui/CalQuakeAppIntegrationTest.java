@@ -1066,6 +1066,82 @@ class CalQuakeAppIntegrationTest {
         });
     }
 
+    @Test
+    void streetViewToggleControlsBasemapVisibility() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            CalQuakeApp app = new CalQuakeApp();
+            app.init();
+            Stage stage = new Stage();
+            try {
+                app.start(stage);
+
+                assertNotNull(app.getStreetViewCheckBox());
+                assertEquals("Street View", app.getStreetViewCheckBox().getText());
+                assertEquals("street-view-toggle", app.getStreetViewCheckBox().getId());
+                assertTrue(app.getStreetViewCheckBox().isSelected(), "Street View should be enabled by default");
+                assertTrue(app.getMapCanvasPane().isStreetViewVisible(), "MapCanvasPane Street View should be visible by default");
+
+                // Verify relative position: streetViewCheckBox is immediately after vs30CheckBox
+                javafx.scene.layout.HBox statusBar = (javafx.scene.layout.HBox) app.getStreetViewCheckBox().getParent();
+                assertNotNull(statusBar);
+                int vs30Idx = statusBar.getChildren().indexOf(app.getVs30CheckBox());
+                int streetViewIdx = statusBar.getChildren().indexOf(app.getStreetViewCheckBox());
+                assertEquals(vs30Idx + 1, streetViewIdx, "Street View must be immediately to the right of Vs30");
+
+                // Toggle off
+                app.getStreetViewCheckBox().setSelected(false);
+                assertFalse(app.getMapCanvasPane().isStreetViewVisible());
+
+                // Toggle on
+                app.getStreetViewCheckBox().setSelected(true);
+                assertTrue(app.getMapCanvasPane().isStreetViewVisible());
+            } finally {
+                app.stop();
+                stage.close();
+            }
+        });
+    }
+
+    @Test
+    void mmiBoxSizeSliderControlsBadgeAndEpicenterScale() throws Exception {
+        JavaFxTestHelper.runOnFxThread(() -> {
+            CalQuakeApp app = new CalQuakeApp();
+            app.init();
+            Stage stage = new Stage();
+            try {
+                app.start(stage);
+
+                var slider = app.getMmiBoxSizeSlider();
+                assertNotNull(slider, "MMI box size slider must exist in sidebar");
+                assertEquals("sim-mmi-box-size-slider", slider.getId());
+                assertEquals(16.0, slider.getMin(), 1e-6);
+                assertEquals(72.0, slider.getMax(), 1e-6);
+                assertEquals(40.0, slider.getValue(), 1e-6);
+                assertEquals(40.0, app.getMapCanvasPane().getMmiBoxSize(), 1e-6);
+
+                // Change slider value in simulation mode
+                slider.setValue(55.0);
+                assertEquals(55.0, app.mmiBoxSizeProperty().get(), 1e-6);
+                assertEquals(55.0, app.getMapCanvasPane().getMmiBoxSize(), 1e-6);
+
+                // Switch to Replay mode and check slider is synchronized
+                app.switchMode(ApplicationMode.REPLAY);
+                var replaySlider = app.getMmiBoxSizeSlider();
+                assertNotNull(replaySlider);
+                assertEquals(55.0, replaySlider.getValue(), 1e-6);
+
+                // Change in Replay mode
+                replaySlider.setValue(32.0);
+                assertEquals(32.0, app.mmiBoxSizeProperty().get(), 1e-6);
+                assertEquals(32.0, app.getMapCanvasPane().getMmiBoxSize(), 1e-6);
+                assertEquals(32.0, app.getSimMmiBoxSizeSlider().getValue(), 1e-6);
+            } finally {
+                app.stop();
+                stage.close();
+            }
+        });
+    }
+
     private static List<Label> collectLabels(javafx.scene.Node root) {
         List<Label> result = new java.util.ArrayList<>();
         if (root instanceof Label l) {
