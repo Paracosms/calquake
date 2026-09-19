@@ -74,9 +74,7 @@ chmod +x mvnw
 
 ## Scientific benchmark
 
-```powershell
-.\mvnw.cmd -Dtest=MmiBenchmarkRunnerTest test
-```
+The offline benchmark harness in `MmiBenchmarkRunner` can be invoked directly via its `main` method (with an optional output directory argument).
 
 This writes `site-results.csv`, `summary.json`, and `report.md` under `target/mmi-benchmark`. The station-PGV and city-ShakeMap cohorts remain separate, input signatures exclude evaluation targets, and unavailable waveform threshold timing is explicitly censored.
 
