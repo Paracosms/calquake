@@ -193,9 +193,21 @@ public class CalQuakeApp extends Application {
     private Menu settingsMenu;
     private Button settingsButton;
 
+    public static final String PRESET_MAJOR_CITIES = "Major cities";
+    public static final String PRESET_MAJOR_CITIES_STATEWIDE = "Major cities + statewide coverage";
+    public static final String PRESET_UNIFORM_COVERAGE = "Uniform coverage";
+    public static final String PRESET_DENSE_UNIFORM_COVERAGE = "Dense uniform coverage";
+
+    public static final String RESOURCE_PRESET_MAJOR_CITIES = "/data/cities-presets/major_cities.json";
+    public static final String RESOURCE_PRESET_MAJOR_CITIES_STATEWIDE = "/data/cities-presets/cities_statewide.json";
+    public static final String RESOURCE_PRESET_UNIFORM_COVERAGE = "/data/cities-presets/equal_coverage.json";
+    public static final String RESOURCE_PRESET_DENSE_UNIFORM_COVERAGE = "/data/cities-presets/dense_equal_coverage.json";
+
     // Settings popup window
     private Stage settingsStage;
     private ComboBox<String> shakingSitesSelector;
+    private String selectedSitesPreset = PRESET_MAJOR_CITIES_STATEWIDE;
+    private boolean isImportingPreset = false;
 
     // Center & Layout Containers
     private ScrollPane sidebarScroll;
@@ -300,7 +312,8 @@ public class CalQuakeApp extends Application {
             }
 
             if (this.simulationSiteCatalog == null) {
-                this.simulationSiteCatalog = SimulationSiteCatalog.loadDefault();
+                this.simulationSiteCatalog = SimulationSiteCatalog.loadFromResource(RESOURCE_PRESET_MAJOR_CITIES_STATEWIDE);
+                this.selectedSitesPreset = PRESET_MAJOR_CITIES_STATEWIDE;
             }
 
             // Initialize Simulation mode if not injected
@@ -317,17 +330,21 @@ public class CalQuakeApp extends Application {
                 this.simulationController = new ReplayController(
                         simulationScenario, simEngine, MonotonicClock.system(), simulationPreparedReplay.durationSeconds());
 
+                boolean suppress = shouldSuppressSiteDomainWarnings();
                 SimulationValidator.ValidationResult initialValidation = SimulationValidator.validate(
                         simulationInstalledSettings.epicenter().latitude(),
                         simulationInstalledSettings.epicenter().longitude(),
                         simulationInstalledSettings.magnitude(),
                         simulationInstalledSettings.depthKm(),
-                        simulationSiteCatalog.sites(), outline);
+                        simulationSiteCatalog.sites(), outline, suppress);
                 List<String> initWarnings = new ArrayList<>(initialValidation.warnings());
                 if (simBundle.inputs().eventSource().ruptureGeometry().isPresent()) {
                     initWarnings.addAll(SimulationValidator.validateResolvedGeometry(
                             simBundle.inputs().eventSource().ruptureGeometry().get(),
-                            simulationSiteCatalog.sites(), outline));
+                            simulationSiteCatalog.sites(), outline, suppress));
+                }
+                if (suppress) {
+                    initWarnings.removeIf(SimulationValidator::isSiteDomainWarning);
                 }
                 this.simulationWarnings = List.copyOf(initWarnings);
             } else if (this.simulationInstalledSettings == null) {
@@ -880,7 +897,7 @@ public class CalQuakeApp extends Application {
             List<SimulationSite> sites = simulationSiteCatalog != null
                     ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
             SimulationValidator.ValidationResult result = SimulationValidator.validateRaw(
-                    latText, lonText, magText, depthText, sites, outline);
+                    latText, lonText, magText, depthText, sites, outline, shouldSuppressSiteDomainWarnings());
             if (!result.isValid()) {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
                 simSettingsStatusLabel.setText("Error: " + String.join(", ", result.errors()));
@@ -1667,7 +1684,7 @@ public class CalQuakeApp extends Application {
         List<SimulationSite> sites = simulationSiteCatalog != null
                 ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
         SimulationValidator.ValidationResult validation = SimulationValidator.validateRaw(
-                latText, lonText, magText, depthText, sites, outline);
+                latText, lonText, magText, depthText, sites, outline, shouldSuppressSiteDomainWarnings());
 
         if (!validation.isValid()) {
             simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
@@ -1736,7 +1753,7 @@ public class CalQuakeApp extends Application {
         List<SimulationSite> sites = simulationSiteCatalog != null
                 ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
         SimulationValidator.ValidationResult validation = SimulationValidator.validateRaw(
-                latText, lonText, magText, depthText, sites, outline);
+                latText, lonText, magText, depthText, sites, outline, shouldSuppressSiteDomainWarnings());
 
         if (!validation.isValid()) {
             if (simSettingsStatusLabel != null) {
@@ -1850,6 +1867,20 @@ public class CalQuakeApp extends Application {
                 }
                 return ok;
             } else if (pkg instanceof SimulationScenarioSerializer.ImportedSiteCatalog importedSites) {
+                if (fileName.equalsIgnoreCase("major_cities.json")) {
+                    this.selectedSitesPreset = PRESET_MAJOR_CITIES;
+                } else if (fileName.equalsIgnoreCase("cities_statewide.json")) {
+                    this.selectedSitesPreset = PRESET_MAJOR_CITIES_STATEWIDE;
+                } else if (fileName.equalsIgnoreCase("equal_coverage.json")) {
+                    this.selectedSitesPreset = PRESET_UNIFORM_COVERAGE;
+                } else if (fileName.equalsIgnoreCase("dense_equal_coverage.json")) {
+                    this.selectedSitesPreset = PRESET_DENSE_UNIFORM_COVERAGE;
+                } else {
+                    this.selectedSitesPreset = null;
+                }
+                if (shakingSitesSelector != null) {
+                    shakingSitesSelector.setValue(this.selectedSitesPreset);
+                }
                 boolean ok = applyImportedCities(importedSites.sites());
                 if (ok) {
                     this.lastImportedFileName = fileName;
@@ -1870,6 +1901,79 @@ public class CalQuakeApp extends Application {
             }
             return false;
         }
+    }
+
+    public boolean importPreset(String presetName) {
+        if (presetName == null || isImportingPreset) {
+            return false;
+        }
+        String resourcePath;
+        String fileName;
+        if (PRESET_MAJOR_CITIES.equals(presetName)) {
+            resourcePath = RESOURCE_PRESET_MAJOR_CITIES;
+            fileName = "major_cities.json";
+        } else if (PRESET_MAJOR_CITIES_STATEWIDE.equals(presetName)) {
+            resourcePath = RESOURCE_PRESET_MAJOR_CITIES_STATEWIDE;
+            fileName = "cities_statewide.json";
+        } else if (PRESET_UNIFORM_COVERAGE.equals(presetName)) {
+            resourcePath = RESOURCE_PRESET_UNIFORM_COVERAGE;
+            fileName = "equal_coverage.json";
+        } else if (PRESET_DENSE_UNIFORM_COVERAGE.equals(presetName)) {
+            resourcePath = RESOURCE_PRESET_DENSE_UNIFORM_COVERAGE;
+            fileName = "dense_equal_coverage.json";
+        } else {
+            return false;
+        }
+
+        isImportingPreset = true;
+        try {
+            SimulationSiteCatalog catalog = SimulationSiteCatalog.loadFromResource(resourcePath);
+            this.selectedSitesPreset = presetName;
+            boolean ok = applyImportedCities(catalog.sites());
+            if (ok) {
+                this.lastImportedFileName = fileName;
+                this.lastImportedFileType = ImportedFileType.SITES;
+                this.lastImportedSimulationSettings = null;
+                this.lastImportedSimulationModified = false;
+                updateLastImportedFileBox();
+                if (shakingSitesSelector != null && !presetName.equals(shakingSitesSelector.getValue())) {
+                    shakingSitesSelector.setValue(presetName);
+                }
+            }
+            return ok;
+        } catch (Exception e) {
+            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            if (simSettingsStatusLabel != null) {
+                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                simSettingsStatusLabel.setText("Import failed: " + message);
+            }
+            return false;
+        } finally {
+            isImportingPreset = false;
+        }
+    }
+
+    public boolean shouldSuppressSiteDomainWarnings() {
+        if (PRESET_UNIFORM_COVERAGE.equals(selectedSitesPreset) || PRESET_DENSE_UNIFORM_COVERAGE.equals(selectedSitesPreset)) {
+            return true;
+        }
+        if (shakingSitesSelector != null) {
+            String val = shakingSitesSelector.getValue();
+            if (PRESET_UNIFORM_COVERAGE.equals(val) || PRESET_DENSE_UNIFORM_COVERAGE.equals(val)) {
+                return true;
+            }
+        }
+        if (lastImportedFileName != null) {
+            String lower = lastImportedFileName.toLowerCase(java.util.Locale.ROOT);
+            if (lower.contains("equal_coverage") || lower.contains("uniform_coverage")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public String getSelectedSitesPreset() {
+        return selectedSitesPreset;
     }
 
     void handleImportScenario() {
@@ -1916,9 +2020,10 @@ public class CalQuakeApp extends Application {
 
         List<SimulationSite> sites = simulationSiteCatalog != null
                 ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
+        boolean suppress = shouldSuppressSiteDomainWarnings();
         SimulationValidator.ValidationResult result = SimulationValidator.validate(
                 imported.epicenter().latitude(), imported.epicenter().longitude(),
-                imported.magnitude(), imported.depthKm(), sites, outline);
+                imported.magnitude(), imported.depthKm(), sites, outline, suppress);
 
         if (simSettingsStatusLabel != null) {
             simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
@@ -2002,9 +2107,10 @@ public class CalQuakeApp extends Application {
                 ? simulationDraftSettings
                 : (simulationInstalledSettings != null ? simulationInstalledSettings : scenarioLoader.loadStarterSimulationSettings());
 
+        boolean suppress = shouldSuppressSiteDomainWarnings();
         SimulationValidator.ValidationResult result = SimulationValidator.validate(
                 currentSettings.epicenter().latitude(), currentSettings.epicenter().longitude(),
-                currentSettings.magnitude(), currentSettings.depthKm(), importedSites, outline);
+                currentSettings.magnitude(), currentSettings.depthKm(), importedSites, outline, suppress);
 
         if (simSettingsStatusLabel != null) {
             simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
@@ -2087,7 +2193,8 @@ public class CalQuakeApp extends Application {
                 new GeoPoint(lat, lon), magnitude, depthKm, mode, SimulationAssumptionSet.DEFAULT_ID);
         List<SimulationSite> sites = simulationSiteCatalog != null
                 ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
-        SimulationValidator.ValidationResult result = SimulationValidator.validate(lat, lon, magnitude, depthKm, sites, outline);
+        boolean suppress = shouldSuppressSiteDomainWarnings();
+        SimulationValidator.ValidationResult result = SimulationValidator.validate(lat, lon, magnitude, depthKm, sites, outline, suppress);
         requestSimulationPreparation(settings, result.warnings());
     }
 
@@ -2104,6 +2211,7 @@ public class CalQuakeApp extends Application {
         preparationError = null;
         long generation = preparationGeneration.incrementAndGet();
         ApplicationMode targetMode = ApplicationMode.SIMULATION;
+        boolean suppressSiteDomainWarnings = shouldSuppressSiteDomainWarnings();
         updateControlStates();
         updateTimeDisplays();
 
@@ -2136,7 +2244,10 @@ public class CalQuakeApp extends Application {
             List<String> combinedWarnings = new ArrayList<>(warnings != null ? warnings : List.of());
             if (inputs.eventSource().ruptureGeometry().isPresent()) {
                 combinedWarnings.addAll(SimulationValidator.validateResolvedGeometry(
-                        inputs.eventSource().ruptureGeometry().get(), sites, outline));
+                        inputs.eventSource().ruptureGeometry().get(), sites, outline, suppressSiteDomainWarnings));
+            }
+            if (suppressSiteDomainWarnings) {
+                combinedWarnings.removeIf(SimulationValidator::isSiteDomainWarning);
             }
 
             return new PreparedInstallation(bundle, replay, targetMode, List.copyOf(combinedWarnings));
@@ -2552,14 +2663,19 @@ public class CalQuakeApp extends Application {
             this.shakingSitesSelector = new ComboBox<>();
             shakingSitesSelector.setId("shaking-sites-selector");
             shakingSitesSelector.getItems().addAll(
-                    "Major cities",
-                    "Major cities + statewide coverage",
-                    "Uniform coverage",
-                    "Dense uniform coverage"
+                    PRESET_MAJOR_CITIES,
+                    PRESET_MAJOR_CITIES_STATEWIDE,
+                    PRESET_UNIFORM_COVERAGE,
+                    PRESET_DENSE_UNIFORM_COVERAGE
             );
-            shakingSitesSelector.setValue("Major cities");
+            shakingSitesSelector.setValue(selectedSitesPreset != null ? selectedSitesPreset : PRESET_MAJOR_CITIES_STATEWIDE);
             shakingSitesSelector.setMaxWidth(Double.MAX_VALUE);
             shakingSitesSelector.getStyleClass().add("event-selector");
+            shakingSitesSelector.setOnAction(e -> {
+                if (!isImportingPreset && shakingSitesSelector.getValue() != null) {
+                    importPreset(shakingSitesSelector.getValue());
+                }
+            });
 
             content.getChildren().addAll(label, shakingSitesSelector);
 

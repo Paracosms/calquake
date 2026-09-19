@@ -1,0 +1,476 @@
+[
+  {
+    "id": "grid-r01-c09",
+    "display_name": "",
+    "latitude": 33.11369,
+    "longitude": -117.002322
+  },
+  {
+    "id": "grid-r01-c10",
+    "display_name": "",
+    "latitude": 33.089429,
+    "longitude": -116.200141
+  },
+  {
+    "id": "grid-r01-c11",
+    "display_name": "",
+    "latitude": 33.059446,
+    "longitude": -115.398505
+  },
+  {
+    "id": "grid-r01-c12",
+    "display_name": "",
+    "latitude": 33.023748,
+    "longitude": -114.597526
+  },
+  {
+    "id": "grid-r02-c08",
+    "display_name": "",
+    "latitude": 33.808615,
+    "longitude": -117.786183
+  },
+  {
+    "id": "grid-r02-c09",
+    "display_name": "",
+    "latitude": 33.789939,
+    "longitude": -116.976726
+  },
+  {
+    "id": "grid-r02-c10",
+    "display_name": "",
+    "latitude": 33.765492,
+    "longitude": -116.167709
+  },
+  {
+    "id": "grid-r02-c11",
+    "display_name": "",
+    "latitude": 33.735279,
+    "longitude": -115.35925
+  },
+  {
+    "id": "grid-r02-c12",
+    "display_name": "",
+    "latitude": 33.699307,
+    "longitude": -114.551466
+  },
+  {
+    "id": "grid-r03-c05",
+    "display_name": "",
+    "latitude": 34.506019,
+    "longitude": -120.217883
+  },
+  {
+    "id": "grid-r03-c06",
+    "display_name": "",
+    "latitude": 34.504661,
+    "longitude": -119.40083
+  },
+  {
+    "id": "grid-r03-c07",
+    "display_name": "",
+    "latitude": 34.497478,
+    "longitude": -118.583865
+  },
+  {
+    "id": "grid-r03-c08",
+    "display_name": "",
+    "latitude": 34.484473,
+    "longitude": -117.767112
+  },
+  {
+    "id": "grid-r03-c09",
+    "display_name": "",
+    "latitude": 34.465649,
+    "longitude": -116.950689
+  },
+  {
+    "id": "grid-r03-c10",
+    "display_name": "",
+    "latitude": 34.44101,
+    "longitude": -116.134719
+  },
+  {
+    "id": "grid-r03-c11",
+    "display_name": "",
+    "latitude": 34.41056,
+    "longitude": -115.319321
+  },
+  {
+    "id": "grid-r03-c12",
+    "display_name": "",
+    "latitude": 34.374306,
+    "longitude": -114.504615
+  },
+  {
+    "id": "grid-r04-c05",
+    "display_name": "",
+    "latitude": 35.181602,
+    "longitude": -120.219777
+  },
+  {
+    "id": "grid-r04-c06",
+    "display_name": "",
+    "latitude": 35.180232,
+    "longitude": -119.395621
+  },
+  {
+    "id": "grid-r04-c07",
+    "display_name": "",
+    "latitude": 35.172991,
+    "longitude": -118.571557
+  },
+  {
+    "id": "grid-r04-c08",
+    "display_name": "",
+    "latitude": 35.159882,
+    "longitude": -117.747709
+  },
+  {
+    "id": "grid-r04-c09",
+    "display_name": "",
+    "latitude": 35.140906,
+    "longitude": -116.9242
+  },
+  {
+    "id": "grid-r04-c10",
+    "display_name": "",
+    "latitude": 35.116067,
+    "longitude": -116.101156
+  },
+  {
+    "id": "grid-r04-c11",
+    "display_name": "",
+    "latitude": 35.085372,
+    "longitude": -115.278699
+  },
+  {
+    "id": "grid-r05-c04",
+    "display_name": "",
+    "latitude": 35.852287,
+    "longitude": -121.053052
+  },
+  {
+    "id": "grid-r05-c05",
+    "display_name": "",
+    "latitude": 35.856825,
+    "longitude": -120.221704
+  },
+  {
+    "id": "grid-r05-c06",
+    "display_name": "",
+    "latitude": 35.855444,
+    "longitude": -119.390321
+  },
+  {
+    "id": "grid-r05-c07",
+    "display_name": "",
+    "latitude": 35.848143,
+    "longitude": -118.559033
+  },
+  {
+    "id": "grid-r05-c08",
+    "display_name": "",
+    "latitude": 35.834925,
+    "longitude": -117.727965
+  },
+  {
+    "id": "grid-r05-c09",
+    "display_name": "",
+    "latitude": 35.815791,
+    "longitude": -116.897247
+  },
+  {
+    "id": "grid-r05-c10",
+    "display_name": "",
+    "latitude": 35.790747,
+    "longitude": -116.067005
+  },
+  {
+    "id": "grid-r06-c03",
+    "display_name": "",
+    "latitude": 36.516653,
+    "longitude": -121.900904
+  },
+  {
+    "id": "grid-r06-c04",
+    "display_name": "",
+    "latitude": 36.527199,
+    "longitude": -121.062368
+  },
+  {
+    "id": "grid-r06-c05",
+    "display_name": "",
+    "latitude": 36.531776,
+    "longitude": -120.223665
+  },
+  {
+    "id": "grid-r06-c06",
+    "display_name": "",
+    "latitude": 36.530383,
+    "longitude": -119.384928
+  },
+  {
+    "id": "grid-r06-c07",
+    "display_name": "",
+    "latitude": 36.52302,
+    "longitude": -118.546287
+  },
+  {
+    "id": "grid-r06-c08",
+    "display_name": "",
+    "latitude": 36.509689,
+    "longitude": -117.707873
+  },
+  {
+    "id": "grid-r06-c09",
+    "display_name": "",
+    "latitude": 36.490393,
+    "longitude": -116.869818
+  },
+  {
+    "id": "grid-r07-c03",
+    "display_name": "",
+    "latitude": 37.191288,
+    "longitude": -121.917866
+  },
+  {
+    "id": "grid-r07-c04",
+    "display_name": "",
+    "latitude": 37.201926,
+    "longitude": -121.071849
+  },
+  {
+    "id": "grid-r07-c05",
+    "display_name": "",
+    "latitude": 37.206543,
+    "longitude": -120.225662
+  },
+  {
+    "id": "grid-r07-c06",
+    "display_name": "",
+    "latitude": 37.205137,
+    "longitude": -119.379438
+  },
+  {
+    "id": "grid-r07-c07",
+    "display_name": "",
+    "latitude": 37.197711,
+    "longitude": -118.533313
+  },
+  {
+    "id": "grid-r07-c08",
+    "display_name": "",
+    "latitude": 37.184264,
+    "longitude": -117.687422
+  },
+  {
+    "id": "grid-r08-c03",
+    "display_name": "",
+    "latitude": 37.865826,
+    "longitude": -121.935134
+  },
+  {
+    "id": "grid-r08-c04",
+    "display_name": "",
+    "latitude": 37.876559,
+    "longitude": -121.081502
+  },
+  {
+    "id": "grid-r08-c05",
+    "display_name": "",
+    "latitude": 37.881217,
+    "longitude": -120.227694
+  },
+  {
+    "id": "grid-r08-c06",
+    "display_name": "",
+    "latitude": 37.879799,
+    "longitude": -119.373849
+  },
+  {
+    "id": "grid-r08-c07",
+    "display_name": "",
+    "latitude": 37.872306,
+    "longitude": -118.520106
+  },
+  {
+    "id": "grid-r09-c02",
+    "display_name": "",
+    "latitude": 38.523402,
+    "longitude": -122.813779
+  },
+  {
+    "id": "grid-r09-c03",
+    "display_name": "",
+    "latitude": 38.54036,
+    "longitude": -121.952715
+  },
+  {
+    "id": "grid-r09-c04",
+    "display_name": "",
+    "latitude": 38.551192,
+    "longitude": -121.091329
+  },
+  {
+    "id": "grid-r09-c05",
+    "display_name": "",
+    "latitude": 38.555892,
+    "longitude": -120.229763
+  },
+  {
+    "id": "grid-r09-c06",
+    "display_name": "",
+    "latitude": 38.554462,
+    "longitude": -119.368159
+  },
+  {
+    "id": "grid-r10-c01",
+    "display_name": "",
+    "latitude": 39.174571,
+    "longitude": -123.708043
+  },
+  {
+    "id": "grid-r10-c02",
+    "display_name": "",
+    "latitude": 39.197869,
+    "longitude": -122.839569
+  },
+  {
+    "id": "grid-r10-c03",
+    "display_name": "",
+    "latitude": 39.214987,
+    "longitude": -121.970619
+  },
+  {
+    "id": "grid-r10-c04",
+    "display_name": "",
+    "latitude": 39.22592,
+    "longitude": -121.101337
+  },
+  {
+    "id": "grid-r10-c05",
+    "display_name": "",
+    "latitude": 39.230665,
+    "longitude": -120.23187
+  },
+  {
+    "id": "grid-r11-c01",
+    "display_name": "",
+    "latitude": 39.849001,
+    "longitude": -123.74233
+  },
+  {
+    "id": "grid-r11-c02",
+    "display_name": "",
+    "latitude": 39.872523,
+    "longitude": -122.865837
+  },
+  {
+    "id": "grid-r11-c03",
+    "display_name": "",
+    "latitude": 39.889805,
+    "longitude": -121.988854
+  },
+  {
+    "id": "grid-r11-c04",
+    "display_name": "",
+    "latitude": 39.900843,
+    "longitude": -121.111531
+  },
+  {
+    "id": "grid-r11-c05",
+    "display_name": "",
+    "latitude": 39.905634,
+    "longitude": -120.234017
+  },
+  {
+    "id": "grid-r12-c01",
+    "display_name": "",
+    "latitude": 40.52371,
+    "longitude": -123.777256
+  },
+  {
+    "id": "grid-r12-c02",
+    "display_name": "",
+    "latitude": 40.547464,
+    "longitude": -122.892595
+  },
+  {
+    "id": "grid-r12-c03",
+    "display_name": "",
+    "latitude": 40.564917,
+    "longitude": -122.00743
+  },
+  {
+    "id": "grid-r12-c04",
+    "display_name": "",
+    "latitude": 40.576064,
+    "longitude": -121.121914
+  },
+  {
+    "id": "grid-r12-c05",
+    "display_name": "",
+    "latitude": 40.580902,
+    "longitude": -120.236203
+  },
+  {
+    "id": "grid-r13-c01",
+    "display_name": "",
+    "latitude": 41.198805,
+    "longitude": -123.81284
+  },
+  {
+    "id": "grid-r13-c02",
+    "display_name": "",
+    "latitude": 41.222798,
+    "longitude": -122.919857
+  },
+  {
+    "id": "grid-r13-c03",
+    "display_name": "",
+    "latitude": 41.240427,
+    "longitude": -122.026356
+  },
+  {
+    "id": "grid-r13-c04",
+    "display_name": "",
+    "latitude": 41.251687,
+    "longitude": -121.132494
+  },
+  {
+    "id": "grid-r13-c05",
+    "display_name": "",
+    "latitude": 41.256574,
+    "longitude": -120.238431
+  },
+  {
+    "id": "grid-r14-c01",
+    "display_name": "",
+    "latitude": 41.874393,
+    "longitude": -123.849101
+  },
+  {
+    "id": "grid-r14-c02",
+    "display_name": "",
+    "latitude": 41.898635,
+    "longitude": -122.947638
+  },
+  {
+    "id": "grid-r14-c03",
+    "display_name": "",
+    "latitude": 41.916446,
+    "longitude": -122.045642
+  },
+  {
+    "id": "grid-r14-c04",
+    "display_name": "",
+    "latitude": 41.927823,
+    "longitude": -121.143275
+  },
+  {
+    "id": "grid-r14-c05",
+    "display_name": "",
+    "latitude": 41.93276,
+    "longitude": -120.240701
+  }
+]

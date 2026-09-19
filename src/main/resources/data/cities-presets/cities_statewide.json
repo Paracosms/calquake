@@ -1,0 +1,350 @@
+[
+  {
+    "id": "tulelake",
+    "display_name": "Tulelake",
+    "latitude": 41.95599,
+    "longitude": -121.47749
+  },
+  {
+    "id": "crescent-city",
+    "display_name": "Crescent City",
+    "latitude": 41.7558,
+    "longitude": -124.2026
+  },
+  {
+    "id": "yreka",
+    "display_name": "Yreka",
+    "latitude": 41.7354,
+    "longitude": -122.6345
+  },
+  {
+    "id": "alturas",
+    "display_name": "Alturas",
+    "latitude": 41.4871,
+    "longitude": -120.5425
+  },
+  {
+    "id": "burney",
+    "display_name": "Burney",
+    "latitude": 40.8824,
+    "longitude": -121.6608
+  },
+  {
+    "id": "eureka",
+    "display_name": "Eureka",
+    "latitude": 40.8021,
+    "longitude": -124.1637
+  },
+  {
+    "id": "weaverville",
+    "display_name": "Weaverville",
+    "latitude": 40.7309,
+    "longitude": -122.9419
+  },
+  {
+    "id": "redding",
+    "display_name": "Redding",
+    "latitude": 40.5865,
+    "longitude": -122.3917
+  },
+  {
+    "id": "susanville",
+    "display_name": "Susanville",
+    "latitude": 40.4163,
+    "longitude": -120.653
+  },
+  {
+    "id": "garberville",
+    "display_name": "Garberville",
+    "latitude": 40.10014,
+    "longitude": -123.79503
+  },
+  {
+    "id": "chico",
+    "display_name": "Chico",
+    "latitude": 39.7285,
+    "longitude": -121.8375
+  },
+  {
+    "id": "fort-bragg",
+    "display_name": "Fort Bragg",
+    "latitude": 39.4457,
+    "longitude": -123.8053
+  },
+  {
+    "id": "truckee",
+    "display_name": "Truckee",
+    "latitude": 39.328,
+    "longitude": -120.1833
+  },
+  {
+    "id": "grass-valley",
+    "display_name": "Grass Valley",
+    "latitude": 39.219215,
+    "longitude": -121.058414
+  },
+  {
+    "id": "ukiah",
+    "display_name": "Ukiah",
+    "latitude": 39.1502,
+    "longitude": -123.2078
+  },
+  {
+    "id": "south-lake-tahoe",
+    "display_name": "South Lake Tahoe",
+    "latitude": 38.9399,
+    "longitude": -119.9772
+  },
+  {
+    "id": "sacramento",
+    "display_name": "Sacramento",
+    "latitude": 38.5816,
+    "longitude": -121.4944
+  },
+  {
+    "id": "santa-rosa",
+    "display_name": "Santa Rosa",
+    "latitude": 38.4405,
+    "longitude": -122.7144
+  },
+  {
+    "id": "bridgeport",
+    "display_name": "Bridgeport",
+    "latitude": 38.2557,
+    "longitude": -119.2313
+  },
+  {
+    "id": "sonora",
+    "display_name": "Sonora",
+    "latitude": 37.98483,
+    "longitude": -120.383
+  },
+  {
+    "id": "concord",
+    "display_name": "Concord",
+    "latitude": 37.97806,
+    "longitude": -122.03111
+  },
+  {
+    "id": "stockton",
+    "display_name": "Stockton",
+    "latitude": 37.9577,
+    "longitude": -121.2908
+  },
+  {
+    "id": "san-francisco",
+    "display_name": "San Francisco",
+    "latitude": 37.7749,
+    "longitude": -122.4194
+  },
+  {
+    "id": "mammoth-lakes",
+    "display_name": "Mammoth Lakes",
+    "latitude": 37.6485,
+    "longitude": -118.9721
+  },
+  {
+    "id": "modesto",
+    "display_name": "Modesto",
+    "latitude": 37.6391,
+    "longitude": -120.9969
+  },
+  {
+    "id": "bishop",
+    "display_name": "Bishop",
+    "latitude": 37.361423,
+    "longitude": -118.399666
+  },
+  {
+    "id": "san-jose",
+    "display_name": "San Jose",
+    "latitude": 37.3382,
+    "longitude": -121.8863
+  },
+  {
+    "id": "oakhurst",
+    "display_name": "Oakhurst",
+    "latitude": 37.3311,
+    "longitude": -119.6558
+  },
+  {
+    "id": "merced",
+    "display_name": "Merced",
+    "latitude": 37.3022,
+    "longitude": -120.4829
+  },
+  {
+    "id": "santa-cruz",
+    "display_name": "Santa Cruz",
+    "latitude": 36.9741,
+    "longitude": -122.0308
+  },
+  {
+    "id": "fresno",
+    "display_name": "Fresno",
+    "latitude": 36.737797,
+    "longitude": -119.787125
+  },
+  {
+    "id": "lone-pine",
+    "display_name": "Lone Pine",
+    "latitude": 36.606044,
+    "longitude": -118.062865
+  },
+  {
+    "id": "monterey",
+    "display_name": "Monterey",
+    "latitude": 36.6002,
+    "longitude": -121.8947
+  },
+  {
+    "id": "furnace-creek",
+    "display_name": "Furnace Creek",
+    "latitude": 36.4561,
+    "longitude": -116.8656
+  },
+  {
+    "id": "visalia",
+    "display_name": "Visalia",
+    "latitude": 36.330228,
+    "longitude": -119.292058
+  },
+  {
+    "id": "king-city",
+    "display_name": "King City",
+    "latitude": 36.2125,
+    "longitude": -121.127
+  },
+  {
+    "id": "porterville",
+    "display_name": "Porterville",
+    "latitude": 36.06523,
+    "longitude": -119.01677
+  },
+  {
+    "id": "ridgecrest",
+    "display_name": "Ridgecrest",
+    "latitude": 35.622456,
+    "longitude": -117.670898
+  },
+  {
+    "id": "bakersfield",
+    "display_name": "Bakersfield",
+    "latitude": 35.373292,
+    "longitude": -119.018713
+  },
+  {
+    "id": "san-luis-obispo",
+    "display_name": "San Luis Obispo",
+    "latitude": 35.282752,
+    "longitude": -120.659616
+  },
+  {
+    "id": "baker",
+    "display_name": "Baker",
+    "latitude": 35.265,
+    "longitude": -116.0749
+  },
+  {
+    "id": "tehachapi",
+    "display_name": "Tehachapi",
+    "latitude": 35.132187,
+    "longitude": -118.448974
+  },
+  {
+    "id": "santa-maria",
+    "display_name": "Santa Maria",
+    "latitude": 34.953033,
+    "longitude": -120.435719
+  },
+  {
+    "id": "barstow",
+    "display_name": "Barstow",
+    "latitude": 34.895795,
+    "longitude": -117.017282
+  },
+  {
+    "id": "needles",
+    "display_name": "Needles",
+    "latitude": 34.84806,
+    "longitude": -114.61413
+  },
+  {
+    "id": "lancaster",
+    "display_name": "Lancaster",
+    "latitude": 34.686785,
+    "longitude": -118.154163
+  },
+  {
+    "id": "victorville",
+    "display_name": "Victorville",
+    "latitude": 34.536106,
+    "longitude": -117.291157
+  },
+  {
+    "id": "santa-barbara",
+    "display_name": "Santa Barbara",
+    "latitude": 34.420831,
+    "longitude": -119.69819
+  },
+  {
+    "id": "oxnard",
+    "display_name": "Oxnard",
+    "latitude": 34.197505,
+    "longitude": -119.177052
+  },
+  {
+    "id": "twentynine-palms",
+    "display_name": "Twentynine Palms",
+    "latitude": 34.135559,
+    "longitude": -116.054169
+  },
+  {
+    "id": "los-angeles",
+    "display_name": "Los Angeles",
+    "latitude": 34.052235,
+    "longitude": -118.243683
+  },
+  {
+    "id": "riverside",
+    "display_name": "Riverside",
+    "latitude": 33.980601,
+    "longitude": -117.375494
+  },
+  {
+    "id": "palm-springs",
+    "display_name": "Palm Springs",
+    "latitude": 33.830296,
+    "longitude": -116.545292
+  },
+  {
+    "id": "blythe",
+    "display_name": "Blythe",
+    "latitude": 33.6103,
+    "longitude": -114.59635
+  },
+  {
+    "id": "julian",
+    "display_name": "Julian",
+    "latitude": 33.0787,
+    "longitude": -116.601
+  },
+  {
+    "id": "el-centro",
+    "display_name": "El Centro",
+    "latitude": 32.792,
+    "longitude": -115.563051
+  },
+  {
+    "id": "san-diego",
+    "display_name": "San Diego",
+    "latitude": 32.715736,
+    "longitude": -117.161087
+  },
+  {
+  "id": "coalinga",
+  "display_name": "Coalinga",
+  "latitude": 36.1397,
+  "longitude": -120.3601
+}
+]
