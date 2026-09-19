@@ -182,7 +182,9 @@ public class CalQuakeApp extends Application {
     private Menu exportMenu;
     private MenuItem exportSimulationMenuItem;
     private MenuItem exportSimulationWithCitiesMenuItem;
+    private MenuItem exportSimulationWithSitesMenuItem;
     private MenuItem exportCitiesMenuItem;
+    private MenuItem exportSitesMenuItem;
     private Menu calQuakeMenu;
     private Menu modeMenu;
     private ToggleGroup modeToggleGroup;
@@ -559,23 +561,24 @@ public class CalQuakeApp extends Application {
         fullScreenMenuItem.setOnAction(e -> setFullScreen(fullScreenMenuItem.isSelected()));
 
         this.importMenuItem = new MenuItem("Import");
-        // Import currently does nothing per user specification
-        importMenuItem.setOnAction(e -> {});
+        importMenuItem.setOnAction(e -> handleImportFile());
 
         this.exportMenu = new Menu("Export");
         this.exportSimulationMenuItem = new MenuItem("Export Simulation");
         exportSimulationMenuItem.setOnAction(e -> handleExportSimulation(false));
 
-        this.exportSimulationWithCitiesMenuItem = new MenuItem("Export Simulation With Cities");
-        exportSimulationWithCitiesMenuItem.setOnAction(e -> handleExportSimulation(true));
+        this.exportSimulationWithSitesMenuItem = new MenuItem("Export Simulation With Sites");
+        exportSimulationWithSitesMenuItem.setOnAction(e -> handleExportSimulation(true));
+        this.exportSimulationWithCitiesMenuItem = exportSimulationWithSitesMenuItem;
 
-        this.exportCitiesMenuItem = new MenuItem("Export Cities");
-        exportCitiesMenuItem.setOnAction(e -> handleSaveCities());
+        this.exportSitesMenuItem = new MenuItem("Export Sites");
+        exportSitesMenuItem.setOnAction(e -> handleSaveSites());
+        this.exportCitiesMenuItem = exportSitesMenuItem;
 
         exportMenu.getItems().addAll(
                 exportSimulationMenuItem,
-                exportSimulationWithCitiesMenuItem,
-                exportCitiesMenuItem
+                exportSimulationWithSitesMenuItem,
+                exportSitesMenuItem
         );
 
         fileMenu.getItems().addAll(settingsMenuItem, fullScreenMenuItem, importMenuItem, exportMenu);
@@ -649,16 +652,10 @@ public class CalQuakeApp extends Application {
         // Section 3: Rupture Details
         VBox assumptionsBox = buildFixedAssumptionsBox();
 
-        // Section 4: Simulation File
-        this.simulationFileBox = buildSimulationFileBox();
-
-        // Section 5: Cities File
-        this.citiesFileBox = buildCitiesFileBox();
-
-        // Section 6: MMI Legend
+        // Section 4: MMI Legend
         VBox legendBox = buildLegendBox(true);
 
-        sidebar.getChildren().addAll(controlsBox, simWarningBanner, settingsBox, assumptionsBox, simulationFileBox, citiesFileBox, legendBox);
+        sidebar.getChildren().addAll(controlsBox, simWarningBanner, settingsBox, assumptionsBox, legendBox);
         return sidebar;
     }
 
@@ -1703,18 +1700,18 @@ public class CalQuakeApp extends Application {
                 scenarioId, name, createdUtc, new GeoPoint(lat, lon), mag, depth, displayMode, assumptionSetId);
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle(includeCities ? "Export Simulation With Cities" : "Export Simulation File");
+        fileChooser.setTitle(includeCities ? "Export Simulation With Sites" : "Export Simulation File");
         fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
                 new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
         );
-        fileChooser.setInitialFileName(includeCities ? "earthquake_with_cities.json" : "earthquake.json");
+        fileChooser.setInitialFileName(includeCities ? "earthquake_with_sites.json" : "earthquake.json");
 
         Stage stage = lifecycleStage;
-        if (stage == null && saveButton != null && saveButton.getScene() != null) {
-            stage = (Stage) saveButton.getScene().getWindow();
-        } else if (stage == null && menuBar != null && menuBar.getScene() != null) {
+        if (stage == null && menuBar != null && menuBar.getScene() != null) {
             stage = (Stage) menuBar.getScene().getWindow();
+        } else if (stage == null && saveButton != null && saveButton.getScene() != null) {
+            stage = (Stage) saveButton.getScene().getWindow();
         }
         File selected = fileChooser.showSaveDialog(stage);
         if (selected != null) {
@@ -1751,34 +1748,43 @@ public class CalQuakeApp extends Application {
         }
     }
 
-    void handleImportScenario() {
+    void handleImportFile() {
         ReplayController ctrl = getController();
         if (ctrl != null && ctrl.isPlaying()) {
             return;
         }
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Import Simulation File");
+        fileChooser.setTitle("Import File");
         fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
                 new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
         );
 
         Stage stage = lifecycleStage;
-        if (stage == null && importButton != null && importButton.getScene() != null) {
+        if (stage == null && menuBar != null && menuBar.getScene() != null) {
+            stage = (Stage) menuBar.getScene().getWindow();
+        } else if (stage == null && importButton != null && importButton.getScene() != null) {
             stage = (Stage) importButton.getScene().getWindow();
         }
         File selected = fileChooser.showOpenDialog(stage);
         if (selected != null) {
-            importScenarioFromFile(selected.toPath());
+            importFile(selected.toPath());
         }
     }
 
-    public boolean importScenarioFromFile(Path path) {
+    public boolean importFile(Path path) {
         if (path == null) return false;
-        SimulationScenarioSerializer.LoadedScenario loaded;
         try {
-            loaded = SimulationScenarioSerializer.readPackageFromFile(path);
+            SimulationScenarioSerializer.ImportedPackage pkg = SimulationScenarioSerializer.readAnyFromFile(path);
+            if (pkg instanceof SimulationScenarioSerializer.ImportedScenario importedScenario) {
+                SimulationScenarioSerializer.LoadedScenario loaded = importedScenario.scenario();
+                return applyImportedScenario(loaded.settings(), loaded.hasCities() ? loaded.cities() : null);
+            } else if (pkg instanceof SimulationScenarioSerializer.ImportedSiteCatalog importedSites) {
+                return applyImportedCities(importedSites.sites());
+            } else {
+                throw new IllegalStateException("Unknown package type: " + pkg);
+            }
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             if (simSettingsStatusLabel != null) {
@@ -1790,7 +1796,14 @@ public class CalQuakeApp extends Application {
             }
             return false;
         }
-        return applyImportedScenario(loaded.settings(), loaded.hasCities() ? loaded.cities() : null);
+    }
+
+    void handleImportScenario() {
+        handleImportFile();
+    }
+
+    public boolean importScenarioFromFile(Path path) {
+        return importFile(path);
     }
 
     public boolean applyImportedScenario(SimulationScenarioSettings imported) {
@@ -1836,7 +1849,7 @@ public class CalQuakeApp extends Application {
         if (simSettingsStatusLabel != null) {
             simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
             if (importedSites != null && !importedSites.isEmpty()) {
-                simSettingsStatusLabel.setText("Imported " + imported.displayName() + " with " + importedSites.size() + " cities. Preparing scenario...");
+                simSettingsStatusLabel.setText("Imported " + imported.displayName() + " with " + importedSites.size() + " sites. Preparing scenario...");
             } else {
                 simSettingsStatusLabel.setText("Imported " + imported.displayName() + ". Preparing scenario...");
             }
@@ -1844,6 +1857,10 @@ public class CalQuakeApp extends Application {
 
         requestSimulationPreparation(imported, result.warnings());
         return true;
+    }
+
+    void handleSaveSites() {
+        handleSaveCities();
     }
 
     void handleSaveCities() {
@@ -1856,18 +1873,18 @@ public class CalQuakeApp extends Application {
                 ? simulationSiteCatalog.sites() : SimulationSiteCatalog.loadDefault().sites();
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Save Simulation Cities");
+        fileChooser.setTitle("Export Sites");
         fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
                 new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
         );
-        fileChooser.setInitialFileName("cities.json");
+        fileChooser.setInitialFileName("sites.json");
 
         Stage stage = lifecycleStage;
-        if (stage == null && saveCitiesButton != null && saveCitiesButton.getScene() != null) {
-            stage = (Stage) saveCitiesButton.getScene().getWindow();
-        } else if (stage == null && menuBar != null && menuBar.getScene() != null) {
+        if (stage == null && menuBar != null && menuBar.getScene() != null) {
             stage = (Stage) menuBar.getScene().getWindow();
+        } else if (stage == null && saveCitiesButton != null && saveCitiesButton.getScene() != null) {
+            stage = (Stage) saveCitiesButton.getScene().getWindow();
         }
         File selected = fileChooser.showSaveDialog(stage);
         if (selected != null) {
@@ -1880,62 +1897,28 @@ public class CalQuakeApp extends Application {
             SimulationSiteSerializer.writeToFile(sites, targetFile);
             if (simSettingsStatusLabel != null) {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #166534;");
-                simSettingsStatusLabel.setText("Saved cities: " + targetFile.getFileName().toString());
+                simSettingsStatusLabel.setText("Saved sites: " + targetFile.getFileName().toString());
             }
             if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Saved cities " + targetFile.getFileName().toString());
+                statusReplayLabel.setText("Simulation: Saved sites " + targetFile.getFileName().toString());
             }
         } catch (Exception e) {
             if (simSettingsStatusLabel != null) {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
-                simSettingsStatusLabel.setText("Save cities failed: " + e.getMessage());
+                simSettingsStatusLabel.setText("Save sites failed: " + e.getMessage());
             }
             if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Save cities failed");
+                statusReplayLabel.setText("Simulation: Save sites failed");
             }
         }
     }
 
     void handleImportCities() {
-        ReplayController ctrl = getController();
-        if (ctrl != null && ctrl.isPlaying()) {
-            return;
-        }
-
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Import Simulation Cities");
-        fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
-                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
-        );
-
-        Stage stage = lifecycleStage;
-        if (stage == null && importCitiesButton != null && importCitiesButton.getScene() != null) {
-            stage = (Stage) importCitiesButton.getScene().getWindow();
-        }
-        File selected = fileChooser.showOpenDialog(stage);
-        if (selected != null) {
-            importCitiesFromFile(selected.toPath());
-        }
+        handleImportFile();
     }
 
     public boolean importCitiesFromFile(Path path) {
-        if (path == null) return false;
-        List<SimulationSite> imported;
-        try {
-            imported = SimulationSiteSerializer.readFromFile(path);
-        } catch (Exception e) {
-            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            if (simSettingsStatusLabel != null) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
-                simSettingsStatusLabel.setText("Import cities failed: " + message);
-            }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Import cities failed");
-            }
-            return false;
-        }
-        return applyImportedCities(imported);
+        return importFile(path);
     }
 
     public boolean applyImportedCities(List<SimulationSite> importedSites) {
@@ -2215,8 +2198,8 @@ public class CalQuakeApp extends Application {
             if (saveCitiesButton != null) saveCitiesButton.setDisable(isPlaying || preparingReplay);
             if (importCitiesButton != null) importCitiesButton.setDisable(isPlaying || preparingReplay);
             if (exportSimulationMenuItem != null) exportSimulationMenuItem.setDisable(isPlaying || preparingReplay);
-            if (exportSimulationWithCitiesMenuItem != null) exportSimulationWithCitiesMenuItem.setDisable(isPlaying || preparingReplay);
-            if (exportCitiesMenuItem != null) exportCitiesMenuItem.setDisable(isPlaying || preparingReplay);
+            if (exportSimulationWithSitesMenuItem != null) exportSimulationWithSitesMenuItem.setDisable(isPlaying || preparingReplay);
+            if (exportSitesMenuItem != null) exportSitesMenuItem.setDisable(isPlaying || preparingReplay);
         } else {
             if (saveButton != null) saveButton.setDisable(true);
             if (importButton != null) importButton.setDisable(true);
@@ -2224,9 +2207,12 @@ public class CalQuakeApp extends Application {
             if (saveCitiesButton != null) saveCitiesButton.setDisable(true);
             if (importCitiesButton != null) importCitiesButton.setDisable(true);
             if (exportSimulationMenuItem != null) exportSimulationMenuItem.setDisable(true);
-            if (exportSimulationWithCitiesMenuItem != null) exportSimulationWithCitiesMenuItem.setDisable(true);
-            if (exportCitiesMenuItem != null) exportCitiesMenuItem.setDisable(true);
+            if (exportSimulationWithSitesMenuItem != null) exportSimulationWithSitesMenuItem.setDisable(true);
+            if (exportSitesMenuItem != null) exportSitesMenuItem.setDisable(true);
         }
+
+        boolean activePlaying = ctrl.isPlaying();
+        if (importMenuItem != null) importMenuItem.setDisable(activePlaying || preparingReplay);
 
         if (preparingReplay) {
             if (activePlayBtn != null) activePlayBtn.setDisable(true);
@@ -2572,8 +2558,16 @@ public class CalQuakeApp extends Application {
         return exportSimulationWithCitiesMenuItem;
     }
 
+    public MenuItem getExportSimulationWithSitesMenuItem() {
+        return exportSimulationWithSitesMenuItem;
+    }
+
     public MenuItem getExportCitiesMenuItem() {
         return exportCitiesMenuItem;
+    }
+
+    public MenuItem getExportSitesMenuItem() {
+        return exportSitesMenuItem;
     }
 
     public Stage getSettingsStage() {

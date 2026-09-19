@@ -47,6 +47,25 @@ public final class SimulationScenarioSerializer {
         }
     }
 
+    public sealed interface ImportedPackage permits ImportedScenario, ImportedSiteCatalog {
+    }
+
+    public record ImportedScenario(LoadedScenario scenario) implements ImportedPackage {
+        public ImportedScenario {
+            Objects.requireNonNull(scenario, "scenario cannot be null");
+        }
+    }
+
+    public record ImportedSiteCatalog(List<SimulationSite> sites) implements ImportedPackage {
+        public ImportedSiteCatalog {
+            Objects.requireNonNull(sites, "sites cannot be null");
+            if (sites.isEmpty()) {
+                throw new IllegalArgumentException("Sites catalog cannot be empty");
+            }
+            sites = List.copyOf(sites);
+        }
+    }
+
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     private SimulationScenarioSerializer() {}
@@ -227,7 +246,7 @@ public final class SimulationScenarioSerializer {
             throw new IllegalArgumentException("Missing or blank required 'type' field");
         }
         String type = typeNode.asString().trim();
-        if (!SimulationScenarioDto.SCENARIO_TYPE.equals(type)) {
+        if (!SimulationScenarioDto.SCENARIO_TYPE.equalsIgnoreCase(type) && !"simulation_scenario".equalsIgnoreCase(type)) {
             throw new IllegalArgumentException("Unknown scenario type: '" + type
                     + "'. Expected '" + SimulationScenarioDto.SCENARIO_TYPE + "'");
         }
@@ -352,5 +371,70 @@ public final class SimulationScenarioSerializer {
                 assumptionSetId
         );
         return new LoadedScenario(settings, sites);
+    }
+
+    /**
+     * Reads and parses any supported CalQuake data package from a file (scenario or sites).
+     */
+    public static ImportedPackage readAnyFromFile(Path path) throws IOException {
+        Objects.requireNonNull(path, "path cannot be null");
+        try (InputStream stream = Files.newInputStream(path)) {
+            return fromAnyInputStream(stream);
+        }
+    }
+
+    /**
+     * Parses and validates any supported CalQuake data package from an InputStream.
+     */
+    public static ImportedPackage fromAnyInputStream(InputStream stream) {
+        Objects.requireNonNull(stream, "stream cannot be null");
+        try {
+            JsonNode root = JSON_MAPPER.readTree(stream);
+            return fromAnyJsonNode(root);
+        } catch (JacksonException e) {
+            throw new IllegalArgumentException("Malformed JSON: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Parses and validates any supported CalQuake data package from a JSON string.
+     */
+    public static ImportedPackage fromAnyJson(String json) {
+        Objects.requireNonNull(json, "json cannot be null");
+        if (json.isBlank()) {
+            throw new IllegalArgumentException("Imported JSON cannot be blank");
+        }
+        try {
+            JsonNode root = JSON_MAPPER.readTree(json);
+            return fromAnyJsonNode(root);
+        } catch (JacksonException e) {
+            throw new IllegalArgumentException("Malformed JSON: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Inspects and parses any supported CalQuake data package from a JSON node.
+     */
+    public static ImportedPackage fromAnyJsonNode(JsonNode root) {
+        Objects.requireNonNull(root, "root cannot be null");
+        if (root.isArray()) {
+            List<SimulationSite> sites = SimulationSiteSerializer.fromJsonNode(root);
+            return new ImportedSiteCatalog(sites);
+        }
+        if (root.isObject()) {
+            boolean isScenario = (root.has("type") && (SimulationScenarioDto.SCENARIO_TYPE.equalsIgnoreCase(root.get("type").asString())
+                    || "simulation_scenario".equalsIgnoreCase(root.get("type").asString())))
+                    || (root.has("schema_version") && root.has("epicenter"));
+            if (isScenario) {
+                LoadedScenario scenario = fromPackageJsonNode(root);
+                return new ImportedScenario(scenario);
+            }
+            if ((root.has("cities") && root.get("cities").isArray()) || (root.has("sites") && root.get("sites").isArray())) {
+                List<SimulationSite> sites = SimulationSiteSerializer.fromJsonNode(root);
+                return new ImportedSiteCatalog(sites);
+            }
+            throw new IllegalArgumentException("Unrecognized JSON format: Expected simulation scenario or sites catalog");
+        }
+        throw new IllegalArgumentException("Root JSON node must be an object or array");
     }
 }

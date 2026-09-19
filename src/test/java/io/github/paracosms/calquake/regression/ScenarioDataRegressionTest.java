@@ -4,10 +4,12 @@ import io.github.paracosms.calquake.core.EarthquakeEvent;
 import io.github.paracosms.calquake.core.GeoPoint;
 import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
 import io.github.paracosms.calquake.core.InputSignature;
+import io.github.paracosms.calquake.core.IntensityDisplayMode;
 import io.github.paracosms.calquake.core.MmiMode;
 import io.github.paracosms.calquake.core.ReferenceLocation;
 import io.github.paracosms.calquake.core.Scenario;
 import io.github.paracosms.calquake.core.ScenarioInputs;
+import io.github.paracosms.calquake.core.SimulationAssumptionSet;
 import io.github.paracosms.calquake.core.SimulationScenarioSettings;
 import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.data.ScenarioLoader;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -253,5 +256,106 @@ class ScenarioDataRegressionTest {
             assertEquals(orig.coordinates().latitude(), des.coordinates().latitude(), 1e-6);
             assertEquals(orig.coordinates().longitude(), des.coordinates().longitude(), 1e-6);
         }
+    }
+
+    @Test
+    void testUnifiedImportAnyFormat() throws IOException {
+        SimulationScenarioSettings scenarioSettings = new SimulationScenarioSettings(
+                "import-test-v1",
+                "Import Test Scenario",
+                Instant.parse("2025-01-01T00:00:00Z"),
+                new GeoPoint(35.5, -119.5),
+                7.2,
+                11.5,
+                IntensityDisplayMode.MAXIMUM_REACHED,
+                SimulationAssumptionSet.DEFAULT_ID
+        );
+        List<SimulationSite> testSites = List.of(
+                new SimulationSite("site-1", "Site One", new GeoPoint(35.0, -119.0)),
+                new SimulationSite("site-2", "Site Two", new GeoPoint(36.0, -120.0))
+        );
+
+        // 1. Scenario only (earthquake.json)
+        Path scenarioFile = Files.createTempFile("earthquake-", ".json");
+        try {
+            SimulationScenarioSerializer.writeToFile(scenarioSettings, scenarioFile);
+            SimulationScenarioSerializer.ImportedPackage pkg = SimulationScenarioSerializer.readAnyFromFile(scenarioFile);
+            assertInstanceOf(SimulationScenarioSerializer.ImportedScenario.class, pkg);
+            SimulationScenarioSerializer.ImportedScenario imported = (SimulationScenarioSerializer.ImportedScenario) pkg;
+            assertEquals(scenarioSettings, imported.scenario().settings());
+            assertFalse(imported.scenario().hasCities());
+        } finally {
+            Files.deleteIfExists(scenarioFile);
+        }
+
+        // 2. Scenario with cities (earthquake_with_cities.json)
+        Path scenarioWithCitiesFile = Files.createTempFile("earthquake_with_cities-", ".json");
+        try {
+            SimulationScenarioSerializer.writeToFile(scenarioSettings, testSites, scenarioWithCitiesFile);
+            SimulationScenarioSerializer.ImportedPackage pkg = SimulationScenarioSerializer.readAnyFromFile(scenarioWithCitiesFile);
+            assertInstanceOf(SimulationScenarioSerializer.ImportedScenario.class, pkg);
+            SimulationScenarioSerializer.ImportedScenario imported = (SimulationScenarioSerializer.ImportedScenario) pkg;
+            assertEquals(scenarioSettings, imported.scenario().settings());
+            assertTrue(imported.scenario().hasCities());
+            assertEquals(2, imported.scenario().cities().size());
+            assertEquals("site-1", imported.scenario().cities().get(0).id());
+        } finally {
+            Files.deleteIfExists(scenarioWithCitiesFile);
+        }
+
+        // 3. Scenario with "sites" key (earthquake_with_sites.json)
+        String scenarioWithSitesJson = """
+                {
+                  "schema_version": 1,
+                  "type": "simulation_scenario",
+                  "scenario_id": "import-sites-v1",
+                  "name": "Scenario with sites",
+                  "created_utc": "2025-01-01T00:00:00Z",
+                  "epicenter": { "latitude": 34.0, "longitude": -118.0 },
+                  "magnitude": 6.8,
+                  "depth_km": 10.0,
+                  "intensity_display_mode": "MAXIMUM_REACHED",
+                  "assumption_set": "calquake-custom-v2",
+                  "sites": [
+                    { "id": "s1", "display_name": "S1", "latitude": 34.1, "longitude": -118.1 }
+                  ]
+                }
+                """;
+        SimulationScenarioSerializer.ImportedPackage pkgSites = SimulationScenarioSerializer.fromAnyJson(scenarioWithSitesJson);
+        assertInstanceOf(SimulationScenarioSerializer.ImportedScenario.class, pkgSites);
+        SimulationScenarioSerializer.ImportedScenario importedSites = (SimulationScenarioSerializer.ImportedScenario) pkgSites;
+        assertTrue(importedSites.scenario().hasCities());
+        assertEquals(1, importedSites.scenario().cities().size());
+        assertEquals("s1", importedSites.scenario().cities().get(0).id());
+
+        // 4. Sites file as top-level array (cities.json or sites.json)
+        Path sitesFile = Files.createTempFile("cities-", ".json");
+        try {
+            SimulationSiteSerializer.writeToFile(testSites, sitesFile);
+            SimulationScenarioSerializer.ImportedPackage pkg = SimulationScenarioSerializer.readAnyFromFile(sitesFile);
+            assertInstanceOf(SimulationScenarioSerializer.ImportedSiteCatalog.class, pkg);
+            SimulationScenarioSerializer.ImportedSiteCatalog catalog = (SimulationScenarioSerializer.ImportedSiteCatalog) pkg;
+            assertEquals(2, catalog.sites().size());
+            assertEquals("site-1", catalog.sites().get(0).id());
+        } finally {
+            Files.deleteIfExists(sitesFile);
+        }
+
+        // 5. Sites wrapped in an object with "sites" or "cities"
+        String wrappedSitesJson = """
+                {
+                  "sites": [
+                    { "id": "w1", "display_name": "Wrapped Site", "latitude": 37.0, "longitude": -122.0 }
+                  ]
+                }
+                """;
+        SimulationScenarioSerializer.ImportedPackage pkgWrapped = SimulationScenarioSerializer.fromAnyJson(wrappedSitesJson);
+        assertInstanceOf(SimulationScenarioSerializer.ImportedSiteCatalog.class, pkgWrapped);
+        assertEquals("w1", ((SimulationScenarioSerializer.ImportedSiteCatalog) pkgWrapped).sites().get(0).id());
+
+        // 6. Malformed JSON & unknown schemas
+        assertThrows(IllegalArgumentException.class, () -> SimulationScenarioSerializer.fromAnyJson(""));
+        assertThrows(IllegalArgumentException.class, () -> SimulationScenarioSerializer.fromAnyJson("{ not json }"));
+        assertThrows(IllegalArgumentException.class, () -> SimulationScenarioSerializer.fromAnyJson("{\"unknown\": 123}"));
     }
 }
