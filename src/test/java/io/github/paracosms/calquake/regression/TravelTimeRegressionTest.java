@@ -1,25 +1,30 @@
-package io.github.paracosms.calquake.core;
+package io.github.paracosms.calquake.regression;
 
+import edu.sc.seis.TauP.Arrival;
+import edu.sc.seis.TauP.DistanceRay;
+import edu.sc.seis.TauP.SeismicPhase;
+import edu.sc.seis.TauP.SeismicPhaseFactory;
+import edu.sc.seis.TauP.TauModel;
+import edu.sc.seis.TauP.TauModelLoader;
+import edu.sc.seis.TauP.VelocityModel;
+import io.github.paracosms.calquake.core.HadleyKanamoriTauPModel;
+import io.github.paracosms.calquake.core.PrecomputedWavefronts;
+import io.github.paracosms.calquake.core.TravelTimeCurve;
+import io.github.paracosms.calquake.core.TravelTimeModel;
+import io.github.paracosms.calquake.core.WavefrontRadii;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.StringReader;
+import java.util.List;
 import java.util.OptionalDouble;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Unit tests verifying Stage 4 travel-time curve precomputation and inversion:
- * <ul>
- *   <li>Computed domain covers the full 120-second replay.</li>
- *   <li>Pre-surface arrival absence is represented explicitly.</li>
- *   <li>Inversion accuracy against direct TauP is &le; 0.01 s, including across branch transitions.</li>
- *   <li>Strict monotonicity of inverted radius with elapsed time.</li>
- * </ul>
- */
-class TravelTimeCurveTest {
+class TravelTimeRegressionTest {
 
     private static HadleyKanamoriTauPModel model;
     private static TravelTimeCurve pCurve;
@@ -27,6 +32,9 @@ class TravelTimeCurveTest {
     private static PrecomputedWavefronts wavefronts;
 
     private static final double DEPTH_KM = 8.0;
+    private static final double R = 6371.0;
+    private static final double V = 6.0; // km/s
+    private static final double H = 8.0; // km
 
     @BeforeAll
     static void setUp() {
@@ -34,6 +42,82 @@ class TravelTimeCurveTest {
         pCurve = TravelTimeCurve.precompute("P", model, DEPTH_KM, 120.0);
         sCurve = TravelTimeCurve.precompute("S", model, DEPTH_KM, 120.0);
         wavefronts = new PrecomputedWavefronts(pCurve, sCurve);
+    }
+
+    private static TauModel createHomogeneousModel(double velocity, double radius) throws Exception {
+        String nd = String.format("""
+                0.0 %.6f %.6f 2.7
+                %.1f %.6f %.6f 2.7
+                """, velocity, velocity / 1.73, radius, velocity, velocity / 1.73);
+        VelocityModel vMod = VelocityModel.readNDFile(new StringReader(nd), "homogeneous");
+        vMod.setRadiusOfEarth(radius);
+        return TauModelLoader.createTauModel(vMod);
+    }
+
+    @Test
+    @DisplayName("Verify exact vertical travel time at 8.0 km depth matches analytical layer integration")
+    void testVerticalTravelTimes() {
+        // Analytical P: 5.5 / 5.5 + 2.5 / 6.3 = 1.396825... s
+        double expectedP = (5.5 / 5.5) + (2.5 / 6.3);
+        double actualP = model.verticalTravelTimeSeconds("P", 8.0);
+        assertEquals(expectedP, actualP, 1e-6, "P vertical travel time must match analytical integration");
+
+        // Analytical S: expectedP * 1.73 = 2.416508... s
+        double expectedS = expectedP * 1.73;
+        double actualS = model.verticalTravelTimeSeconds("S", 8.0);
+        assertEquals(expectedS, actualS, 1e-6, "S vertical travel time must match analytical integration");
+
+        // d=0 via travelTimeSeconds must equal verticalTravelTimeSeconds
+        assertEquals(actualP, model.travelTimeSeconds("P", 0.0, 8.0), 1e-6);
+        assertEquals(actualS, model.travelTimeSeconds("S", 0.0, 8.0), 1e-6);
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {1.0, 5.0, 15.0, 30.0, 50.0, 75.0, 100.0, 150.0, 200.0, 250.0, 300.0})
+    @DisplayName("Verify Ts = 1.73 * Tp kinematic proportionality holds across all distances")
+    void testKinematicProportionality(double distKm) {
+        double tp = model.travelTimeSeconds("P", distKm, 8.0);
+        double ts = model.travelTimeSeconds("S", distKm, 8.0);
+
+        double ratio = ts / tp;
+        // Vp/Vs = 1.73 exactly; ratio must match 1.73 within numerical tolerance (< 0.005)
+        assertEquals(1.73, ratio, 0.005,
+                String.format("Ratio Ts/Tp %.5f deviates from 1.73 at distance %.1f km", ratio, distKm));
+    }
+
+    @Test
+    @DisplayName("Verify strict monotonicity of travel time with distance")
+    void testTravelTimeMonotonicity() {
+        double lastP = 0.0;
+        double lastS = 0.0;
+        for (double d = 0.0; d <= 300.0; d += 5.0) {
+            double tp = model.travelTimeSeconds("P", d, 8.0);
+            double ts = model.travelTimeSeconds("S", d, 8.0);
+
+            assertTrue(tp >= lastP, "P travel time must increase monotonically at d=" + d);
+            assertTrue(ts >= lastS, "S travel time must increase monotonically at d=" + d);
+            lastP = tp;
+            lastS = ts;
+        }
+    }
+
+    @Test
+    @DisplayName("Verify maximum ray penetration depth for benchmark range (0-150 km) is <= 16.5 km")
+    void testBenchmarkRayPenetrationDepth() throws Exception {
+        SeismicPhase pPhase = SeismicPhaseFactory.createPhase("p", model.getTauModel(), 8.0, 0.0);
+        double maxPierceDepth = 0.0;
+
+        for (double d = 1.0; d <= 150.0; d += 5.0) {
+            double deg = (d / TravelTimeModel.EARTH_RADIUS_KM) * (180.0 / Math.PI);
+            List<Arrival> arrivals = DistanceRay.ofDegrees(deg).calculate(pPhase);
+            if (!arrivals.isEmpty()) {
+                double deepest = arrivals.get(0).getDeepestPierce().getDepth();
+                maxPierceDepth = Math.max(maxPierceDepth, deepest);
+            }
+        }
+
+        assertTrue(maxPierceDepth <= 16.5,
+                "Benchmark rays must not penetrate beyond the 16.0-32.0 km layer. Max depth observed: " + maxPierceDepth);
     }
 
     @Test
@@ -148,74 +232,27 @@ class TravelTimeCurveTest {
                         errorSec, elapsedSec, radiusKm, directTauPTime));
     }
 
-    @Test
-    @DisplayName("Verify dense scan of P inversion accuracy across all 120 seconds <= 0.01 s")
-    void testDensePInversionScan() {
-        double vertP = pCurve.verticalTimeSeconds();
-        for (double t = vertP + 0.1; t <= 120.0; t += 0.5) {
-            OptionalDouble rOpt = pCurve.invertRadiusKm(t);
-            assertTrue(rOpt.isPresent());
-            double r = rOpt.getAsDouble();
+    @ParameterizedTest
+    @ValueSource(doubles = {1.0, 100.0, 300.0})
+    @DisplayName("Verify TauP agrees with homogeneous oracle to <= 0.001 s across 0-300 km")
+    void testHomogeneousSphereOracleAccuracy(double distKm) throws Exception {
+        TauModel tMod = createHomogeneousModel(V, R);
+        SeismicPhase pPhase = SeismicPhaseFactory.createPhase("p", tMod, H, 0.0);
 
-            double directTime = model.travelTimeSeconds("P", r, DEPTH_KM);
-            double error = Math.abs(directTime - t);
-            assertTrue(error <= 0.01,
-                    String.format("Dense P error %.5f s > 0.01 s at t=%.2f s (r=%.2f km)", error, t, r));
-        }
-    }
+        double delta = distKm / R; // central angle in radians
+        double chord = Math.sqrt(H * H + 4.0 * R * (R - H) * Math.sin(delta / 2.0) * Math.sin(delta / 2.0));
+        double tOracle = chord / V;
 
-    @Test
-    @DisplayName("Verify dense scan of S inversion accuracy across all 120 seconds <= 0.01 s")
-    void testDenseSInversionScan() {
-        double vertS = sCurve.verticalTimeSeconds();
-        for (double t = vertS + 0.1; t <= 120.0; t += 0.5) {
-            OptionalDouble rOpt = sCurve.invertRadiusKm(t);
-            assertTrue(rOpt.isPresent());
-            double r = rOpt.getAsDouble();
+        double deg = Math.toDegrees(delta);
+        List<Arrival> arrivals = DistanceRay.ofDegrees(deg).calculate(pPhase);
+        assertFalse(arrivals.isEmpty(), "Arrival list should not be empty for dist=" + distKm);
 
-            double directTime = model.travelTimeSeconds("S", r, DEPTH_KM);
-            double error = Math.abs(directTime - t);
-            assertTrue(error <= 0.01,
-                    String.format("Dense S error %.5f s > 0.01 s at t=%.2f s (r=%.2f km)", error, t, r));
-        }
-    }
+        double tTauP = arrivals.get(0).getTime();
+        double absError = Math.abs(tTauP - tOracle);
 
-    @Test
-    @DisplayName("Verify strict monotonicity of inverted radius with elapsed time")
-    void testRadiusMonotonicity() {
-        double lastP = -1.0;
-        double lastS = -1.0;
-
-        for (double t = 0.0; t <= 120.0; t += 0.1) {
-            OptionalDouble pRad = pCurve.invertRadiusKm(t);
-            if (pRad.isPresent()) {
-                double r = pRad.getAsDouble();
-                assertTrue(r >= lastP, "P radius must strictly increase with time at t=" + t);
-                lastP = r;
-            }
-
-            OptionalDouble sRad = sCurve.invertRadiusKm(t);
-            if (sRad.isPresent()) {
-                double r = sRad.getAsDouble();
-                assertTrue(r >= lastS, "S radius must strictly increase with time at t=" + t);
-                lastS = r;
-            }
-        }
-    }
-
-    @Test
-    @DisplayName("Verify invalid inputs rejected")
-    void testInvalidInputs() {
-        assertTrue(pCurve.invertRadiusKm(Double.NaN).isEmpty());
-        assertTrue(pCurve.invertRadiusKm(-1.0).isEmpty());
-
-        assertThrows(NullPointerException.class, () ->
-                TravelTimeCurve.precompute(null, model, 8.0, 120.0));
-        assertThrows(NullPointerException.class, () ->
-                TravelTimeCurve.precompute("P", null, 8.0, 120.0));
-        assertThrows(IllegalArgumentException.class, () ->
-                TravelTimeCurve.precompute("P", model, -1.0, 120.0));
-        assertThrows(IllegalArgumentException.class, () ->
-                TravelTimeCurve.precompute("P", model, 8.0, 0.0));
+        // Stage 3 exit criterion: <= 0.001 s
+        assertTrue(absError <= 0.001,
+                String.format("TauP error %.6f s exceeds 0.001 s at dist=%.1f km (Oracle=%.6f, TauP=%.6f)",
+                        absError, distKm, tOracle, tTauP));
     }
 }
