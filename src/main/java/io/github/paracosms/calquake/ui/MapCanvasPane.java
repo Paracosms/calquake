@@ -1332,12 +1332,17 @@ public class MapCanvasPane extends Pane {
                 double dy = my - sp.yPx();
                 if (dx * dx + dy * dy <= 256.0) { // 16px radius
                     LocationIntensityState locState = findSiteState(site.id());
-                    mapTooltip.setText(buildSiteTooltipText(site, locState));
-                    try {
-                        if (getScene() != null && getScene().getWindow() != null && !mapTooltip.isShowing()) {
-                            mapTooltip.show(this, e.getScreenX() + 12, e.getScreenY() + 12);
-                        }
-                    } catch (Exception ignored) {}
+                    String tooltipText = buildSiteTooltipText(site, locState);
+                    if (!tooltipText.isBlank()) {
+                        mapTooltip.setText(tooltipText);
+                        try {
+                            if (getScene() != null && getScene().getWindow() != null && !mapTooltip.isShowing()) {
+                                mapTooltip.show(this, e.getScreenX() + 12, e.getScreenY() + 12);
+                            }
+                        } catch (Exception ignored) {}
+                    } else {
+                        mapTooltip.hide();
+                    }
                     return;
                 }
             }
@@ -1479,12 +1484,18 @@ public class MapCanvasPane extends Pane {
     }
 
     private String buildSiteTooltipText(SimulationSite site, LocationIntensityState locState) {
-        StringBuilder sb = new StringBuilder(site.displayName());
+        StringBuilder sb = new StringBuilder();
+        if (site.displayName() != null && !site.displayName().isBlank()) {
+            sb.append(site.displayName().trim());
+        }
         if (locState != null) {
             String modePhrase = locState.displayMode() == IntensityDisplayMode.CURRENT_SHAKING
                     ? IntensityDisplayMode.CURRENT_SHAKING.label()
                     : IntensityDisplayMode.MAXIMUM_REACHED.label();
-            sb.append("\n").append(modePhrase).append(": ");
+            if (!sb.isEmpty()) {
+                sb.append("\n");
+            }
+            sb.append(modePhrase).append(": ");
             if (locState.status() == IntensityStatus.NOT_ARRIVED) {
                 sb.append("Not arrived");
             } else if (locState.status() == IntensityStatus.SHAKING_ENDED) {

@@ -29,9 +29,7 @@ public record ReferenceLocation(
 ) {
 
     public ReferenceLocation {
-        if (city == null || city.isBlank()) {
-            throw new IllegalArgumentException("City name cannot be null or blank");
-        }
+        city = city == null ? "" : city.trim();
         if (geoid == null || geoid.isBlank()) {
             throw new IllegalArgumentException("GEOID cannot be null or blank");
         }
@@ -40,6 +38,8 @@ public record ReferenceLocation(
         Objects.requireNonNull(peakIntensity, "peakIntensity cannot be null");
         if (officialName == null) {
             officialName = city;
+        } else {
+            officialName = officialName.trim();
         }
         if (ansicode == null) {
             ansicode = "";

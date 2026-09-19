@@ -114,15 +114,26 @@ public final class JsonSimulationSiteCatalog implements SimulationSiteCatalog {
 
     private static String resolveDisplayName(JsonNode node, int index) {
         if (node.has("display_name")) {
-            return requireText(node, "display_name", index);
+            return readOptionalText(node, "display_name", index);
         }
         if (node.has("displayName")) {
-            return requireText(node, "displayName", index);
+            return readOptionalText(node, "displayName", index);
         }
         if (node.has("name")) {
-            return requireText(node, "name", index);
+            return readOptionalText(node, "name", index);
         }
-        throw new IllegalArgumentException("Site at index " + index + " is missing 'display_name'");
+        return "";
+    }
+
+    private static String readOptionalText(JsonNode node, String fieldName, int index) {
+        JsonNode field = node.get(fieldName);
+        if (field == null || field.isNull()) {
+            return "";
+        }
+        if (!field.isString()) {
+            throw new IllegalArgumentException("Site at index " + index + " field '" + fieldName + "' must be a string");
+        }
+        return field.asString().trim();
     }
 
     private static double requireCoordinate(JsonNode node, String fieldName, int index, double min, double max) {

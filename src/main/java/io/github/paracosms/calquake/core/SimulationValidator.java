@@ -145,7 +145,7 @@ public final class SimulationValidator {
             for (SimulationSite site : sites) {
                 double dist = epicenter.distanceKmTo(site.coordinates());
                 if (dist >= ENVELOPE_MAX_DISTANCE_KM) {
-                    farEnvelopeSites.add(site.displayName());
+                    farEnvelopeSites.add(site.displayName().isBlank() ? site.id() : site.displayName());
                 }
             }
             if (!farEnvelopeSites.isEmpty()) {
@@ -177,7 +177,7 @@ public final class SimulationValidator {
             for (SimulationSite site : sites) {
                 double rjb = rupture.rjbKm(site.coordinates());
                 if (rjb > BSSA14_MAX_RJB_KM) {
-                    farRjbSites.add(site.displayName());
+                    farRjbSites.add(site.displayName().isBlank() ? site.id() : site.displayName());
                 }
             }
             if (!farRjbSites.isEmpty()) {

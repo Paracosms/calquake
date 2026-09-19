@@ -17,11 +17,8 @@ public record SimulationSite(
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Site id cannot be null or blank");
         }
-        if (displayName == null || displayName.isBlank()) {
-            throw new IllegalArgumentException("Site display name cannot be null or blank");
-        }
         id = id.trim();
-        displayName = displayName.trim();
+        displayName = displayName == null ? "" : displayName.trim();
         Objects.requireNonNull(coordinates, "coordinates cannot be null");
         siteCondition = siteCondition == null ? Optional.empty() : siteCondition;
     }
