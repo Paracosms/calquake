@@ -201,11 +201,31 @@ public class CalQuakeApp extends Application {
     private ScrollPane sidebarScroll;
 
     // HUD & Status Readouts
+    public enum ImportedFileType {
+        SIMULATION("Simulation: "),
+        SITES("Sites: ");
+
+        private final String prefix;
+
+        ImportedFileType(String prefix) {
+            this.prefix = prefix;
+        }
+
+        public String prefix() {
+            return prefix;
+        }
+    }
+
     private Label hudTitleLabel;
     private Label hudStateLabel;
     private Label elapsedDigitsLabel;
     private Label elapsedSubLabel;
-    private Label statusReplayLabel;
+    private Label lastImportedFileLabel;
+    private HBox statusBar;
+    private ImportedFileType lastImportedFileType;
+    private String lastImportedFileName;
+    private SimulationScenarioSettings lastImportedSimulationSettings;
+    private boolean lastImportedSimulationModified;
     private CheckBox faultGeometryCheckBox;
     private CheckBox mappedFaultsCheckBox;
     private CheckBox vs30CheckBox;
@@ -1323,12 +1343,52 @@ public class CalQuakeApp extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        this.statusReplayLabel = new Label(currentMode.displayName() + ": PAUSED");
-        statusReplayLabel.getStyleClass().add("status-pane");
-        statusReplayLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
+        this.lastImportedFileLabel = new Label();
+        lastImportedFileLabel.setId("last-imported-file-label");
+        lastImportedFileLabel.getStyleClass().add("status-pane");
+        lastImportedFileLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
+        lastImportedFileLabel.setVisible(false);
+        lastImportedFileLabel.setManaged(false);
 
-        bar.getChildren().addAll(mappedFaultsCheckBox, vs30CheckBox, streetViewCheckBox, scenarioRuptureCheckBox, spacer, statusReplayLabel);
+        bar.getChildren().addAll(mappedFaultsCheckBox, vs30CheckBox, streetViewCheckBox, scenarioRuptureCheckBox, spacer);
+        this.statusBar = bar;
         return bar;
+    }
+
+    private void updateLastImportedFileBox() {
+        if (lastImportedFileName == null || lastImportedFileType == null) {
+            if (lastImportedFileLabel != null) {
+                lastImportedFileLabel.setVisible(false);
+                lastImportedFileLabel.setManaged(false);
+                if (statusBar != null) {
+                    statusBar.getChildren().remove(lastImportedFileLabel);
+                }
+            }
+            return;
+        }
+
+        String prefix = lastImportedFileType.prefix();
+        String star = (lastImportedFileType == ImportedFileType.SIMULATION && lastImportedSimulationModified) ? "*" : "";
+        String text = prefix + star + lastImportedFileName;
+
+        if (lastImportedFileLabel != null) {
+            lastImportedFileLabel.setText(text);
+            lastImportedFileLabel.setVisible(true);
+            lastImportedFileLabel.setManaged(true);
+            if (statusBar != null && !statusBar.getChildren().contains(lastImportedFileLabel)) {
+                statusBar.getChildren().add(lastImportedFileLabel);
+            }
+        }
+    }
+
+    private static boolean areSimulationSettingsEqual(SimulationScenarioSettings a, SimulationScenarioSettings b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        return Math.abs(a.epicenter().latitude() - b.epicenter().latitude()) < 1e-6
+                && Math.abs(a.epicenter().longitude() - b.epicenter().longitude()) < 1e-6
+                && Math.abs(a.magnitude() - b.magnitude()) < 1e-6
+                && Math.abs(a.depthKm() - b.depthKm()) < 1e-6
+                && a.intensityDisplayMode() == b.intensityDisplayMode();
     }
 
     public void switchMode(ApplicationMode newMode) {
@@ -1637,6 +1697,15 @@ public class CalQuakeApp extends Application {
                 scenarioId, name, createdUtc,
                 new GeoPoint(lat, lon), mag, depth, displayMode, assumptionSetId);
 
+        if (lastImportedFileType == ImportedFileType.SIMULATION && lastImportedSimulationSettings != null) {
+            if (!areSimulationSettingsEqual(newSettings, lastImportedSimulationSettings)) {
+                this.lastImportedSimulationModified = true;
+            } else {
+                this.lastImportedSimulationModified = false;
+            }
+            updateLastImportedFileBox();
+        }
+
         simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
         simSettingsStatusLabel.setText("Preparing scenario...");
         requestSimulationPreparation(newSettings, validation.warnings());
@@ -1673,9 +1742,6 @@ public class CalQuakeApp extends Application {
             if (simSettingsStatusLabel != null) {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
                 simSettingsStatusLabel.setText("Cannot save: " + String.join(", ", validation.errors()));
-            }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Cannot save (invalid draft)");
             }
             return;
         }
@@ -1734,16 +1800,10 @@ public class CalQuakeApp extends Application {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #166534;");
                 simSettingsStatusLabel.setText("Saved: " + targetFile.getFileName().toString());
             }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Saved " + targetFile.getFileName().toString());
-            }
         } catch (Exception e) {
             if (simSettingsStatusLabel != null) {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
                 simSettingsStatusLabel.setText("Save failed: " + e.getMessage());
-            }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Save failed");
             }
         }
     }
@@ -1777,11 +1837,28 @@ public class CalQuakeApp extends Application {
         if (path == null) return false;
         try {
             SimulationScenarioSerializer.ImportedPackage pkg = SimulationScenarioSerializer.readAnyFromFile(path);
+            String fileName = path.getFileName() != null ? path.getFileName().toString() : path.toString();
             if (pkg instanceof SimulationScenarioSerializer.ImportedScenario importedScenario) {
                 SimulationScenarioSerializer.LoadedScenario loaded = importedScenario.scenario();
-                return applyImportedScenario(loaded.settings(), loaded.hasCities() ? loaded.cities() : null);
+                boolean ok = applyImportedScenario(loaded.settings(), loaded.hasCities() ? loaded.cities() : null);
+                if (ok) {
+                    this.lastImportedFileName = fileName;
+                    this.lastImportedFileType = ImportedFileType.SIMULATION;
+                    this.lastImportedSimulationSettings = loaded.settings();
+                    this.lastImportedSimulationModified = false;
+                    updateLastImportedFileBox();
+                }
+                return ok;
             } else if (pkg instanceof SimulationScenarioSerializer.ImportedSiteCatalog importedSites) {
-                return applyImportedCities(importedSites.sites());
+                boolean ok = applyImportedCities(importedSites.sites());
+                if (ok) {
+                    this.lastImportedFileName = fileName;
+                    this.lastImportedFileType = ImportedFileType.SITES;
+                    this.lastImportedSimulationSettings = null;
+                    this.lastImportedSimulationModified = false;
+                    updateLastImportedFileBox();
+                }
+                return ok;
             } else {
                 throw new IllegalStateException("Unknown package type: " + pkg);
             }
@@ -1790,9 +1867,6 @@ public class CalQuakeApp extends Application {
             if (simSettingsStatusLabel != null) {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
                 simSettingsStatusLabel.setText("Import failed: " + message);
-            }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Import failed");
             }
             return false;
         }
@@ -1899,16 +1973,10 @@ public class CalQuakeApp extends Application {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #166534;");
                 simSettingsStatusLabel.setText("Saved sites: " + targetFile.getFileName().toString());
             }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Saved sites " + targetFile.getFileName().toString());
-            }
         } catch (Exception e) {
             if (simSettingsStatusLabel != null) {
                 simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
                 simSettingsStatusLabel.setText("Save sites failed: " + e.getMessage());
-            }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: Save sites failed");
             }
         }
     }
@@ -2224,9 +2292,6 @@ public class CalQuakeApp extends Application {
             if (activeStateLbl != null) {
                 activeStateLbl.setText("Preparing " + (currentMode == ApplicationMode.SIMULATION ? "simulation..." : "replay..."));
             }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Preparing " + (currentMode == ApplicationMode.SIMULATION ? "simulation..." : "replay..."));
-            }
             return;
         }
 
@@ -2240,7 +2305,6 @@ public class CalQuakeApp extends Application {
             String message = preparationError.getMessage() != null
                     ? preparationError.getMessage() : preparationError.getClass().getSimpleName();
             if (activeStateLbl != null) activeStateLbl.setText("Preparation failed: " + message);
-            if (statusReplayLabel != null) statusReplayLabel.setText("Preparation failed: " + message);
             return;
         }
 
@@ -2249,9 +2313,6 @@ public class CalQuakeApp extends Application {
             if (activeScrubber != null) activeScrubber.setDisable(false);
             if (activeStateLbl != null) {
                 activeStateLbl.setText("State: DRAFT MODIFIED (Apply required)");
-            }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText("Simulation: DRAFT MODIFIED (Apply required)");
             }
             return;
         }
@@ -2268,9 +2329,6 @@ public class CalQuakeApp extends Application {
                 hudStateLabel.getStyleClass().setAll("status-badge-playing");
             }
             if (activeStateLbl != null) activeStateLbl.setText("State: PLAYING");
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText(String.format("%s: PLAYING", currentMode.displayName()));
-            }
         } else if (ctrl.isPaused()) {
             if (activePlayBtn != null) {
                 activePlayBtn.setDisable(false);
@@ -2285,9 +2343,6 @@ public class CalQuakeApp extends Application {
             } else {
                 if (activeStateLbl != null) activeStateLbl.setText("State: PAUSED");
             }
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText(String.format("%s: PAUSED", currentMode.displayName()));
-            }
         } else if (ctrl.isFinished()) {
             if (activePlayBtn != null) {
                 activePlayBtn.setDisable(true);
@@ -2298,9 +2353,6 @@ public class CalQuakeApp extends Application {
                 hudStateLabel.getStyleClass().setAll("status-badge-finished");
             }
             if (activeStateLbl != null) activeStateLbl.setText("");
-            if (statusReplayLabel != null) {
-                statusReplayLabel.setText(String.format("%s: FINISHED", currentMode.displayName()));
-            }
         }
     }
 
@@ -2684,8 +2736,12 @@ public class CalQuakeApp extends Application {
         return currentMode == ApplicationMode.SIMULATION ? simControlTimeLabel : replayControlTimeLabel;
     }
 
+    public Label getLastImportedFileLabel() {
+        return lastImportedFileLabel;
+    }
+
     public Label getStatusReplayLabel() {
-        return statusReplayLabel;
+        return lastImportedFileLabel;
     }
 
     public CheckBox getFaultGeometryCheckBox() {
