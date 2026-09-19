@@ -26,21 +26,10 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Install Linux GUI / Xvfb dependencies
-        if: runner.os == 'Linux'
-        run: |
-          # Only Ubuntu packages are needed here. Ignore third-party runner
-          # repositories, whose metadata may be inconsistent while publishing.
-          sudo apt-get update \
-            -o Dir::Etc::sourcelist="sources.list.d/ubuntu.sources" \
-            -o Dir::Etc::sourceparts="-" \
-            -o APT::Get::List-Cleanup="0"
-          sudo apt-get install -y xvfb libxrender1 libxtst6 libxi6 libgl1 libglx-mesa0
-
       - name: Run Maven Verify (Windows)
         if: runner.os == 'Windows'
         run: .\mvnw.cmd clean verify --no-transfer-progress
 
-      - name: Run Maven Verify with Xvfb (Linux)
+      - name: Run Maven Verify (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum bash ./mvnw clean verify --no-transfer-progress
+        run: ./mvnw clean verify --no-transfer-progress
