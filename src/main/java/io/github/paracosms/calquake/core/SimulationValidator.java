@@ -46,6 +46,14 @@ public final class SimulationValidator {
             String latText, String lonText, String magText, String depthText,
             List<SimulationSite> sites, CaliforniaOutline outline
     ) {
+        return validateRaw(latText, lonText, magText, depthText, sites, outline, false);
+    }
+
+    public static ValidationResult validateRaw(
+            String latText, String lonText, String magText, String depthText,
+            List<SimulationSite> sites, CaliforniaOutline outline,
+            boolean suppressSiteDomainWarnings
+    ) {
         List<String> errors = new ArrayList<>();
         if (latText == null || latText.isBlank()) errors.add("Latitude cannot be blank");
         if (lonText == null || lonText.isBlank()) errors.add("Longitude cannot be blank");
@@ -86,12 +94,20 @@ public final class SimulationValidator {
             return new ValidationResult(List.copyOf(errors), List.of());
         }
 
-        return validate(lat, lon, mag, depth, sites, outline);
+        return validate(lat, lon, mag, depth, sites, outline, suppressSiteDomainWarnings);
     }
 
     public static ValidationResult validate(
             double lat, double lon, double mag, double depth,
             List<SimulationSite> sites, CaliforniaOutline outline
+    ) {
+        return validate(lat, lon, mag, depth, sites, outline, false);
+    }
+
+    public static ValidationResult validate(
+            double lat, double lon, double mag, double depth,
+            List<SimulationSite> sites, CaliforniaOutline outline,
+            boolean suppressSiteDomainWarnings
     ) {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
@@ -140,19 +156,18 @@ public final class SimulationValidator {
         }
 
         // Site distance, Rjb, and rupture geometry
-        if (sites != null && !sites.isEmpty()) {
+        if (!suppressSiteDomainWarnings && sites != null && !sites.isEmpty()) {
             List<String> farEnvelopeSites = new ArrayList<>();
             for (SimulationSite site : sites) {
                 double dist = epicenter.distanceKmTo(site.coordinates());
                 if (dist >= ENVELOPE_MAX_DISTANCE_KM) {
-                    farEnvelopeSites.add(site.displayName());
+                    farEnvelopeSites.add(site.displayName().isBlank() ? site.id() : site.displayName());
                 }
             }
             if (!farEnvelopeSites.isEmpty()) {
                 warnings.add("Site(s) at or beyond envelope 200 km calibration distance: "
                         + String.join(", ", farEnvelopeSites));
             }
-
         }
 
         return new ValidationResult(List.copyOf(errors), List.copyOf(warnings));
@@ -167,17 +182,30 @@ public final class SimulationValidator {
             List<SimulationSite> sites,
             CaliforniaOutline outline
     ) {
+        return validateResolvedGeometry(rupture, sites, outline, false);
+    }
+
+    /**
+     * Non-blocking domain warnings for resolved rupture geometry.
+     * Evaluated during background preparation against completed inputs.
+     */
+    public static List<String> validateResolvedGeometry(
+            RuptureGeometry rupture,
+            List<SimulationSite> sites,
+            CaliforniaOutline outline,
+            boolean suppressSiteDomainWarnings
+    ) {
         if (rupture == null) {
             return List.of();
         }
         List<String> warnings = new ArrayList<>();
 
-        if (sites != null && !sites.isEmpty()) {
+        if (!suppressSiteDomainWarnings && sites != null && !sites.isEmpty()) {
             List<String> farRjbSites = new ArrayList<>();
             for (SimulationSite site : sites) {
                 double rjb = rupture.rjbKm(site.coordinates());
                 if (rjb > BSSA14_MAX_RJB_KM) {
-                    farRjbSites.add(site.displayName());
+                    farRjbSites.add(site.displayName().isBlank() ? site.id() : site.displayName());
                 }
             }
             if (!farRjbSites.isEmpty()) {
@@ -204,5 +232,17 @@ public final class SimulationValidator {
         }
 
         return List.copyOf(warnings);
+    }
+
+    /**
+     * Returns true if the given warning message is a site domain warning
+     * (envelope 200 km distance or BSSA14 400 km Rjb domain).
+     */
+    public static boolean isSiteDomainWarning(String warning) {
+        if (warning == null) {
+            return false;
+        }
+        return warning.startsWith("Site(s) at or beyond envelope")
+                || warning.startsWith("Site(s) beyond BSSA14");
     }
 }
