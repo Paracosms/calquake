@@ -68,6 +68,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
+import javafx.stage.StageStyle;
 
 import java.util.Locale;
 import javafx.stage.Stage;
@@ -174,14 +175,25 @@ public class CalQuakeApp extends Application {
 
     // Top Header & Menus
     private MenuBar menuBar;
+    private Menu fileMenu;
+    private MenuItem settingsMenuItem;
+    private CheckMenuItem fullScreenMenuItem;
+    private MenuItem importMenuItem;
+    private Menu exportMenu;
+    private MenuItem exportSimulationMenuItem;
+    private MenuItem exportSimulationWithCitiesMenuItem;
+    private MenuItem exportCitiesMenuItem;
     private Menu calQuakeMenu;
     private Menu modeMenu;
     private ToggleGroup modeToggleGroup;
     private RadioMenuItem simulationMenuItem;
     private RadioMenuItem replayMenuItem;
     private Menu settingsMenu;
-    private CheckMenuItem fullScreenMenuItem;
     private Button settingsButton;
+
+    // Settings popup window
+    private Stage settingsStage;
+    private ComboBox<String> shakingSitesSelector;
 
     // Center & Layout Containers
     private ScrollPane sidebarScroll;
@@ -439,6 +451,10 @@ public class CalQuakeApp extends Application {
         if (simulationSoundManager != null) {
             simulationSoundManager.stop();
         }
+        if (settingsStage != null) {
+            settingsStage.close();
+            settingsStage = null;
+        }
         lifecycleStage = null;
         preparationGeneration.incrementAndGet();
         preparationExecutor.shutdownNow();
@@ -532,7 +548,39 @@ public class CalQuakeApp extends Application {
         this.menuBar = new MenuBar();
         menuBar.getStyleClass().add("app-menu-bar");
 
-        // 1. Mode menu (Simulation first and selected by default, then Replay)
+        // 1. File menu (placed to the left of Mode)
+        this.fileMenu = new Menu("File");
+
+        this.settingsMenuItem = new MenuItem("Settings");
+        settingsMenuItem.setOnAction(e -> openSettingsWindow());
+
+        this.fullScreenMenuItem = new CheckMenuItem("Full Screen");
+        fullScreenMenuItem.setAccelerator(new KeyCodeCombination(KeyCode.F11));
+        fullScreenMenuItem.setOnAction(e -> setFullScreen(fullScreenMenuItem.isSelected()));
+
+        this.importMenuItem = new MenuItem("Import");
+        // Import currently does nothing per user specification
+        importMenuItem.setOnAction(e -> {});
+
+        this.exportMenu = new Menu("Export");
+        this.exportSimulationMenuItem = new MenuItem("Export Simulation");
+        exportSimulationMenuItem.setOnAction(e -> handleExportSimulation(false));
+
+        this.exportSimulationWithCitiesMenuItem = new MenuItem("Export Simulation With Cities");
+        exportSimulationWithCitiesMenuItem.setOnAction(e -> handleExportSimulation(true));
+
+        this.exportCitiesMenuItem = new MenuItem("Export Cities");
+        exportCitiesMenuItem.setOnAction(e -> handleSaveCities());
+
+        exportMenu.getItems().addAll(
+                exportSimulationMenuItem,
+                exportSimulationWithCitiesMenuItem,
+                exportCitiesMenuItem
+        );
+
+        fileMenu.getItems().addAll(settingsMenuItem, fullScreenMenuItem, importMenuItem, exportMenu);
+
+        // 2. Mode menu (Simulation first and selected by default, then Replay)
         this.modeMenu = new Menu("Mode");
         this.modeToggleGroup = new ToggleGroup();
 
@@ -548,23 +596,14 @@ public class CalQuakeApp extends Application {
 
         modeMenu.getItems().addAll(simulationMenuItem, replayMenuItem);
 
-        // 2. Settings menu (fullscreen toggle + settings placeholder)
-        this.settingsMenu = new Menu("Settings");
-        this.fullScreenMenuItem = new CheckMenuItem("Full Screen");
-        fullScreenMenuItem.setAccelerator(new KeyCodeCombination(KeyCode.F11));
-        fullScreenMenuItem.setOnAction(e -> setFullScreen(fullScreenMenuItem.isSelected()));
-
-        MenuItem settingsItem = new MenuItem("Settings...");
-        settingsItem.setDisable(true);
-        settingsMenu.getItems().addAll(fullScreenMenuItem, settingsItem);
-
+        this.settingsMenu = fileMenu; // Backward compatibility alias
         this.calQuakeMenu = new Menu("CalQuake");
 
         this.settingsButton = new Button("Settings");
         settingsButton.getStyleClass().add("button");
-        settingsButton.setOnAction(e -> {});
+        settingsButton.setOnAction(e -> openSettingsWindow());
 
-        menuBar.getMenus().addAll(modeMenu, settingsMenu);
+        menuBar.getMenus().addAll(fileMenu, modeMenu);
         HBox.setHgrow(menuBar, Priority.ALWAYS);
         header.getChildren().add(menuBar);
         return header;
@@ -1614,6 +1653,10 @@ public class CalQuakeApp extends Application {
     }
 
     void handleSaveScenario() {
+        handleExportSimulation(includeCitiesCheckBox != null && includeCitiesCheckBox.isSelected());
+    }
+
+    void handleExportSimulation(boolean includeCities) {
         ReplayController ctrl = getController();
         if (ctrl != null && ctrl.isPlaying()) {
             return;
@@ -1660,21 +1703,22 @@ public class CalQuakeApp extends Application {
                 scenarioId, name, createdUtc, new GeoPoint(lat, lon), mag, depth, displayMode, assumptionSetId);
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Save Simulation File");
+        fileChooser.setTitle(includeCities ? "Export Simulation With Cities" : "Export Simulation File");
         fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"),
                 new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
         );
-        fileChooser.setInitialFileName("earthquake.json");
+        fileChooser.setInitialFileName(includeCities ? "earthquake_with_cities.json" : "earthquake.json");
 
         Stage stage = lifecycleStage;
         if (stage == null && saveButton != null && saveButton.getScene() != null) {
             stage = (Stage) saveButton.getScene().getWindow();
+        } else if (stage == null && menuBar != null && menuBar.getScene() != null) {
+            stage = (Stage) menuBar.getScene().getWindow();
         }
         File selected = fileChooser.showSaveDialog(stage);
         if (selected != null) {
-            List<SimulationSite> sitesToBundle = (includeCitiesCheckBox != null && includeCitiesCheckBox.isSelected())
-                    ? sites : null;
+            List<SimulationSite> sitesToBundle = includeCities ? sites : null;
             saveScenarioToFile(draftToSave, sitesToBundle, selected.toPath());
         }
     }
@@ -1822,6 +1866,8 @@ public class CalQuakeApp extends Application {
         Stage stage = lifecycleStage;
         if (stage == null && saveCitiesButton != null && saveCitiesButton.getScene() != null) {
             stage = (Stage) saveCitiesButton.getScene().getWindow();
+        } else if (stage == null && menuBar != null && menuBar.getScene() != null) {
+            stage = (Stage) menuBar.getScene().getWindow();
         }
         File selected = fileChooser.showSaveDialog(stage);
         if (selected != null) {
@@ -2168,12 +2214,18 @@ public class CalQuakeApp extends Application {
             if (includeCitiesCheckBox != null) includeCitiesCheckBox.setDisable(isPlaying || preparingReplay);
             if (saveCitiesButton != null) saveCitiesButton.setDisable(isPlaying || preparingReplay);
             if (importCitiesButton != null) importCitiesButton.setDisable(isPlaying || preparingReplay);
+            if (exportSimulationMenuItem != null) exportSimulationMenuItem.setDisable(isPlaying || preparingReplay);
+            if (exportSimulationWithCitiesMenuItem != null) exportSimulationWithCitiesMenuItem.setDisable(isPlaying || preparingReplay);
+            if (exportCitiesMenuItem != null) exportCitiesMenuItem.setDisable(isPlaying || preparingReplay);
         } else {
             if (saveButton != null) saveButton.setDisable(true);
             if (importButton != null) importButton.setDisable(true);
             if (includeCitiesCheckBox != null) includeCitiesCheckBox.setDisable(true);
             if (saveCitiesButton != null) saveCitiesButton.setDisable(true);
             if (importCitiesButton != null) importCitiesButton.setDisable(true);
+            if (exportSimulationMenuItem != null) exportSimulationMenuItem.setDisable(true);
+            if (exportSimulationWithCitiesMenuItem != null) exportSimulationWithCitiesMenuItem.setDisable(true);
+            if (exportCitiesMenuItem != null) exportCitiesMenuItem.setDisable(true);
         }
 
         if (preparingReplay) {
@@ -2440,6 +2492,96 @@ public class CalQuakeApp extends Application {
 
     public MenuItem getReplayMenuItemCompat() {
         return replayMenuItem;
+    }
+
+    public void openSettingsWindow() {
+        if (settingsStage == null) {
+            this.settingsStage = new Stage();
+            settingsStage.setTitle("Settings");
+            settingsStage.initStyle(StageStyle.UTILITY);
+            if (lifecycleStage != null) {
+                settingsStage.initOwner(lifecycleStage);
+            }
+            settingsStage.setResizable(false);
+
+            VBox content = new VBox(8.0);
+            content.setPadding(new Insets(16.0, 16.0, 16.0, 16.0));
+            content.setStyle("-fx-background-color: #F0F3F7;");
+
+            Label label = new Label("Shaking Sites");
+            label.setStyle("-fx-font-family: 'Segoe UI', Tahoma, sans-serif; -fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #1E293B;");
+
+            this.shakingSitesSelector = new ComboBox<>();
+            shakingSitesSelector.setId("shaking-sites-selector");
+            shakingSitesSelector.getItems().addAll(
+                    "Major cities",
+                    "Major cities + statewide coverage",
+                    "Uniform coverage",
+                    "Dense uniform coverage"
+            );
+            shakingSitesSelector.setValue("Major cities");
+            shakingSitesSelector.setMaxWidth(Double.MAX_VALUE);
+            shakingSitesSelector.getStyleClass().add("event-selector");
+
+            content.getChildren().addAll(label, shakingSitesSelector);
+
+            Scene scene = new Scene(content, 320.0, 95.0);
+            String cssPath = getClass().getResource("/styles/calquake.css") != null
+                    ? Objects.requireNonNull(getClass().getResource("/styles/calquake.css")).toExternalForm()
+                    : null;
+            if (cssPath != null) {
+                scene.getStylesheets().add(cssPath);
+            }
+            settingsStage.setScene(scene);
+        }
+
+        if (settingsStage.isShowing()) {
+            if (settingsStage.isIconified()) {
+                settingsStage.setIconified(false);
+            }
+            settingsStage.toFront();
+            settingsStage.requestFocus();
+        } else {
+            settingsStage.show();
+            settingsStage.toFront();
+            settingsStage.requestFocus();
+        }
+    }
+
+    public Menu getFileMenu() {
+        return fileMenu;
+    }
+
+    public MenuItem getSettingsMenuItem() {
+        return settingsMenuItem;
+    }
+
+    public MenuItem getImportMenuItem() {
+        return importMenuItem;
+    }
+
+    public Menu getExportMenu() {
+        return exportMenu;
+    }
+
+    public MenuItem getExportSimulationMenuItem() {
+        return exportSimulationMenuItem;
+    }
+
+    public MenuItem getExportSimulationWithCitiesMenuItem() {
+        return exportSimulationWithCitiesMenuItem;
+    }
+
+    public MenuItem getExportCitiesMenuItem() {
+        return exportCitiesMenuItem;
+    }
+
+    public Stage getSettingsStage() {
+        return settingsStage;
+    }
+
+    public ComboBox<String> getShakingSitesSelector() {
+        return shakingSitesSelector;
     }
 
     public Menu getSettingsMenu() {
