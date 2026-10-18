@@ -259,6 +259,14 @@ public class CalQuakeApp extends Application {
         this.currentMode = ApplicationMode.SIMULATION;
     }
 
+    private static final java.util.List<String> STATUS_STYLE_CLASSES = java.util.List.of(
+            "status-text-ready", "status-text-warning", "status-text-error", "status-text-success");
+
+    private static void applyStatusStyle(Label label, String styleClass) {
+        label.getStyleClass().removeAll(STATUS_STYLE_CLASSES);
+        label.getStyleClass().add(styleClass);
+    }
+
     public CalQuakeApp(ApplicationMode mode) {
         this.currentMode = mode != null ? mode : ApplicationMode.SIMULATION;
     }
@@ -675,7 +683,7 @@ public class CalQuakeApp extends Application {
     private VBox buildSimulationSidebar() {
         VBox sidebar = new VBox(10.0);
         sidebar.setPadding(new Insets(10.0));
-        sidebar.setStyle("-fx-background-color: #F0F3F7;");
+        sidebar.getStyleClass().add("sidebar");
 
         // Section 1: Simulation Controls
         VBox controlsBox = buildSimulationControlsBox();
@@ -729,7 +737,7 @@ public class CalQuakeApp extends Application {
         this.simControlStateLabel = new Label("State: PAUSED (Ready)");
 
         this.simControlTimeLabel = new Label("Elapsed: 0.00 s");
-        simControlTimeLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #475569;");
+        simControlTimeLabel.getStyleClass().add("text-monospace");
 
         box.getChildren().addAll(title, buttonsRow, simTimelineScrubber, simControlTimeLabel);
         return box;
@@ -737,12 +745,12 @@ public class CalQuakeApp extends Application {
 
     private VBox buildSimulationWarningBanner() {
         VBox banner = new VBox(4.0);
-        banner.setStyle("-fx-background-color: #FFFBEB; -fx-border-color: #FCD34D; -fx-border-width: 1px; -fx-border-radius: 3px; -fx-padding: 8px;");
+        banner.getStyleClass().add("warning-banner");
         Label title = new Label("⚠ Model Domain Warnings");
-        title.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #92400E;");
+        title.getStyleClass().add("warning-banner-title");
         this.simWarningBannerLabel = new Label();
         simWarningBannerLabel.setWrapText(true);
-        simWarningBannerLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #B45309;");
+        simWarningBannerLabel.getStyleClass().add("warning-banner-text");
         banner.getChildren().addAll(title, simWarningBannerLabel);
         updateSimulationWarningBanner();
         return banner;
@@ -774,31 +782,31 @@ public class CalQuakeApp extends Application {
         grid.setVgap(6.0);
 
         Label latLabel = new Label("Epicenter Latitude:");
-        latLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        latLabel.getStyleClass().add("field-label");
         double initLat = simulationInstalledSettings != null ? simulationInstalledSettings.epicenter().latitude() : 35.5;
         this.epicenterLatField = new TextField(String.format(java.util.Locale.US, "%.4f", initLat));
         epicenterLatField.setPrefWidth(120.0);
 
         Label lonLabel = new Label("Epicenter Longitude:");
-        lonLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        lonLabel.getStyleClass().add("field-label");
         double initLon = simulationInstalledSettings != null ? simulationInstalledSettings.epicenter().longitude() : -118.5;
         this.epicenterLonField = new TextField(String.format(java.util.Locale.US, "%.4f", initLon));
         epicenterLonField.setPrefWidth(120.0);
 
         Label magLabel = new Label("Magnitude (Mw):");
-        magLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        magLabel.getStyleClass().add("field-label");
         double initMag = simulationInstalledSettings != null ? simulationInstalledSettings.magnitude() : 6.5;
         this.magnitudeField = new TextField(String.format(java.util.Locale.US, "%.1f", initMag));
         magnitudeField.setPrefWidth(120.0);
 
         Label depthLabel = new Label("Depth (km):");
-        depthLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        depthLabel.getStyleClass().add("field-label");
         double initDepth = simulationInstalledSettings != null ? simulationInstalledSettings.depthKm() : 10.0;
         this.depthField = new TextField(String.format(java.util.Locale.US, "%.1f", initDepth));
         depthField.setPrefWidth(120.0);
 
         Label displayLabel = new Label("Intensity Display:");
-        displayLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155;");
+        displayLabel.getStyleClass().add("field-label");
         this.intensityDisplaySelector = new ComboBox<>();
         intensityDisplaySelector.getItems().addAll(
                 IntensityDisplayMode.MAXIMUM_REACHED.label(),
@@ -841,9 +849,9 @@ public class CalQuakeApp extends Application {
         applyButton.setOnAction(e -> handleApplySettings());
 
         this.simSettingsStatusLabel = new Label(simulationWarnings.isEmpty() ? "Ready" : "Installed with domain warnings");
-        simSettingsStatusLabel.setStyle(simulationWarnings.isEmpty()
-                ? "-fx-font-size: 10px; -fx-text-fill: #475569;"
-                : "-fx-font-size: 10px; -fx-text-fill: #B45309;");
+        applyStatusStyle(simSettingsStatusLabel, simulationWarnings.isEmpty()
+                ? "status-text-ready"
+                : "status-text-warning");
         simSettingsStatusLabel.setWrapText(true);
 
         box.getChildren().addAll(title, grid, displayLabel, intensityDisplaySelector, applyButton, simSettingsStatusLabel);
@@ -899,21 +907,21 @@ public class CalQuakeApp extends Application {
             SimulationValidator.ValidationResult result = SimulationValidator.validateRaw(
                     latText, lonText, magText, depthText, sites, outline, shouldSuppressSiteDomainWarnings());
             if (!result.isValid()) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-error");
                 simSettingsStatusLabel.setText("Error: " + String.join(", ", result.errors()));
             } else if (result.hasWarnings()) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #B45309;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-warning");
                 simSettingsStatusLabel.setText("⚠ Stale draft. " + result.warningSummary());
             } else {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-ready");
                 simSettingsStatusLabel.setText("Settings modified (stale). Click Apply to update simulation.");
             }
         } else {
             if (!simulationWarnings.isEmpty()) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #B45309;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-warning");
                 simSettingsStatusLabel.setText("Installed with warnings. Ready to play.");
             } else {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-ready");
                 simSettingsStatusLabel.setText("Ready");
             }
         }
@@ -928,31 +936,31 @@ public class CalQuakeApp extends Application {
         title.getStyleClass().add("group-box-title");
 
         this.simAssumptionsSiteLabel = new Label("• Site conditions: USGS mapped Vs30 at each marker");
-        simAssumptionsSiteLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        simAssumptionsSiteLabel.getStyleClass().add("text-detail");
 
         this.simAssumptionsFallbackLabel = new Label("• Fallbacks: none");
-        simAssumptionsFallbackLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #B45309;");
+        simAssumptionsFallbackLabel.getStyleClass().add("text-detail-warning");
         simAssumptionsFallbackLabel.setVisible(false);
         simAssumptionsFallbackLabel.setManaged(false);
 
         this.simAssumptionsRuptureLabel = new Label("• Scenario rupture: generated model geometry (W&C 1994)");
-        simAssumptionsRuptureLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        simAssumptionsRuptureLabel.getStyleClass().add("text-detail");
         simAssumptionsRuptureLabel.setWrapText(true);
 
         this.simAssumptionsRuptureDetailsLabel = new Label();
-        simAssumptionsRuptureDetailsLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        simAssumptionsRuptureDetailsLabel.getStyleClass().add("text-detail");
         simAssumptionsRuptureDetailsLabel.setWrapText(true);
 
         this.simRuptureDetailsPane = new TitledPane("Rupture Details", new Label());
         simRuptureDetailsPane.setExpanded(false);
         simRuptureDetailsPane.setAnimated(false);
-        simRuptureDetailsPane.setStyle("-fx-font-size: 9px;");
+        simRuptureDetailsPane.getStyleClass().add("rupture-details-pane");
 
         this.simAssumptionsFaultsLabel = new Label("• Mapped faults: USGS QFaults reference layer (display only)");
-        simAssumptionsFaultsLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #334155;");
+        simAssumptionsFaultsLabel.getStyleClass().add("text-detail");
 
         this.simAssumptionsNoteLabel = new Label("• Marker note: Vs30 is sampled at named marker coordinates");
-        simAssumptionsNoteLabel.setStyle("-fx-font-size: 9.0px; -fx-font-style: italic; -fx-text-fill: #64748B;");
+        simAssumptionsNoteLabel.getStyleClass().add("text-italic-note");
 
         box.getChildren().addAll(title, simAssumptionsRuptureDetailsLabel);
         updateAssumptionsSummary();
@@ -1061,7 +1069,7 @@ public class CalQuakeApp extends Application {
 
         this.includeCitiesCheckBox = new CheckBox("Include Cities");
         includeCitiesCheckBox.setId("include-cities-toggle");
-        includeCitiesCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+        includeCitiesCheckBox.getStyleClass().add("status-bar-checkbox");
 
         box.getChildren().addAll(title, buttonsRow, includeCitiesCheckBox);
         return box;
@@ -1092,14 +1100,14 @@ public class CalQuakeApp extends Application {
 
     private VBox buildDisclaimerBox() {
         VBox box = new VBox(4.0);
-        box.setStyle("-fx-background-color: #FEF2F2; -fx-border-color: #FCA5A5; -fx-border-width: 1px; -fx-border-radius: 3px; -fx-padding: 8px;");
+        box.getStyleClass().add("error-banner");
 
         Label title = new Label("⚠ Exploratory Simulation");
-        title.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #991B1B;");
+        title.getStyleClass().add("error-banner-title");
 
         Label text = new Label("Simulation is for visualization purposes only.");
         text.setWrapText(true);
-        text.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #7F1D1D;");
+        text.getStyleClass().add("error-banner-text");
 
         box.getChildren().addAll(title, text);
         return box;
@@ -1108,7 +1116,7 @@ public class CalQuakeApp extends Application {
     private VBox buildReplaySidebar() {
         VBox sidebar = new VBox(10.0);
         sidebar.setPadding(new Insets(10.0));
-        sidebar.setStyle("-fx-background-color: #F0F3F7;");
+        sidebar.getStyleClass().add("sidebar");
 
         // Section 1: Replay Controls
         VBox controlsBox = buildReplayControlsBox();
@@ -1156,7 +1164,7 @@ public class CalQuakeApp extends Application {
         this.replayControlStateLabel = new Label("State: PAUSED (Ready)");
 
         this.replayControlTimeLabel = new Label("Elapsed: 0.00 s");
-        replayControlTimeLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #475569;");
+        replayControlTimeLabel.getStyleClass().add("text-monospace");
 
         box.getChildren().addAll(title, buttonsRow, replayTimelineScrubber, replayControlTimeLabel);
         return box;
@@ -1164,10 +1172,10 @@ public class CalQuakeApp extends Application {
 
     private VBox buildWavefrontLegendBox() {
         VBox frontLegendBox = new VBox(4.0);
-        frontLegendBox.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 6px; -fx-border-color: #CBD5E1; -fx-border-width: 1px; -fx-border-radius: 3px;");
+        frontLegendBox.getStyleClass().add("wavefront-legend-box");
 
         Label frontTitle = new Label("Wavefront Fronts (TauP Hadley-Kanamori):");
-        frontTitle.setStyle("-fx-font-size: 9px; -fx-font-weight: bold; -fx-text-fill: #475569;");
+        frontTitle.getStyleClass().add("wavefront-legend-title");
 
         HBox pRow = new HBox(6.0);
         pRow.setAlignment(Pos.CENTER_LEFT);
@@ -1176,7 +1184,7 @@ public class CalQuakeApp extends Application {
         pLine.setStrokeWidth(2.0);
         pLine.getStrokeDashArray().addAll(6.0, 4.0);
         Label pText = new Label("P-Wave: Dashed blue outline (Compressional)");
-        pText.setStyle("-fx-font-size: 9px; -fx-text-fill: #00A7E1; -fx-font-weight: bold;");
+        pText.getStyleClass().add("wavefront-p-label");
         pRow.getChildren().addAll(pLine, pText);
 
         HBox sRow = new HBox(6.0);
@@ -1185,7 +1193,7 @@ public class CalQuakeApp extends Application {
         sLine.setStroke(Color.web("#F0443A"));
         sLine.setStrokeWidth(2.5);
         Label sText = new Label("S-Wave: Solid red circle (Shear)");
-        sText.setStyle("-fx-font-size: 9px; -fx-text-fill: #F0443A; -fx-font-weight: bold;");
+        sText.getStyleClass().add("wavefront-s-label");
         sRow.getChildren().addAll(sLine, sText);
 
         frontLegendBox.getChildren().addAll(frontTitle, pRow, sRow);
@@ -1200,7 +1208,7 @@ public class CalQuakeApp extends Application {
         title.getStyleClass().add("group-box-title");
 
         Label subtitle = new Label("Select earthquake sequence:");
-        subtitle.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #64748B;");
+        subtitle.getStyleClass().add("text-subtitle");
 
         this.eventSelector = new ComboBox<>();
         eventSelector.getItems().addAll("Ridgecrest", "Northridge");
@@ -1229,7 +1237,7 @@ public class CalQuakeApp extends Application {
         title.getStyleClass().add("group-box-title");
 
         Label meaningLabel = new Label();
-        meaningLabel.setStyle("-fx-font-size: 9.5px; -fx-font-style: italic; -fx-text-fill: #475569;");
+        meaningLabel.getStyleClass().add("text-italic-meaning");
         if (isSimulation) {
             this.simLegendMeaningLabel = meaningLabel;
         } else {
@@ -1255,13 +1263,13 @@ public class CalQuakeApp extends Application {
             swatch.setArcHeight(2.0);
 
             Label romanLabel = new Label(bin.roman());
-            romanLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 10px; -fx-min-width: 32px;");
+            romanLabel.getStyleClass().add("mmi-roman");
 
             Label shakeLabel = new Label(bin.shakingDescriptor());
-            shakeLabel.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #1E293B;");
+            shakeLabel.getStyleClass().add("mmi-shaking");
 
             Label damageLabel = new Label("(" + bin.damageDescriptor() + ")");
-            damageLabel.setStyle("-fx-font-size: 9px; -fx-text-fill: #64748B;");
+            damageLabel.getStyleClass().add("mmi-damage");
 
             grid.add(swatch, 0, r);
             grid.add(romanLabel, 1, r);
@@ -1274,7 +1282,7 @@ public class CalQuakeApp extends Application {
         sliderBox.setPadding(new Insets(6.0, 2.0, 2.0, 2.0));
 
         Label sliderLabel = new Label("MMI Box Size: " + (int) mmiBoxSizeProperty.get() + " px");
-        sliderLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #334155; -fx-font-weight: 600;");
+        sliderLabel.getStyleClass().add("slider-label");
 
         Slider boxSizeSlider = new Slider(16.0, 72.0, mmiBoxSizeProperty.get());
         boxSizeSlider.setId(isSimulation ? "sim-mmi-box-size-slider" : "replay-mmi-box-size-slider");
@@ -1337,24 +1345,24 @@ public class CalQuakeApp extends Application {
         this.mappedFaultsCheckBox = new CheckBox("Faults");
         mappedFaultsCheckBox.setId("mapped-faults-toggle");
         mappedFaultsCheckBox.getStyleClass().add("status-pane");
-        mappedFaultsCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+        mappedFaultsCheckBox.getStyleClass().add("status-bar-checkbox");
 
         this.vs30CheckBox = new CheckBox("Vs30");
         vs30CheckBox.setId("vs30-toggle");
         vs30CheckBox.getStyleClass().add("status-pane");
-        vs30CheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+        vs30CheckBox.getStyleClass().add("status-bar-checkbox");
 
         this.streetViewCheckBox = new CheckBox("Street View");
         streetViewCheckBox.setId("street-view-toggle");
         streetViewCheckBox.setSelected(true);
         streetViewCheckBox.getStyleClass().add("status-pane");
-        streetViewCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+        streetViewCheckBox.getStyleClass().add("status-bar-checkbox");
 
         this.scenarioRuptureCheckBox = new CheckBox("Derived Rupture");
         scenarioRuptureCheckBox.setId("scenario-rupture-toggle");
         scenarioRuptureCheckBox.setSelected(true);
         scenarioRuptureCheckBox.getStyleClass().add("status-pane");
-        scenarioRuptureCheckBox.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E293B; -fx-cursor: hand;");
+        scenarioRuptureCheckBox.getStyleClass().add("status-bar-checkbox");
         this.faultGeometryCheckBox = scenarioRuptureCheckBox; // Alias for backward compatibility
 
         Region spacer = new Region();
@@ -1363,7 +1371,7 @@ public class CalQuakeApp extends Application {
         this.lastImportedFileLabel = new Label();
         lastImportedFileLabel.setId("last-imported-file-label");
         lastImportedFileLabel.getStyleClass().add("status-pane");
-        lastImportedFileLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0D3B66;");
+        lastImportedFileLabel.getStyleClass().add("imported-file-label");
         lastImportedFileLabel.setVisible(false);
         lastImportedFileLabel.setManaged(false);
 
@@ -1687,7 +1695,7 @@ public class CalQuakeApp extends Application {
                 latText, lonText, magText, depthText, sites, outline, shouldSuppressSiteDomainWarnings());
 
         if (!validation.isValid()) {
-            simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+            applyStatusStyle(simSettingsStatusLabel, "status-text-error");
             simSettingsStatusLabel.setText("Error: " + String.join(", ", validation.errors()));
             this.draftStale = true;
             updateControlStates();
@@ -1723,7 +1731,7 @@ public class CalQuakeApp extends Application {
             updateLastImportedFileBox();
         }
 
-        simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+        applyStatusStyle(simSettingsStatusLabel, "status-text-ready");
         simSettingsStatusLabel.setText("Preparing scenario...");
         requestSimulationPreparation(newSettings, validation.warnings());
     }
@@ -1757,7 +1765,7 @@ public class CalQuakeApp extends Application {
 
         if (!validation.isValid()) {
             if (simSettingsStatusLabel != null) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-error");
                 simSettingsStatusLabel.setText("Cannot save: " + String.join(", ", validation.errors()));
             }
             return;
@@ -1814,12 +1822,12 @@ public class CalQuakeApp extends Application {
         try {
             SimulationScenarioSerializer.writeToFile(settings, sites, targetFile);
             if (simSettingsStatusLabel != null) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #166534;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-success");
                 simSettingsStatusLabel.setText("Saved: " + targetFile.getFileName().toString());
             }
         } catch (Exception e) {
             if (simSettingsStatusLabel != null) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-error");
                 simSettingsStatusLabel.setText("Save failed: " + e.getMessage());
             }
         }
@@ -1896,7 +1904,7 @@ public class CalQuakeApp extends Application {
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             if (simSettingsStatusLabel != null) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-error");
                 simSettingsStatusLabel.setText("Import failed: " + message);
             }
             return false;
@@ -1944,7 +1952,7 @@ public class CalQuakeApp extends Application {
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             if (simSettingsStatusLabel != null) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-error");
                 simSettingsStatusLabel.setText("Import failed: " + message);
             }
             return false;
@@ -2026,7 +2034,7 @@ public class CalQuakeApp extends Application {
                 imported.magnitude(), imported.depthKm(), sites, outline, suppress);
 
         if (simSettingsStatusLabel != null) {
-            simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+            applyStatusStyle(simSettingsStatusLabel, "status-text-ready");
             if (importedSites != null && !importedSites.isEmpty()) {
                 simSettingsStatusLabel.setText("Imported " + imported.displayName() + " with " + importedSites.size() + " sites. Preparing scenario...");
             } else {
@@ -2075,12 +2083,12 @@ public class CalQuakeApp extends Application {
         try {
             SimulationSiteSerializer.writeToFile(sites, targetFile);
             if (simSettingsStatusLabel != null) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #166534;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-success");
                 simSettingsStatusLabel.setText("Saved sites: " + targetFile.getFileName().toString());
             }
         } catch (Exception e) {
             if (simSettingsStatusLabel != null) {
-                simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                applyStatusStyle(simSettingsStatusLabel, "status-text-error");
                 simSettingsStatusLabel.setText("Save sites failed: " + e.getMessage());
             }
         }
@@ -2113,7 +2121,7 @@ public class CalQuakeApp extends Application {
                 currentSettings.magnitude(), currentSettings.depthKm(), importedSites, outline, suppress);
 
         if (simSettingsStatusLabel != null) {
-            simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+            applyStatusStyle(simSettingsStatusLabel, "status-text-ready");
             simSettingsStatusLabel.setText("Imported " + importedSites.size() + " cities. Preparing scenario...");
         }
 
@@ -2257,7 +2265,7 @@ public class CalQuakeApp extends Application {
                 preparingReplay = false;
                 preparationError = unwrapCompletionFailure(failure);
                 if (simSettingsStatusLabel != null) {
-                    simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #991B1B;");
+                    applyStatusStyle(simSettingsStatusLabel, "status-text-error");
                     simSettingsStatusLabel.setText("Preparation failed: " + preparationError.getMessage());
                 }
                 updateControlStates();
@@ -2331,10 +2339,10 @@ public class CalQuakeApp extends Application {
                 updateAssumptionsSummary();
                 if (simSettingsStatusLabel != null) {
                     if (!simulationWarnings.isEmpty()) {
-                        simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #B45309;");
+                        applyStatusStyle(simSettingsStatusLabel, "status-text-warning");
                         simSettingsStatusLabel.setText("Installed with domain warnings. Ready to play.");
                     } else {
-                        simSettingsStatusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+                        applyStatusStyle(simSettingsStatusLabel, "status-text-ready");
                         simSettingsStatusLabel.setText("Ready");
                     }
                 }
@@ -2517,15 +2525,15 @@ public class CalQuakeApp extends Application {
     Scene buildStartupErrorScene(Stage stage, Throwable error) {
         VBox root = new VBox(16.0);
         root.setPadding(new Insets(24.0));
-        root.setStyle("-fx-background-color: #F0F3F7; -fx-font-family: 'Segoe UI', Tahoma, sans-serif;");
+        root.getStyleClass().add("sidebar");
 
         Label heading = new Label("⚠  CalQuake Startup Error");
-        heading.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #991B1B;");
+        heading.getStyleClass().add("error-heading");
 
         Label desc = new Label("Failed to initialize offline replay resources:\n" +
                 (error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName()));
         desc.setWrapText(true);
-        desc.setStyle("-fx-font-size: 12px; -fx-text-fill: #1E293B;");
+        desc.getStyleClass().add("error-description");
 
         java.io.StringWriter sw = new java.io.StringWriter();
         error.printStackTrace(new java.io.PrintWriter(sw));
@@ -2655,10 +2663,10 @@ public class CalQuakeApp extends Application {
 
             VBox content = new VBox(8.0);
             content.setPadding(new Insets(16.0, 16.0, 16.0, 16.0));
-            content.setStyle("-fx-background-color: #F0F3F7;");
+            content.getStyleClass().add("sidebar");
 
             Label label = new Label("Shaking Sites");
-            label.setStyle("-fx-font-family: 'Segoe UI', Tahoma, sans-serif; -fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #1E293B;");
+            label.getStyleClass().add("settings-label");
 
             this.shakingSitesSelector = new ComboBox<>();
             shakingSitesSelector.setId("shaking-sites-selector");

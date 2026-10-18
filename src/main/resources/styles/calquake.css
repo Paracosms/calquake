@@ -1,5 +1,9 @@
 /* CalQuake Desktop Theme: Frutiger Aero / Late-Vista & Windows 7 UI Aesthetic */
 
+/* ══════════════════════════════════════════════════════
+   ROOT & GLOBAL DEFAULTS
+   ══════════════════════════════════════════════════════ */
+
 .root {
     -fx-font-family: "Segoe UI", "Tahoma", sans-serif;
     -fx-font-size: 11px;
@@ -7,7 +11,10 @@
     -fx-text-fill: #000000;
 }
 
-/* Top App Header (Windows Vista / 7 Frutiger Aero Menu Bar) */
+/* ══════════════════════════════════════════════════════
+   TOP APP HEADER (Windows Vista / 7 Frutiger Aero Menu Bar)
+   ══════════════════════════════════════════════════════ */
+
 .app-header {
     -fx-background-color: linear-gradient(to bottom, #FCFDFE 0%, #F4F7FB 50%, #E9EFF6 100%);
     -fx-border-color: transparent transparent #D2DCE6 transparent;
@@ -74,7 +81,10 @@
     -fx-shape: null;
 }
 
-/* Windows 7 / Late-Vista Frutiger Aero Context Menu */
+/* ══════════════════════════════════════════════════════
+   CONTEXT MENU (Windows 7 / Late-Vista Frutiger Aero)
+   ══════════════════════════════════════════════════════ */
+
 .context-menu {
     -fx-background-color: #FFFFFF;
     -fx-border-color: #979797;
@@ -124,6 +134,10 @@
     -fx-fill: #8E8E8E;
 }
 
+/* ══════════════════════════════════════════════════════
+   COMBO BOXES / SELECTORS
+   ══════════════════════════════════════════════════════ */
+
 .event-selector {
     -fx-font-size: 11px;
     -fx-background-color: #FFFFFF;
@@ -132,7 +146,10 @@
     -fx-border-radius: 2px;
 }
 
-/* Group Box / Panel */
+/* ══════════════════════════════════════════════════════
+   GROUP BOX / PANEL
+   ══════════════════════════════════════════════════════ */
+
 .group-box {
     -fx-background-color: #F8F9FA;
     -fx-border-color: #B0BEC5;
@@ -151,7 +168,10 @@
     -fx-border-width: 1px;
 }
 
-/* Push Buttons (Classic Windows 7 / Vista style bevel and gradient) */
+/* ══════════════════════════════════════════════════════
+   PUSH BUTTONS (Classic Windows 7 / Vista bevel & gradient)
+   ══════════════════════════════════════════════════════ */
+
 .button {
     -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #ECECEC 48%, #DFDFDF 52%, #E8E8E8 100%);
     -fx-border-color: #707070;
@@ -187,7 +207,10 @@
     -fx-text-fill: #0D3B66;
 }
 
-/* Digital Timer Box Overlay (Reference Photo Style) */
+/* ══════════════════════════════════════════════════════
+   DIGITAL TIMER BOX OVERLAY (Reference Photo Style)
+   ══════════════════════════════════════════════════════ */
+
 .timer-overlay-box {
     -fx-background-color: #FFFFFF;
     -fx-border-color: #000000;
@@ -211,7 +234,10 @@
     -fx-text-fill: #666666;
 }
 
-/* Playback State Tag */
+/* ══════════════════════════════════════════════════════
+   PLAYBACK STATE TAGS
+   ══════════════════════════════════════════════════════ */
+
 .status-badge-paused {
     -fx-background-color: #FEF3C7;
     -fx-border-color: #D97706;
@@ -248,14 +274,20 @@
     -fx-text-fill: #991B1B;
 }
 
-/* Map Viewport Outer Frame (Sunken 3D Border) */
+/* ══════════════════════════════════════════════════════
+   MAP VIEWPORT OUTER FRAME (Sunken 3D Border)
+   ══════════════════════════════════════════════════════ */
+
 .map-viewport-frame {
     -fx-border-color: #848484 #FFFFFF #FFFFFF #848484;
     -fx-border-width: 1px;
     -fx-background-color: #BCE6FF;
 }
 
-/* Reference Locations Table */
+/* ══════════════════════════════════════════════════════
+   REFERENCE LOCATIONS TABLE
+   ══════════════════════════════════════════════════════ */
+
 .location-row {
     -fx-background-color: #FFFFFF;
     -fx-border-color: #E2E8F0;
@@ -267,7 +299,10 @@
     -fx-background-color: #EFF6FF;
 }
 
-/* MMI Legend Table */
+/* ══════════════════════════════════════════════════════
+   MMI LEGEND TABLE
+   ══════════════════════════════════════════════════════ */
+
 .mmi-legend-grid {
     -fx-background-color: #FFFFFF;
     -fx-border-color: #CBD5E1;
@@ -280,7 +315,10 @@
     -fx-border-width: 0 0 1px 0;
 }
 
-/* Bottom Status Bar (Windows 7 / Late-Vista Frutiger Aero Status Bar) */
+/* ══════════════════════════════════════════════════════
+   BOTTOM STATUS BAR (Windows 7 / Late-Vista Frutiger Aero)
+   ══════════════════════════════════════════════════════ */
+
 .status-bar {
     -fx-background-color: linear-gradient(to bottom, #F4F7FA 0%, #E2ECF5 50%, #D5E3F0 100%);
     -fx-border-color: #9FB5C9 transparent transparent transparent;
@@ -297,7 +335,10 @@
     -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #EDF3F9 100%);
 }
 
-/* Timeline Scrubber Slider (Windows 7 / Frutiger Aero Desktop Style) */
+/* ══════════════════════════════════════════════════════
+   TIMELINE SCRUBBER SLIDER (Windows 7 / Frutiger Aero)
+   ══════════════════════════════════════════════════════ */
+
 .timeline-scrubber {
     -fx-padding: 3px 0;
 }
@@ -332,7 +373,10 @@
     -fx-border-color: #1F5A94;
 }
 
-/* Status Bar CheckBox / Fault Geometry Toggle */
+/* ══════════════════════════════════════════════════════
+   STATUS BAR CHECKBOX / TOGGLES
+   ══════════════════════════════════════════════════════ */
+
 .status-bar .check-box {
     -fx-font-size: 11px;
     -fx-text-fill: #1E293B;
@@ -355,3 +399,248 @@
     -fx-background-color: #0F6CBD;
 }
 
+.status-bar-checkbox {
+    -fx-font-size: 11px;
+    -fx-text-fill: #1E293B;
+    -fx-cursor: hand;
+}
+
+/* ══════════════════════════════════════════════════════
+   SIDEBAR BACKGROUND
+   ══════════════════════════════════════════════════════ */
+
+.sidebar {
+    -fx-background-color: #F0F3F7;
+}
+
+/* ══════════════════════════════════════════════════════
+   TYPOGRAPHY SCALE — Consolidated text style classes
+   ══════════════════════════════════════════════════════ */
+
+/* Form field labels: "Epicenter Latitude:", "Depth (km):", etc. */
+.field-label {
+    -fx-font-size: 10px;
+    -fx-text-fill: #334155;
+}
+
+/* Small descriptive text in sidebar panels */
+.text-detail {
+    -fx-font-size: 9.5px;
+    -fx-text-fill: #334155;
+}
+
+/* Subtitles, secondary descriptions */
+.text-subtitle {
+    -fx-font-size: 9.5px;
+    -fx-text-fill: #64748B;
+}
+
+/* Fine-print notes and damage descriptors */
+.text-fine {
+    -fx-font-size: 9px;
+    -fx-text-fill: #64748B;
+}
+
+/* Italic footnotes */
+.text-italic-note {
+    -fx-font-size: 9px;
+    -fx-font-style: italic;
+    -fx-text-fill: #64748B;
+}
+
+/* Italic meaning labels in legend */
+.text-italic-meaning {
+    -fx-font-size: 9.5px;
+    -fx-font-style: italic;
+    -fx-text-fill: #475569;
+}
+
+/* Monospace readout: elapsed time labels */
+.text-monospace {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: #475569;
+}
+
+/* Detail text with warning accent */
+.text-detail-warning {
+    -fx-font-size: 9.5px;
+    -fx-text-fill: #B45309;
+}
+
+/* ══════════════════════════════════════════════════════
+   SEMANTIC STATUS TEXT (for dynamic state labels)
+   ══════════════════════════════════════════════════════ */
+
+.status-text-ready {
+    -fx-font-size: 10px;
+    -fx-text-fill: #475569;
+}
+
+.status-text-warning {
+    -fx-font-size: 10px;
+    -fx-text-fill: #B45309;
+}
+
+.status-text-error {
+    -fx-font-size: 10px;
+    -fx-text-fill: #991B1B;
+}
+
+.status-text-success {
+    -fx-font-size: 10px;
+    -fx-text-fill: #166534;
+}
+
+/* ══════════════════════════════════════════════════════
+   WARNING BANNER (domain warnings, info bar)
+   ══════════════════════════════════════════════════════ */
+
+.warning-banner {
+    -fx-background-color: #FFFBEB;
+    -fx-border-color: #FCD34D;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-padding: 8px;
+}
+
+.warning-banner-title {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #92400E;
+}
+
+.warning-banner-text {
+    -fx-font-size: 9.5px;
+    -fx-text-fill: #B45309;
+}
+
+/* ══════════════════════════════════════════════════════
+   ERROR / DISCLAIMER BANNER
+   ══════════════════════════════════════════════════════ */
+
+.error-banner {
+    -fx-background-color: #FEF2F2;
+    -fx-border-color: #FCA5A5;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-padding: 8px;
+}
+
+.error-banner-title {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #991B1B;
+}
+
+.error-banner-text {
+    -fx-font-size: 9.5px;
+    -fx-text-fill: #7F1D1D;
+}
+
+/* ══════════════════════════════════════════════════════
+   WAVEFRONT LEGEND
+   ══════════════════════════════════════════════════════ */
+
+.wavefront-legend-box {
+    -fx-background-color: #FFFFFF;
+    -fx-padding: 6px;
+    -fx-border-color: #CBD5E1;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.wavefront-legend-title {
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #475569;
+}
+
+/* P-wave and S-wave label colors: intentionally custom, not from a palette */
+.wavefront-p-label {
+    -fx-font-size: 9px;
+    -fx-text-fill: #00A7E1;
+    -fx-font-weight: bold;
+}
+
+.wavefront-s-label {
+    -fx-font-size: 9px;
+    -fx-text-fill: #F0443A;
+    -fx-font-weight: bold;
+}
+
+/* ══════════════════════════════════════════════════════
+   MMI LEGEND TYPOGRAPHY
+   ══════════════════════════════════════════════════════ */
+
+.mmi-roman {
+    -fx-font-weight: bold;
+    -fx-font-size: 10px;
+    -fx-min-width: 32px;
+}
+
+.mmi-shaking {
+    -fx-font-size: 9.5px;
+    -fx-text-fill: #1E293B;
+}
+
+.mmi-damage {
+    -fx-font-size: 9px;
+    -fx-text-fill: #64748B;
+}
+
+/* ══════════════════════════════════════════════════════
+   SLIDER LABEL
+   ══════════════════════════════════════════════════════ */
+
+.slider-label {
+    -fx-font-size: 10px;
+    -fx-text-fill: #334155;
+    -fx-font-weight: 600;
+}
+
+/* ══════════════════════════════════════════════════════
+   IMPORTED FILE INDICATOR
+   ══════════════════════════════════════════════════════ */
+
+.imported-file-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #0D3B66;
+}
+
+/* ══════════════════════════════════════════════════════
+   STARTUP ERROR SCENE
+   ══════════════════════════════════════════════════════ */
+
+.error-heading {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #991B1B;
+}
+
+.error-description {
+    -fx-font-size: 12px;
+    -fx-text-fill: #1E293B;
+}
+
+/* ══════════════════════════════════════════════════════
+   SETTINGS POPUP
+   ══════════════════════════════════════════════════════ */
+
+.settings-label {
+    -fx-font-family: "Segoe UI", "Tahoma", sans-serif;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1E293B;
+}
+
+/* ══════════════════════════════════════════════════════
+   RUPTURE DETAILS TITLED PANE
+   ══════════════════════════════════════════════════════ */
+
+.rupture-details-pane {
+    -fx-font-size: 9px;
+}
