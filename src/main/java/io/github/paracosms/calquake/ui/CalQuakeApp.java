@@ -240,6 +240,7 @@ public class CalQuakeApp extends Application {
     private boolean lastImportedSimulationModified;
     private CheckBox faultGeometryCheckBox;
     private CheckBox mappedFaultsCheckBox;
+    private Label faultsStatusLabel;
     private CheckBox vs30CheckBox;
     private CheckBox streetViewCheckBox;
     private CheckBox scenarioRuptureCheckBox;
@@ -501,6 +502,9 @@ public class CalQuakeApp extends Application {
         if (settingsStage != null) {
             settingsStage.close();
             settingsStage = null;
+        }
+        if (mapCanvasPane != null) {
+            mapCanvasPane.dispose();
         }
         lifecycleStage = null;
         preparationGeneration.incrementAndGet();
@@ -1347,6 +1351,19 @@ public class CalQuakeApp extends Application {
         mappedFaultsCheckBox.getStyleClass().add("status-pane");
         mappedFaultsCheckBox.getStyleClass().add("status-bar-checkbox");
 
+        this.faultsStatusLabel = new Label();
+        faultsStatusLabel.setId("faults-status-label");
+        faultsStatusLabel.getStyleClass().add("status-pane");
+        faultsStatusLabel.getStyleClass().add("faults-status-label");
+        faultsStatusLabel.textProperty().bind(mapCanvasPane.faultsStatusProperty());
+        faultsStatusLabel.visibleProperty().bind(faultsStatusLabel.textProperty().isNotEmpty());
+        faultsStatusLabel.managedProperty().bind(faultsStatusLabel.visibleProperty());
+        faultsStatusLabel.setOnMouseClicked(e -> {
+            if (mapCanvasPane != null) {
+                mapCanvasPane.retryFaults();
+            }
+        });
+
         this.vs30CheckBox = new CheckBox("Vs30");
         vs30CheckBox.setId("vs30-toggle");
         vs30CheckBox.getStyleClass().add("status-pane");
@@ -1375,7 +1392,7 @@ public class CalQuakeApp extends Application {
         lastImportedFileLabel.setVisible(false);
         lastImportedFileLabel.setManaged(false);
 
-        bar.getChildren().addAll(mappedFaultsCheckBox, vs30CheckBox, streetViewCheckBox, scenarioRuptureCheckBox, spacer);
+        bar.getChildren().addAll(mappedFaultsCheckBox, faultsStatusLabel, vs30CheckBox, streetViewCheckBox, scenarioRuptureCheckBox, spacer);
         this.statusBar = bar;
         return bar;
     }
@@ -2874,6 +2891,10 @@ public class CalQuakeApp extends Application {
 
     public CheckBox getMappedFaultsCheckBox() {
         return mappedFaultsCheckBox;
+    }
+
+    public Label getFaultsStatusLabel() {
+        return faultsStatusLabel;
     }
 
     public CheckBox getVs30CheckBox() {

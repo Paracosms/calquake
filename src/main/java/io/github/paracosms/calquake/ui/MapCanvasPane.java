@@ -18,6 +18,11 @@ import io.github.paracosms.calquake.core.RuptureGeometry;
 import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.WavefrontRadii;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
+import javafx.animation.PauseTransition;
+import javafx.beans.InvalidationListener;
+import javafx.beans.property.ReadOnlyStringProperty;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.beans.value.ChangeListener;
 import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -37,10 +42,9 @@ import javafx.scene.shape.StrokeLineJoin;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.util.Duration;
+import javafx.stage.Window;
 
-import io.github.paracosms.calquake.core.MappedFault;
 import io.github.paracosms.calquake.core.Vs30Sample;
-import io.github.paracosms.calquake.data.CaliforniaFaultCatalog;
 import io.github.paracosms.calquake.data.CaliforniaVs30Grid;
 
 import java.util.Locale;
@@ -142,8 +146,15 @@ public class MapCanvasPane extends Pane {
     private boolean showScenarioRupture = true;
     private double mmiBoxSize = DEFAULT_MMI_BOX_SIZE;
 
-    private List<List<ProjectedPoint>> cachedWellConstrainedFaults;
-    private List<List<ProjectedPoint>> cachedInferredFaults;
+    private final FaultRenderingService faultRenderingService;
+    private final PauseTransition faultDebounceTimer;
+    private final ReadOnlyStringWrapper faultsStatus = new ReadOnlyStringWrapper("");
+    private FaultRenderingService.Request lastFaultRequest;
+    private FaultRenderingService.Raster publishedFaultRaster;
+    private Window observedWindow;
+    private boolean disposed;
+    private final InvalidationListener outputScaleListener = observable -> redrawStaticMap();
+    private final ChangeListener<Window> windowListener = (observable, previous, current) -> observeWindow(current);
     private static WritableImage cachedHeatmapImage;
     private static double heatmapMinXKm;
     private static double heatmapMinYKm;
@@ -161,8 +172,17 @@ public class MapCanvasPane extends Pane {
     private static boolean streetViewBoundsInitialized = false;
 
     public MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline) {
+        this(mapScenario, outline, new FaultRenderingService());
+    }
+
+    public MapCanvasPane(Scenario scenario, CaliforniaOutline outline) {
+        this(MapScenario.fromLegacyScenario(scenario), outline);
+    }
+
+    MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline, FaultRenderingService faultRenderingService) {
         this.mapScenario = Objects.requireNonNull(mapScenario, "mapScenario cannot be null");
         this.outline = Objects.requireNonNull(outline, "outline cannot be null");
+        this.faultRenderingService = Objects.requireNonNull(faultRenderingService, "faultRenderingService cannot be null");
 
         this.projection = MercatorProjection.californiaDefault();
         this.projectedBounds = outline.computeProjectedBoundingBox(projection);
@@ -183,16 +203,35 @@ public class MapCanvasPane extends Pane {
 
         getChildren().addAll(staticCanvas, dynamicCanvas);
 
+        this.faultDebounceTimer = new PauseTransition(Duration.millis(75));
+        this.faultDebounceTimer.setOnFinished(e -> {
+            if (!disposed && showMappedFaults && lastFaultRequest != null) {
+                faultRenderingService.requestRender(lastFaultRequest);
+            }
+        });
+        this.faultRenderingService.setOnChange(() -> {
+            String message = faultRenderingService.statusMessage();
+            if (message.isEmpty() && faultRenderingService.currentRaster() == null) {
+                message = "Loading faults…"; // Also cover the debounce interval before the first raster.
+            }
+            faultsStatus.set(showMappedFaults ? message : "");
+            if (publishedFaultRaster != faultRenderingService.currentRaster()) {
+                publishedFaultRaster = faultRenderingService.currentRaster();
+                if (showMappedFaults) redrawStaticMap();
+            }
+        });
+        sceneProperty().addListener((observable, previous, current) -> {
+            if (previous != null) previous.windowProperty().removeListener(windowListener);
+            if (current != null && !disposed) current.windowProperty().addListener(windowListener);
+            observeWindow(current == null ? null : current.getWindow());
+        });
+
         this.mapTooltip = new Tooltip();
         mapTooltip.setShowDelay(Duration.millis(80));
         mapTooltip.setHideDelay(Duration.millis(150));
         setupMouseInteractions();
 
         updateTransform(BASELINE_VIEWPORT_WIDTH, BASELINE_VIEWPORT_HEIGHT);
-    }
-
-    public MapCanvasPane(Scenario scenario, CaliforniaOutline outline) {
-        this(MapScenario.fromLegacyScenario(scenario), outline);
     }
 
     @Override
@@ -255,6 +294,11 @@ public class MapCanvasPane extends Pane {
     public void setMappedFaultsVisible(boolean visible) {
         if (this.showMappedFaults != visible) {
             this.showMappedFaults = visible;
+            lastFaultRequest = null;
+            if (!visible) {
+                faultDebounceTimer.stop();
+                faultRenderingService.cancelActiveRender();
+            }
             redrawStaticMap();
         }
     }
@@ -606,73 +650,51 @@ public class MapCanvasPane extends Pane {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
-    private void ensureFaultCatalogCached() {
-        if (cachedWellConstrainedFaults != null && cachedInferredFaults != null) {
+    private void drawMappedFaults(GraphicsContext gc) {
+        if (disposed || !showMappedFaults || currentTransform == null) {
             return;
         }
-        CaliforniaFaultCatalog catalog = CaliforniaFaultCatalog.loadDefault();
-        if (catalog == null) {
-            return;
+        double w = getWidth() > 0 ? getWidth() : BASELINE_VIEWPORT_WIDTH;
+        double h = getHeight() > 0 ? getHeight() : BASELINE_VIEWPORT_HEIGHT;
+        var request = new FaultRenderingService.Request(currentTransform, w, h, getDisplayScale());
+        if (!request.equals(lastFaultRequest)) {
+            boolean firstRequest = lastFaultRequest == null;
+            lastFaultRequest = request;
+            // Invalidate immediately, including the debounce interval, so old completions cannot win.
+            faultRenderingService.cancelActiveRender();
+            if (firstRequest) faultRenderingService.requestRender(request);
+            else faultDebounceTimer.playFromStart();
         }
-        List<List<ProjectedPoint>> well = new ArrayList<>();
-        List<List<ProjectedPoint>> inferred = new ArrayList<>();
+        var raster = faultRenderingService.currentRaster();
+        if (raster == null) return;
 
-        for (MappedFault fault : catalog.faults()) {
-            List<List<ProjectedPoint>> projected = fault.project(projection);
-            if (fault.isWellConstrained()) {
-                well.addAll(projected);
-            } else {
-                inferred.addAll(projected);
-            }
-        }
-        this.cachedWellConstrainedFaults = List.copyOf(well);
-        this.cachedInferredFaults = List.copyOf(inferred);
+        ViewportTransform rasterT = raster.request().transform();
+        double scaleRatio = currentTransform.scalePxPerKm() / rasterT.scalePxPerKm();
+
+        double destX = currentTransform.originScreenXPx() - rasterT.originScreenXPx() * scaleRatio;
+        double destY = currentTransform.originScreenYPx() - rasterT.originScreenYPx() * scaleRatio;
+        double destW = raster.request().widthPx() * scaleRatio;
+        double destH = raster.request().heightPx() * scaleRatio;
+
+        gc.drawImage(raster.image(), destX, destY, destW, destH);
     }
 
-    private void drawMappedFaults(GraphicsContext gc) {
-        if (!showMappedFaults || currentTransform == null) {
-            return;
-        }
-        ensureFaultCatalogCached();
-        if (cachedWellConstrainedFaults == null || cachedInferredFaults == null) {
-            return;
-        }
+    private double getDisplayScale() {
+        return observedWindow == null ? 1.0
+                : Math.max(observedWindow.getOutputScaleX(), observedWindow.getOutputScaleY());
+    }
 
-        gc.save();
-        gc.setLineWidth(1.1);
-        gc.setLineCap(StrokeLineCap.ROUND);
-        gc.setLineJoin(StrokeLineJoin.ROUND);
-
-        // Inferred/concealed faults (dashed line)
-        gc.setStroke(Color.web("#36A6A6", 0.40));
-        gc.setLineDashes(4.0, 3.0);
-        for (List<ProjectedPoint> part : cachedInferredFaults) {
-            if (part.size() < 2) continue;
-            gc.beginPath();
-            ScreenPoint first = currentTransform.toScreen(part.get(0));
-            gc.moveTo(first.xPx(), first.yPx());
-            for (int i = 1; i < part.size(); i++) {
-                ScreenPoint pt = currentTransform.toScreen(part.get(i));
-                gc.lineTo(pt.xPx(), pt.yPx());
-            }
-            gc.stroke();
+    private void observeWindow(Window window) {
+        if (observedWindow != null) {
+            observedWindow.outputScaleXProperty().removeListener(outputScaleListener);
+            observedWindow.outputScaleYProperty().removeListener(outputScaleListener);
         }
-
-        // Well-constrained faults (solid line)
-        gc.setStroke(Color.web("#36A6A6", 0.65));
-        gc.setLineDashes();
-        for (List<ProjectedPoint> part : cachedWellConstrainedFaults) {
-            if (part.size() < 2) continue;
-            gc.beginPath();
-            ScreenPoint first = currentTransform.toScreen(part.get(0));
-            gc.moveTo(first.xPx(), first.yPx());
-            for (int i = 1; i < part.size(); i++) {
-                ScreenPoint pt = currentTransform.toScreen(part.get(i));
-                gc.lineTo(pt.xPx(), pt.yPx());
-            }
-            gc.stroke();
+        observedWindow = disposed ? null : window;
+        if (observedWindow != null) {
+            observedWindow.outputScaleXProperty().addListener(outputScaleListener);
+            observedWindow.outputScaleYProperty().addListener(outputScaleListener);
         }
-        gc.restore();
+        if (!disposed) redrawStaticMap();
     }
 
     private void drawScenarioRupture(GraphicsContext gc, FrameState frame) {
@@ -1516,5 +1538,22 @@ public class MapCanvasPane extends Pane {
                     locState.distanceKm(), locState.sArrivalTimeSeconds()));
         }
         return sb.toString();
+    }
+
+    public void dispose() {
+        disposed = true;
+        faultDebounceTimer.stop();
+        if (getScene() != null) getScene().windowProperty().removeListener(windowListener);
+        observeWindow(null);
+        faultRenderingService.close();
+        publishedFaultRaster = null;
+    }
+
+    public ReadOnlyStringProperty faultsStatusProperty() {
+        return faultsStatus.getReadOnlyProperty();
+    }
+
+    public void retryFaults() {
+        if (showMappedFaults) faultRenderingService.retry();
     }
 }
