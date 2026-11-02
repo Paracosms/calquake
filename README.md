@@ -22,6 +22,7 @@ The application features:
 - **Safe background switching:** Event/mode changes pause and reset playback, prepare off the JavaFX thread, reject stale results, and cache immutable replays for the session.
 - **Geodetic Accuracy:** Standard conformal Mercator projection on a reference 6,371 km sphere ensuring static state boundaries, true vertical orientation, and exact physical geodesic wavefront modeling.
 - **Self-Contained & Offline:** Live preparation and playback are Java-only, use bundled resources, and perform no network or Python work.
+- **Street View basemap:** The road/topographic layer uses 16 bundled JPEGs, each 2048 × 2304 pixels (8192 × 9216 statewide). Visible tiles load asynchronously at 512, 1024, or 2048 pixels wide according to zoom and display density, with a 128 MiB decoded-image cache budget. Zoom can reveal the original image detail, but labels are baked into the JPEGs; deeper zoom cannot add streets or relayout labels. That requires a basemap authored at multiple zoom levels or vector data with separately rendered labels.
 - **Authoritative Geodata Reference Layers:**
   - **Mapped Quaternary Faults:** Statewide fault traces (59,491 features normalized from USGS QFaults Layer 4) rendered as a muted reference layer (solid for well-constrained, dashed for inferred/concealed). Displayed independently from the active scenario rupture to prevent conflating mapped traces with causal faulting.
   - **Spatial Vs30 Grid & Heatmap:** Authoritative USGS Global Vs30 Mosaic sampled deterministically at 30 arc-second resolution ($1320 \times 1260$ cells) across California. Replaces hard-coded 760 m/s assumptions with coordinate-resolved soil conditions. Toggleable perceptual log-scale heatmap with numeric legend ticks (150, 300, 760, 1500 m/s) masked to the California landmass.
@@ -96,3 +97,5 @@ The scientific configuration, equations, domains, limitations, data provenance, 
 - **Hadley, D. M., & Kanamori, H. (1977)**: *Seismic structure of the Transverse Ranges, California.* Geological Society of America Bulletin, 88(10), 1469-1478.
 - **TauP Toolkit**: Crotwell, H. P., Owens, T. J., & Ritsema, J. (1999). *The TauP Toolkit: Flexible seismic travel-time and ray-path utilities.* Seismological Research Letters, 70(2), 154-160.
 - **GeographicLib-Java**: Karney, C. F. F. (2013). *Algorithms for geodesics.* Journal of Geodesy, 87(1), 43-55.
+
+- **County Lines:** Optional vector overlay from the [U.S. Census Bureau 2020 cartographic boundary file](https://www.census.gov/geographies/mapping-files/2020/geo/carto-boundary-file.html) at 1:20,000,000 scale. Shared boundary segments are deduplicated; the bundled data covers all 58 counties and works offline.

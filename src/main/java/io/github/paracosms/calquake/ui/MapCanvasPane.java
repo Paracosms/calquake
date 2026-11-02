@@ -18,6 +18,7 @@ import io.github.paracosms.calquake.core.RuptureGeometry;
 import io.github.paracosms.calquake.core.SimulationSite;
 import io.github.paracosms.calquake.core.WavefrontRadii;
 import io.github.paracosms.calquake.data.CaliforniaOutline;
+import io.github.paracosms.calquake.data.CaliforniaCounties;
 import javafx.animation.PauseTransition;
 import javafx.beans.InvalidationListener;
 import javafx.beans.property.ReadOnlyStringProperty;
@@ -143,6 +144,8 @@ public class MapCanvasPane extends Pane {
     private boolean showMappedFaults = false;
     private boolean showVs30Heatmap = false;
     private boolean showStreetView = true;
+    private boolean showCountyLines = false;
+    private List<List<ProjectedPoint>> countyRings;
     private boolean showScenarioRupture = true;
     private double mmiBoxSize = DEFAULT_MMI_BOX_SIZE;
 
@@ -162,14 +165,7 @@ public class MapCanvasPane extends Pane {
     private static double heatmapHeightKm;
     private static boolean heatmapBoundsInitialized = false;
 
-    private static final Image[][] cachedStreetViewTiles = new Image[STREET_VIEW_GRID_ROWS][STREET_VIEW_GRID_COLS];
-    private static double streetViewMinXKm;
-    private static double streetViewMinYKm;
-    private static double streetViewMaxXKm;
-    private static double streetViewMaxYKm;
-    private static double streetViewColWidthKm;
-    private static double streetViewRowHeightKm;
-    private static boolean streetViewBoundsInitialized = false;
+    private final StreetViewTiles streetViewTiles = new StreetViewTiles(this::redrawStaticMap);
 
     public MapCanvasPane(MapScenario mapScenario, CaliforniaOutline outline) {
         this(mapScenario, outline, new FaultRenderingService());
@@ -321,6 +317,17 @@ public class MapCanvasPane extends Pane {
     public void setStreetViewVisible(boolean visible) {
         if (this.showStreetView != visible) {
             this.showStreetView = visible;
+            if (!visible) streetViewTiles.cancelPending();
+            redrawStaticMap();
+        }
+    }
+
+    public void setCountyLinesVisible(boolean visible) {
+        if (showCountyLines != visible) {
+            showCountyLines = visible;
+            if (visible && countyRings == null) {
+                countyRings = CaliforniaCounties.loadProjected(projection);
+            }
             redrawStaticMap();
         }
     }
@@ -416,6 +423,8 @@ public class MapCanvasPane extends Pane {
         // 4. Vs30 Heatmap (clipped to California outline)
         drawVs30Heatmap(gc);
 
+        if (showCountyLines) drawCountyLines(gc);
+
         // 5. Mapped Faults Reference Layer (USGS QFaults)
         drawMappedFaults(gc);
 
@@ -426,25 +435,35 @@ public class MapCanvasPane extends Pane {
         drawLayerLegends(gc, w, h);
     }
 
+    private void drawCountyLines(GraphicsContext gc) {
+        gc.save();
+        gc.setStroke(Color.web("#52616B"));
+        gc.setLineWidth(1.0);
+        gc.setLineCap(StrokeLineCap.ROUND);
+        gc.setLineJoin(StrokeLineJoin.ROUND);
+        for (List<ProjectedPoint> ring : countyRings) {
+            if (ring.isEmpty()) continue;
+            ScreenPoint first = currentTransform.toScreen(ring.get(0));
+            gc.beginPath();
+            gc.moveTo(first.xPx(), first.yPx());
+            for (int i = 1; i < ring.size(); i++) {
+                ScreenPoint point = currentTransform.toScreen(ring.get(i));
+                gc.lineTo(point.xPx(), point.yPx());
+            }
+            gc.stroke();
+        }
+        gc.restore();
+    }
+
     private void drawStreetView(GraphicsContext gc) {
         if (!showStreetView || currentTransform == null) {
             return;
         }
-        ensureStreetViewImageCached();
-
-        boolean anyLoaded = false;
-        for (int r = 0; r < STREET_VIEW_GRID_ROWS; r++) {
-            for (int c = 0; c < STREET_VIEW_GRID_COLS; c++) {
-                if (cachedStreetViewTiles[r][c] != null) {
-                    anyLoaded = true;
-                    break;
-                }
-            }
-            if (anyLoaded) break;
-        }
-        if (!anyLoaded) {
-            return;
-        }
+        double viewportWidth = staticCanvas.getWidth();
+        double viewportHeight = staticCanvas.getHeight();
+        var tiles = StreetViewTiles.visibleTiles(projection, currentTransform, viewportWidth, viewportHeight);
+        int imageWidth = StreetViewTiles.requestedWidth(tiles, getDisplayScale());
+        streetViewTiles.prepare(tiles, imageWidth);
 
         gc.save();
         // Mask Street View to the California landmass polygon rings
@@ -462,79 +481,14 @@ public class MapCanvasPane extends Pane {
         }
         gc.clip();
 
-        double scale = currentTransform.scalePxPerKm();
-
-        for (int r = 0; r < STREET_VIEW_GRID_ROWS; r++) {
-            double cellMinYKm = streetViewMinYKm + r * streetViewRowHeightKm;
-            double cellMaxYKm = (r == STREET_VIEW_GRID_ROWS - 1) ? streetViewMaxYKm : cellMinYKm + streetViewRowHeightKm;
-
-            for (int c = 0; c < STREET_VIEW_GRID_COLS; c++) {
-                Image tile = cachedStreetViewTiles[r][c];
-                if (tile == null) continue;
-
-                double cellMinXKm = streetViewMinXKm + c * streetViewColWidthKm;
-                double cellMaxXKm = (c == STREET_VIEW_GRID_COLS - 1) ? streetViewMaxXKm : cellMinXKm + streetViewColWidthKm;
-
-                ScreenPoint topLeft = currentTransform.toScreen(cellMinXKm, cellMinYKm);
-                double w = (cellMaxXKm - cellMinXKm) * scale;
-                double h = (cellMaxYKm - cellMinYKm) * scale;
-
-                // Subpixel seam compensation: + 0.5 px overlap prevents hairline gaps
-                gc.drawImage(tile, topLeft.xPx(), topLeft.yPx(), w + 0.5, h + 0.5);
+        for (var tile : tiles) {
+            Image image = streetViewTiles.imageFor(tile, imageWidth);
+            if (image != null) {
+                // Subpixel seam compensation prevents hairline gaps between adjacent tiles.
+                gc.drawImage(image, tile.x(), tile.y(), tile.width() + 0.5, tile.height() + 0.5);
             }
         }
-
         gc.restore();
-    }
-
-    private synchronized void ensureStreetViewImageCached() {
-        if (!streetViewBoundsInitialized) {
-            ProjectedPoint nw = projection.project(new GeoPoint(STREET_VIEW_NORTH, STREET_VIEW_WEST));
-            ProjectedPoint se = projection.project(new GeoPoint(STREET_VIEW_SOUTH, STREET_VIEW_EAST));
-
-            streetViewMinXKm = nw.xKm();
-            streetViewMinYKm = nw.yKm();
-            streetViewMaxXKm = se.xKm();
-            streetViewMaxYKm = se.yKm();
-            streetViewColWidthKm = (streetViewMaxXKm - streetViewMinXKm) / (double) STREET_VIEW_GRID_COLS;
-            streetViewRowHeightKm = (streetViewMaxYKm - streetViewMinYKm) / (double) STREET_VIEW_GRID_ROWS;
-            streetViewBoundsInitialized = true;
-        }
-
-        boolean allLoaded = true;
-        for (int r = 0; r < STREET_VIEW_GRID_ROWS; r++) {
-            for (int c = 0; c < STREET_VIEW_GRID_COLS; c++) {
-                if (cachedStreetViewTiles[r][c] == null) {
-                    allLoaded = false;
-                    break;
-                }
-            }
-            if (!allLoaded) break;
-        }
-        if (allLoaded) {
-            return;
-        }
-
-        for (int r = 0; r < STREET_VIEW_GRID_ROWS; r++) {
-            for (int c = 0; c < STREET_VIEW_GRID_COLS; c++) {
-                if (cachedStreetViewTiles[r][c] == null) {
-                    String res = String.format(STREET_VIEW_RESOURCE_FORMAT, r, c);
-                    cachedStreetViewTiles[r][c] = loadStreetViewTile(res);
-                }
-            }
-        }
-    }
-
-    private static Image loadStreetViewTile(String resourcePath) {
-        try (var is = MapCanvasPane.class.getResourceAsStream(resourcePath)) {
-            if (is != null) {
-                // 1024 x 1152 px per tile yields 4,096 x 4,608 px across all 16 tiles (72 MB VRAM),
-                // strictly preventing Direct3D texture pool exhaustion while delivering over 19 Megapixels of Zoom 10 cartography.
-                return new Image(is, 1024, 1152, true, true);
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
     }
 
     private void drawVs30Heatmap(GraphicsContext gc) {
@@ -1546,6 +1500,7 @@ public class MapCanvasPane extends Pane {
         if (getScene() != null) getScene().windowProperty().removeListener(windowListener);
         observeWindow(null);
         faultRenderingService.close();
+        streetViewTiles.close();
         publishedFaultRaster = null;
     }
 

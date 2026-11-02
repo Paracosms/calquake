@@ -243,6 +243,7 @@ public class CalQuakeApp extends Application {
     private Label faultsStatusLabel;
     private CheckBox vs30CheckBox;
     private CheckBox streetViewCheckBox;
+    private CheckBox countyLinesCheckBox;
     private CheckBox scenarioRuptureCheckBox;
     private Label simAssumptionsSiteLabel;
     private Label simAssumptionsFallbackLabel;
@@ -1375,6 +1376,11 @@ public class CalQuakeApp extends Application {
         streetViewCheckBox.getStyleClass().add("status-pane");
         streetViewCheckBox.getStyleClass().add("status-bar-checkbox");
 
+        this.countyLinesCheckBox = new CheckBox("County Lines");
+        countyLinesCheckBox.setId("county-lines-toggle");
+        countyLinesCheckBox.getStyleClass().add("status-pane");
+        countyLinesCheckBox.getStyleClass().add("status-bar-checkbox");
+
         this.scenarioRuptureCheckBox = new CheckBox("Derived Rupture");
         scenarioRuptureCheckBox.setId("scenario-rupture-toggle");
         scenarioRuptureCheckBox.setSelected(true);
@@ -1392,7 +1398,7 @@ public class CalQuakeApp extends Application {
         lastImportedFileLabel.setVisible(false);
         lastImportedFileLabel.setManaged(false);
 
-        bar.getChildren().addAll(mappedFaultsCheckBox, faultsStatusLabel, vs30CheckBox, streetViewCheckBox, scenarioRuptureCheckBox, spacer);
+        bar.getChildren().addAll(mappedFaultsCheckBox, faultsStatusLabel, vs30CheckBox, streetViewCheckBox, countyLinesCheckBox, scenarioRuptureCheckBox, spacer);
         this.statusBar = bar;
         return bar;
     }
@@ -1686,6 +1692,14 @@ public class CalQuakeApp extends Application {
             streetViewCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
                 if (mapCanvasPane != null) {
                     mapCanvasPane.setStreetViewVisible(newVal);
+                }
+            });
+        }
+
+        if (countyLinesCheckBox != null) {
+            countyLinesCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                if (mapCanvasPane != null) {
+                    mapCanvasPane.setCountyLinesVisible(newVal);
                 }
             });
         }
